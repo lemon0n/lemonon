@@ -31,6 +31,8 @@ body{margin:0}
 .nav-i.on{border-left-color:var(--blue);background:var(--blue-l);color:var(--blue-d);font-weight:650}
 .side-foot{margin-top:auto;padding:12px 16px;border-top:1px solid var(--line);
   font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;white-space:nowrap}
+.side-unlock{color:var(--blue);font-weight:650;cursor:pointer}
+.side-unlock:hover{text-decoration:underline}
 /* 收起态：只留图标，正文区域变宽 */
 .side.collapsed{width:56px}
 .side.collapsed .nav-i{padding:13px 0;justify-content:center;gap:0}
@@ -166,3 +168,18 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .notice.err{background:#fdf2f1;border-color:#f3c6c0;color:#8c2b20}
 .notice.err b{color:var(--up)}
 .flash{color:#e9f6ee;font-size:11.5px;margin-right:12px}
+/* 持仓口令锁：仓库里只有密文，解锁后才显示持仓页 */
+.lock{position:fixed;inset:0;z-index:99;display:none;align-items:center;justify-content:center;
+  background:rgba(18,32,56,.58);padding:20px}
+.lock.on{display:flex}
+.lock-box{width:370px;max-width:94vw;background:#fff;border:1px solid var(--line);
+  padding:24px 24px 16px;box-shadow:0 18px 44px rgba(12,30,60,.3)}
+.lock-t{font-size:16px;font-weight:750;color:var(--blue-d)}
+.lock-d{font-size:11.5px;line-height:1.75;color:var(--muted);margin:8px 0 14px}
+.lock-box input[type=password]{width:100%;border:1px solid var(--line);padding:9px 10px;
+  font-family:inherit;font-size:13px;color:var(--text)}
+.lock-box input[type=password]:focus{outline:1px solid var(--blue);outline-offset:-1px}
+.lock-rm{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin:9px 0 14px}
+.lock-btns{display:flex;gap:8px;flex-wrap:wrap}
+.lock-msg{min-height:16px;margin-top:10px;font-size:11.5px;color:var(--warn);line-height:1.6}
+.nav-i.hide{display:none}

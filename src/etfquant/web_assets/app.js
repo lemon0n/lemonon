@@ -3,11 +3,13 @@
 var D = null;
 
 /* 持仓只保存在本机浏览器，不上传、不进仓库；页面产物里没有任何持仓数据 */
-var STORE = 'etf_positions_v2';
+var STORE = 'etf_positions_v2';   /* 本机草稿缓存，加密文件才是云端主副本 */
+var PASS = '';                    /* 解锁口令，只存在内存 / 可选本机会话 */
 var HOLD = {rows: [], cash: 0};   /* 已保存的持仓 */
 var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
 var PQ = {};                      /* 非观察池标的的实时价缓存 {last,prev,chg} */
 var PERF = null, PERF_BUSY = false;
+var ENC = null, ENC_LOADING = null;   /* 云端密文包 */
 
 /* ---------------- 基础工具 ---------------- */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -181,9 +183,9 @@ function refreshQuotes(){
   });
 }
 
-/* ---------------- 持仓：本机存储 + 实时重算 ----------------
-   公开仓库 / 页面产物里没有任何持仓数据；录入的内容只写 localStorage，
-   换浏览器或清缓存会丢，用「导出 CSV」备份。 */
+/* ---------------- 持仓：云端密文 + 本机解密 ----------------
+   仓库里只有 positions.enc.json 密文（AES-GCM + PBKDF2），口令不上传；
+   解锁后在本机浏览器解密、计算，localStorage 仅作草稿缓存。 */
 function legOf(code){
   var a=D.legs||[];
   for(var i=0;i<a.length;i++) if(String(a[i].code)===String(code)) return a[i];
@@ -195,13 +197,6 @@ function priceOf(code){
   var l=legOf(code);
   if(l&&n(l.last)>0) return {last:n(l.last),prev:null,chg:l.change};
   return null;
-}
-function holdLoad(){
-  try{
-    var s=JSON.parse(localStorage.getItem(STORE)||'null');
-    if(s&&Array.isArray(s.rows)) return {rows:s.rows,cash:n(s.cash)};
-  }catch(e){}
-  return {rows:[],cash:0};
 }
 function holdSave(){
   try{ localStorage.setItem(STORE,JSON.stringify({rows:HOLD.rows,cash:HOLD.cash})); }
@@ -372,9 +367,9 @@ function kpi(k,v,d,warn){
 function fy(v){ return v==null?'—':'¥'+Math.round(n(v)).toLocaleString(); }
 function page5(){
   var h='<div class="pg-h"><h1>持仓分析</h1>'+
-    '<p class="pg-sub">只在本机浏览器计算：持仓与成本保存在 localStorage，不上传、不进仓库。</p></div>';
+    '<p class="pg-sub">解锁后在本机浏览器解密计算；仓库里只有密文，没有明文持仓。</p></div>';
   if(!HOLD.rows.length){
-    return h+'<div class="notice">还没有录入持仓。到左侧「持仓设置」新增标的或导入 CSV 后，这里会显示组合概览、健康分项与逐只盈亏。</div>';
+    return h+'<div class="notice">还没有录入持仓。到左侧「持仓设置」新增标的或导入 CSV，再点「保存到云端」生成密文文件。</div>';
   }
   var p=calcPort(),H=healthOf(p);
   var over=Math.round((p.positionPct-H.fit_hi)*100)/100;
@@ -416,7 +411,8 @@ function page5(){
   h+=sec('组合绩效 · 近 60 个交易日');
   h+=box('<div id="perfBox"><div class="notice">正在获取历史收盘价…</div></div>');
 
-  h+='<div class="notice">持仓数据只写在本机浏览器（localStorage 键 <b>'+STORE+'</b>），页面产物与仓库里没有任何持仓内容；换设备或清缓存会丢失，可在「持仓设置」导出 CSV 备份。</div>';
+  h+='<div class="notice">持仓以 AES-GCM 密文保存在仓库的 <b>positions.enc.json</b>，口令不上传；'+
+    '解密与计算只在本机浏览器完成。换设备后输入同一口令即可恢复。</div>';
   return h;
 }
 
@@ -551,9 +547,11 @@ function page7(){
   if(!EDIT) draftReset();
   var s=draftCalc();
   var h='<div class="pg-h"><h1>持仓设置</h1>'+
-    '<p class="pg-sub">在这里录入自己的持仓与成本。数据只保存在本机浏览器，页面与仓库都不会包含。</p></div>';
+    '<p class="pg-sub">录入持仓与成本，用口令加密后写入仓库；公开访客只能看到密文。</p></div>';
   h+='<div class="bar-actions">'+
     '<button class="btn" onclick="saveAll()">保存</button>'+
+    '<button class="btn" onclick="saveCloud()">保存到云端（导出密文）</button>'+
+    '<button class="btn ghost" onclick="changePass()">改口令</button>'+
     '<button class="btn ghost" onclick="addRow()">新增一行</button>'+
     '<button class="btn ghost" onclick="pickCsv()">导入 CSV</button>'+
     '<button class="btn ghost" onclick="exportCsv()">导出 CSV</button>'+
@@ -573,8 +571,8 @@ function page7(){
     '<div class="kpi"><div class="k">总仓位 / 浮动盈亏</div><div class="v" id="sumPos">'+f2(s.positionPct)+'%</div>'+
       '<div class="d" id="sumPnl">'+col(s.pnlPct)+'　'+fy(s.sumPnl)+'</div></div>'+
     '</div>';
-  h+='<div class="notice">持仓只写在 localStorage（键 <b>'+STORE+'</b>）。同一浏览器长期有效；换设备、清缓存或换域名都会丢失，建议定期「导出 CSV」。'+
-    '导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
+  h+='<div class="notice">「保存到云端」会用当前口令加密，下载 <b>positions.enc.json</b>；把它替换仓库 <code>web/positions.enc.json</code> 并推送，每日更新与后续 Agent 都能读到密文。'+
+    '口令忘了无法恢复，请自行保管。导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
   return h;
 }
 
@@ -746,127 +744,196 @@ function page1(){
   return h;
 }
 
-/* ---------------- p3 标的跟踪 ---------------- */
-function page3(){
-  var L=D.legs||[], O=D.orders||[];
-  var h='<div class="pg-h"><h1>标的跟踪</h1>'+
-    '<p class="pg-sub">公开 ETF 观察池的均线、量能、结构与参考价位。只做技术面记录，不涉及任何账户或持仓信息。</p></div>';
+/* ---------------- 持仓解锁：仓库密文 → 本机解密 ----------------
+   positions.enc.json 里只有 AES-GCM 密文，密钥由口令 PBKDF2 派生；
+   口令只在内存（可选本机），解密全部在浏览器里完成。 */
+var ENCFILE='positions.enc.json', ENC_ITER=210000;
 
-  h+=sec('观察池 · '+L.length+' 只');
-  h+=box(bt('一览')+tbl(['代码','标的','类别','最新价','当日','分诊','分支','触发价','止损','止盈'],
-    L.map(function(l){
-      var o=l.order||{};
-      return tr([esc(l.code),lnk('https://quote.eastmoney.com/'+(String(l.code)[0]==='5'?'sh':'sz')+l.code,l.name),
-        esc(l.category),f2(l.last),col(l.change),
-        '<span class="dg">'+esc(l.level)+'</span>',esc(l.branch),
-        f2(o.trigger),esc(o.stop_ma)+' '+f2(o.stop_price),f2(o.take_profit)]);
-    }),['','','','r','r','','','r','r','r']));
-
-  h+=sec('逐只技术面');
-  L.forEach(function(l){
-    var o=l.order||{};
-    h+='<div class="leg"><div class="leg-h"><span class="dg">'+esc(l.level)+'</span>'+
-      '<span class="code">'+esc(l.code)+'</span><span class="nm">'+esc(l.name)+'</span>'+
-      tag(l.branch, l.level==='A'?'buy':(l.level==='D'?'sell':'hold'))+
-      '<span class="sp">'+esc(l.category)+(l.track?' · 跟踪 '+esc(l.track):'')+'</span></div>';
-    h+='<div class="leg-b"><div class="mini">'+[
-      ['最新价',f2(l.last)],['当日',col(l.change)],['五均线',esc(l.five)],
-      ['均线',esc(l.ma_state)],['MA5',f2(l.ma5)],['MA10',f2(l.ma10)],
-      ['MA20',f2(l.ma20)],['MA60',f2(l.ma60)]
-    ].map(function(x){ return '<div class="m"><div class="k">'+x[0]+'</div><div class="v">'+x[1]+'</div></div>'; }).join('')+'</div>';
-    h+='<div class="grid2"><div>'+kv([
-      ['周期位置',esc(l.cycle)],['量能确认',esc(l.vol)+'（量比 '+l.vol_ratio+'）'],
-      ['真假突破',esc(l.breakout)+'（'+l.true_cnt+'/4）'],['折溢价',premTxt(l)],
-      ['相对大盘',esc(l.rs)+'（超额 '+l.excess5+'pct）'],
-      ['支撑位','MA5 '+f2(l.support.ma5)+' / MA10 '+f2(l.support.ma10)+' / 前低 '+f2(l.support.prev_low)],
-      ['减仓参考','20日高 '+f2(l.reduce.high20)+' / 上影 '+l.reduce.upper_shadow_pct+'%'],
-      ['止损参考','MA10 '+f2(l.stop.buy1_price)+' / MA5 '+f2(l.stop.buy2_price)]
-    ])+'</div><div>'+bt('次日参考价位')+
-      tbl(['方向','触发','止损','止盈','校验'],
-        [tr([tag(o.side,o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),
-             f2(o.trigger),esc(o.stop_ma)+' '+f2(o.stop_price),f2(o.take_profit),
-             o.ok?'<span class="down">OK</span>':'<span class="up">ERR</span>'])])+
-      kv([['MA120',f2(l.ma120)],['综合分',String(l.score.total)+'（第 '+l.score.rank+' 名）'],
-          ['动量 / 资金 / 趋势',l.score.momentum+' / '+l.score.fund+' / '+l.score.trend],
-          ['风险标记',esc((l.risk||[]).join('、'))||'—'],
-          ['说明',esc(o.reason||'—')]])+
-      '</div></div></div></div>';
+function b64ToBuf(s){
+  var bin=atob(String(s||'')), u=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  return u;
+}
+function bufToB64(buf){
+  var u=new Uint8Array(buf), s='';
+  for(var i=0;i<u.length;i++) s+=String.fromCharCode(u[i]);
+  return btoa(s);
+}
+function aesKey(pass,salt,iter){
+  return crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey'])
+    .then(function(k){
+      return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:iter,hash:'SHA-256'},
+        k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+    });
+}
+function decBlob(blob,pass){
+  if(!blob||!blob.ct) return Promise.reject(new Error('密文格式不对'));
+  var salt=b64ToBuf(blob.salt), iv=b64ToBuf(blob.iv);
+  return aesKey(pass,salt,blob.iter||ENC_ITER).then(function(key){
+    return crypto.subtle.decrypt({name:'AES-GCM',iv:iv},key,b64ToBuf(blob.ct));
+  }).then(function(buf){ return JSON.parse(new TextDecoder().decode(buf)); });
+}
+function encBlob(obj,pass){
+  var salt=crypto.getRandomValues(new Uint8Array(16));
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  return aesKey(pass,salt,ENC_ITER).then(function(key){
+    return crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,
+      new TextEncoder().encode(JSON.stringify(obj)));
+  }).then(function(ct){
+    return {v:1,kdf:'PBKDF2-SHA256',iter:ENC_ITER,
+      salt:bufToB64(salt),iv:bufToB64(iv),ct:bufToB64(ct)};
   });
-
-  h+=sec('参考价位汇总');
-  h+='<div class="grid4">'+[
-    ['观察标的',String(O.length)+' 只',''],
-    ['偏多',String(O.filter(function(o){return o.action==='BUY';}).length)+' 只',''],
-    ['偏空 / 减仓',String(O.filter(function(o){return o.action.indexOf('SELL')===0;}).length)+' 只',''],
-    ['价位校验',String(O.filter(function(o){return o.ok;}).length)+' / '+O.length,'']
-  ].map(function(k){ return '<div class="kpi"><div class="k">'+k[0]+'</div><div class="v">'+k[1]+
-      '</div><div class="d">'+k[2]+'</div></div>'; }).join('')+'</div>';
-  h+=box(bt('逐只参考价位')+tbl(['代码','名称','分诊','方向','分支','触发价','止损','止盈','校验','依据'],
-    O.map(function(o){ return tr([esc(o.code),esc(o.name),'<span class="dg">'+esc(o.level)+'</span>',
-      tag(o.side,o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),esc(o.branch),
-      f2(o.trigger),esc(o.stop_ma)+' '+f2(o.stop_price),f2(o.take_profit),
-      o.ok?'<span class="down">OK</span>':'<span class="up">ERR</span>',esc(o.reason)]); })));
-  h+=box(bt('打分排名')+tbl(['排名','标的','分诊','综合分','动量','资金','趋势','溢价扣分','分支'],
-    L.slice().sort(function(a,b){return a.score.rank-b.score.rank;}).map(function(l){
-      return tr([String(l.score.rank),esc(l.code)+' '+esc(l.name),'<span class="dg">'+esc(l.level)+'</span>',
-        String(l.score.total),String(l.score.momentum),String(l.score.fund),String(l.score.trend),
-        String(l.score.premium_penalty),esc(l.branch)]); })));
-  return h;
 }
-
-/* ---------------- p6 系统状态 ---------------- */
-function chState(name){
-  var s=(D.meta.source&&D.meta.source.channels)||{};
-  if(name==='daily'){
-    var m=s.daily||{}, vs=Object.keys(m).map(function(k){ return m[k]; });
-    var nLive=vs.filter(function(v){ return v==='live'; }).length;
-    return vs.length? ('实时 '+nLive+'/'+vs.length+(nLive===vs.length?'':'（其余快照）')) : '—';
-  }
-  var v=s[name];
-  return v==='live'?'实时':(v==='snapshot'?'离线快照':'—');
+function cryptoReady(){ return !!(window.crypto&&crypto.subtle&&window.TextEncoder); }
+function lockMsg(t,ok){
+  var e=document.getElementById('lockMsg');
+  if(e){ e.textContent=t||''; e.style.color=ok?'#148f5b':''; }
 }
-function spotVendor(){
-  var c=(D.meta.source&&D.meta.source.channels)||{};
-  var v=c.spot_vendor;
-  return {'akshare':'东方财富','tencent':'腾讯','sina':'新浪','snapshot':'离线快照'}[v]||v||'—';
+function openLock(){
+  var l=document.getElementById('lock');
+  if(l) l.classList.add('on');
+  var i=document.getElementById('lockPass');
+  if(i) setTimeout(function(){ i.focus(); },50);
 }
-function page6(){
-  var M=D.meta, src=M.source||{};
-  var h='<div class="pg-h"><h1>系统状态</h1>'+
-    '<p class="pg-sub">数据通道、抓取时点与降级情况。全部为公开免费接口，无密钥、无需注册。</p></div>';
-  h+=sec('运行状态');
-  h+='<div class="grid4">'+[
-    ['抓取时点',(M.as_of||'').slice(11)||'—','日期 '+(M.run_date||'—')],
-    ['数据日期',M.data_date||'—','最后一根日线'],
-    ['数据通道',src.live?'实时':'降级','实时价来自 '+spotVendor()],
-    ['观察标的',String((D.legs||[]).length)+' 只','公开观察池']
-  ].map(function(k){ return '<div class="kpi"><div class="k">'+k[0]+'</div><div class="v" style="font-size:16px">'+k[1]+
-      '</div><div class="d">'+k[2]+'</div></div>'; }).join('')+'</div>';
-  h+=sec('数据项');
-  var prem=src.premium_ok?'可用（东财 IOPV）':'不可用 · '+(src.premium_missing_reason||'—');
-  var cnt=(D.legs||[]).length;
-  var items=[['日线 OHLCV',chState('daily'),cnt+' 只'],
-    ['实时价',chState('spot')+' · '+spotVendor(),cnt+' 行'],
-    ['折溢价 IOPV',prem,src.premium_ok?'参与打分':'已停用，不扣分'],
-    ['指数点位',chState('indices'),D.market.indices.length+' 个'],
-    ['板块资金流',chState('sector'),D.market.heat.length+' 格'],
-    ['宏观 / 资讯',chState('market'),'人工维护'],
-    ['逐只分诊',cnt+' 只','已计算'],
-    ['参考价位',(D.orders||[]).length+' 组','已校验']];
-  h+=box(tbl(['数据项','来源 / 状态','内容'],items.map(function(x){
-    var ok=(x[1]||'').indexOf('不可用')<0 && (x[1]||'').indexOf('快照')<0;
-    return tr([esc(x[0]),'<span class="'+(ok?'down':'up')+'">'+esc(x[1])+'</span>',esc(x[2])]); })));
-  if(src.fallback&&src.fallback.length){
-    h+=box(bt('通道说明')+'<div class="notice">'+src.fallback.map(function(f){
-      return esc(f); }).join('<br>')+'</div>');
+function closeLock(){
+  var l=document.getElementById('lock');
+  if(l) l.classList.remove('on');
+  document.querySelectorAll('.nav-i.lock-only').forEach(function(e){ e.classList.remove('hide'); });
+  var u=document.getElementById('sideUnlock');
+  if(u) u.style.display='none';
+}
+function skipLock(){
+  closeLock();
+  document.querySelectorAll('.nav-i.lock-only').forEach(function(e){ e.classList.add('hide'); });
+  var u=document.getElementById('sideUnlock');
+  if(u) u.style.display='inline';
+  nav('p1');
+  flash('当前为公开行情模式，未加载持仓');
+}
+function fetchEnc(){
+  if(ENC) return Promise.resolve(ENC);
+  if(ENC_LOADING) return ENC_LOADING;
+  ENC_LOADING=fetch(ENCFILE,{cache:'no-store'}).then(function(r){
+    return r.ok?r.json():null;
+  }).then(function(j){ ENC=j; ENC_LOADING=null; return j; })
+   .catch(function(){ ENC_LOADING=null; return null; });
+  return ENC_LOADING;
+}
+function applyHold(obj){
+  HOLD={rows:(obj&&obj.rows)||[],cash:n(obj&&obj.cash)};
+  EDIT=null; draftReset(); PERF=null;
+  try{ localStorage.setItem(STORE,JSON.stringify(HOLD)); }catch(e){}
+}
+function unlock(pass,quiet){
+  if(!cryptoReady()){
+    lockMsg('当前环境不支持浏览器解密，请用 https 或 localhost 打开。');
+    return;
   }
-  if(M.skipped&&M.skipped.length){
-    h+=box(bt('已跳过的标的')+'<div class="notice err">'+esc(M.skipped.join('、'))+
-      '（行情缺失，已从本次分析中排除）</div>');
-  }
-  h+='<div class="foot">抓取时点 '+esc(M.as_of||'—')+' · 数据日期 '+esc(M.data_date||'—')+
-     ' · 运行模式 '+esc(M.mode==='live'?'实时取数':'离线快照')+'</div>';
-  return h;
+  var el=document.getElementById('lockPass');
+  var p=pass!=null?pass:((el&&el.value)||'');
+  if(!p){ lockMsg('请输入口令'); return; }
+  lockMsg('正在解密…',true);
+  fetchEnc().then(function(blob){
+    if(!blob){
+      var w=document.getElementById('initWrap');
+      if(w) w.style.display='block';
+      lockMsg('还没有 positions.enc.json：设置一个口令创建空持仓，或点「选择加密文件」。');
+      return;
+    }
+    return decBlob(blob,p).then(function(obj){
+      PASS=p;
+      applyHold(obj);
+      try{ sessionStorage.setItem('etf_pass',p); }catch(e){}
+      var rm=document.getElementById('rememberPass');
+      try{
+        if(rm&&rm.checked) localStorage.setItem('etf_pass',p);
+        else localStorage.removeItem('etf_pass');
+      }catch(e){}
+      closeLock(); render();
+      ensureHoldQuotes(function(){ render(); });
+      flash('持仓已解锁');
+    }).catch(function(){
+      if(quiet) openLock();
+      lockMsg('口令不对，或密文文件已损坏。');
+    });
+  });
+}
+function autoUnlock(){
+  var p=null;
+  try{ p=sessionStorage.getItem('etf_pass')||localStorage.getItem('etf_pass'); }catch(e){}
+  if(p){ unlock(p,true); return; }
+  fetchEnc().then(function(blob){
+    openLock();
+    if(!blob){
+      var w=document.getElementById('initWrap');
+      if(w) w.style.display='block';
+      lockMsg('首次使用：设置一个口令创建加密持仓文件，提交到仓库后即可云端保存。');
+    }
+  });
+}
+function initCloud(){
+  if(!cryptoReady()){ lockMsg('当前环境不支持浏览器加密，请用 https 或 localhost 打开。'); return; }
+  var a=(document.getElementById('lockPass')||{}).value||'';
+  var b=(document.getElementById('lockPass2')||{}).value||'';
+  if(String(a).length<8){ lockMsg('口令至少 8 位'); return; }
+  if(a!==b){ lockMsg('两次输入不一致'); return; }
+  encBlob({rows:[],cash:0},String(a)).then(function(blob){
+    downloadText(JSON.stringify(blob,null,2),ENCFILE);
+    ENC=blob; PASS=String(a);
+    applyHold({rows:[],cash:0});
+    try{ sessionStorage.setItem('etf_pass',PASS); }catch(e){}
+    closeLock(); render();
+    var m=document.getElementById('saveMsg');
+    if(m) m.textContent='已生成 positions.enc.json，提交到仓库 web/ 下';
+    flash('已创建密文文件，提交后云端生效');
+  }).catch(function(e){ lockMsg('创建失败：'+e.message); });
+}
+function pickEnc(){ var f=document.getElementById('encFile'); if(f) f.click(); }
+function loadEncFile(input){
+  var f=input.files&&input.files[0];
+  if(!f) return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      ENC=JSON.parse(String(rd.result||''));
+      var i=document.getElementById('lockPass');
+      if(i) i.focus();
+      lockMsg('已读取本地密文，请输入口令解锁。',true);
+    }catch(e){ lockMsg('不是有效的密文文件。'); }
+  };
+  rd.readAsText(f,'utf-8');
+  input.value='';
+}
+function downloadText(txt,name){
+  var blob=new Blob([txt],{type:'application/json;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+}
+function commitHold(){
+  HOLD={rows:(EDIT||[]).map(function(r){ return Object.assign({},r); }),cash:n(CASH_EDIT)};
+  try{ localStorage.setItem(STORE,JSON.stringify(HOLD)); }catch(e){}
+}
+function saveCloud(){
+  if(!PASS){ openLock(); return; }
+  if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
+  commitHold();
+  encBlob(HOLD,PASS).then(function(blob){
+    downloadText(JSON.stringify(blob,null,2),ENCFILE);
+    var m=document.getElementById('saveMsg');
+    if(m) m.textContent='已导出 positions.enc.json，提交到仓库即可';
+  }).catch(function(e){ flash('加密失败：'+e.message,true); });
+}
+function changePass(){
+  var a=prompt('设置新口令（至少 8 位）。旧口令立即失效，仓库密文需重新提交。');
+  if(a==null) return;
+  if(String(a).length<8){ alert('口令至少 8 位'); return; }
+  var b=prompt('再输一次新口令');
+  if(b!==a){ alert('两次输入不一致'); return; }
+  PASS=String(a);
+  try{ sessionStorage.setItem('etf_pass',PASS); }catch(e){}
+  saveCloud();
 }
 
 function footNote(){
@@ -897,13 +964,11 @@ function render(){
   if(b){
     b.textContent=src.live?'实时':'降级';
     b.className='badge '+(src.live?'live':'degraded');
-    b.title=src.live?'日线与实时行情均为真实数据':'部分通道回退离线快照，详见系统状态';
+    b.title=src.live?'日线与实时行情均为真实数据':'部分通道回退离线快照，详见页脚说明';
   }
   document.getElementById('p1').innerHTML=page1();
-  document.getElementById('p3').innerHTML=page3();
   document.getElementById('p5').innerHTML=page5();
   document.getElementById('p7').innerHTML=page7();
-  document.getElementById('p6').innerHTML=page6();
   var f=document.getElementById('footNote');
   if(f) f.innerHTML=footNote();
   layoutHeatmap();
@@ -915,13 +980,11 @@ function boot(){
     document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return;
   }
   D=window.DASHBOARD;
-  HOLD=holdLoad();
+  HOLD={rows:[],cash:0};
   draftReset();
   render();
-  /* 持仓里可能有观察池之外的标的：补一次实时价，再重绘（绩效不阻塞首屏） */
-  if(HOLD.rows.length){
-    ensureHoldQuotes(function(){ render(); });
-  }
+  /* 先画公开行情，再弹口令锁；解锁后才加载持仓并补实时价 */
+  autoUnlock();
   var saved=null;
   try{ saved=localStorage.getItem('sideCollapsed'); }catch(e){}
   /* 窄屏首次打开默认收起，避免导航挤占正文；用户手动切换后记住选择 */

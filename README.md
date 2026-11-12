@@ -4,7 +4,16 @@
 
 一个轻量的公开 ETF 观察工具：跑一次，产出一个**自包含页面** `web/index.html`（CSS / JS / 数据全部内嵌），双击即可打开，不需要本地服务。
 
-> 仓库与页面产物**不包含任何个人持仓、成本、份额或资金数据**。持仓分析 / 持仓设置的数据只写在你本机浏览器的 localStorage，可导入 / 导出 CSV；换设备或清缓存会丢失，浏览器不会上传任何持仓内容。观察池在 `config/universe.yaml` 里公开维护。
+> 注意：持仓解密依赖浏览器 WebCrypto，只在 **https / localhost** 下可用。直接双击 `file://` 打开时只能看公开行情，持仓页无法解锁。
+
+> 页面打开时要求输入口令，解锁后才显示持仓分析 / 持仓设置。持仓以 **AES-256-GCM 密文**保存在 `web/positions.enc.json`，密钥由口令经 PBKDF2-SHA256 派生，解密只在你本机浏览器完成；仓库与页面里没有明文持仓。口令不写入仓库、不上传，忘记无法找回。观察池在 `config/universe.yaml` 里公开维护。
+>
+> 云端读写：在「持仓设置」点「保存到云端（导出密文）」得到 `positions.enc.json`，替换仓库 `web/` 下的同名文件并推送即可。Agent / CI 需要读持仓做分析时，用环境变量传口令：
+>
+> ```bash
+> POSITIONS_PASSPHRASE='你的口令' python3 scripts/positions_crypto.py \
+>   --decrypt web/positions.enc.json --out /tmp/positions.json
+> ```
 
 ## 运行
 
@@ -15,7 +24,7 @@ python3.11 scripts/run_update.py            # 实时取数 → 重写 web/index.
 python3.11 scripts/run_update.py --snapshot # 不联网，用离线快照（自测 / 断网时用）
 python3.11 scripts/run_update.py --push     # 生成后自动 commit + push 到 GitHub
 python3.11 scripts/run_update.py --strict   # 任一关键通道降级即退出码 1（适合 CI 报警）
-python3.11 -m pytest tests/ -q              # 21 项测试，不触网
+python3.11 -m pytest tests/ -q              # 22 项测试，不触网
 ```
 
 退出码：`0` 正常 · `1` 严格模式下发生降级 · `2` 运行异常 · `3` 推送失败。
@@ -69,7 +78,7 @@ src/etfquant/   datasource / indicators / signals / portfolio / orders / webgen
 scripts/        run_update（唯一入口）/ gen_snapshot / run_backtest
 web/            index.html ← 唯一交付物
 .github/workflows/daily.yml   每日 07:30 + 手动触发 + Pages 部署
-tests/          pytest（21 项，含无密钥 / 无持仓泄露护栏）
+tests/          pytest（22 项，含无密钥 / 无明文持仓护栏）
 ```
 
 ## 边界

@@ -38,24 +38,43 @@ SHELL = '''<!DOCTYPE html>
               title="收起导航" aria-label="收起或展开导航">«</button>
       <div class="nav-i on" data-p="p1" onclick="nav('p1')" title="市场概况">
         <span class="ic">市</span><span class="lb">市场概况</span></div>
-      <div class="nav-i" data-p="p3" onclick="nav('p3')" title="标的跟踪">
-        <span class="ic">标</span><span class="lb">标的跟踪</span></div>
-      <div class="nav-i" data-p="p5" onclick="nav('p5')" title="持仓分析">
+      <div class="nav-i lock-only" data-p="p5" onclick="nav('p5')" title="持仓分析">
         <span class="ic">仓</span><span class="lb">持仓分析</span></div>
-      <div class="nav-i" data-p="p7" onclick="nav('p7')" title="持仓设置">
+      <div class="nav-i lock-only" data-p="p7" onclick="nav('p7')" title="持仓设置">
         <span class="ic">设</span><span class="lb">持仓设置</span></div>
-      <div class="nav-i" data-p="p6" onclick="nav('p6')" title="系统状态">
-        <span class="ic">系</span><span class="lb">系统状态</span></div>
-      <div class="side-foot"><span id="sideUpdate">—</span></div>
+      <div class="side-foot"><span id="sideUpdate">—</span><span class="side-unlock" id="sideUnlock"
+        onclick="openLock()" style="display:none">解锁</span></div>
     </div>
     <div class="content">
       <div class="page on" id="p1"></div>
-      <div class="page" id="p3"></div>
       <div class="page" id="p5"></div>
       <div class="page" id="p7"></div>
-      <div class="page" id="p6"></div>
       <div id="footNote"></div>
     </div>
+  </div>
+</div>
+<div class="lock on" id="lock">
+  <div class="lock-box">
+    <div class="lock-t">持仓数据已加密</div>
+    <div class="lock-d">输入口令解锁持仓分析与持仓设置。解密只在本机浏览器内完成，口令不会上传。</div>
+    <input id="lockPass" type="password" placeholder="口令" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')unlock()">
+    <label class="lock-rm"><input id="rememberPass" type="checkbox"> 本机记住口令</label>
+    <div id="initWrap" style="display:none">
+      <input id="lockPass2" type="password" placeholder="再次输入口令"
+             onkeydown="if(event.key==='Enter')initCloud()">
+      <div class="lock-btns" style="margin-top:8px">
+        <button class="btn" onclick="initCloud()">首次使用：创建加密文件</button>
+      </div>
+    </div>
+    <div class="lock-btns" style="margin-top:8px">
+      <button class="btn" onclick="unlock()">解锁</button>
+      <button class="btn ghost" onclick="pickEnc()">选择加密文件</button>
+      <button class="btn ghost" onclick="skipLock()">仅浏览行情</button>
+    </div>
+    <div class="lock-msg" id="lockMsg"></div>
+    <input type="file" id="encFile" accept=".json,application/json" style="display:none"
+           onchange="loadEncFile(this)">
   </div>
 </div>
 <script>window.DASHBOARD = @@DATA@@;</script>

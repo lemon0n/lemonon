@@ -135,7 +135,7 @@ def test_pipeline_end_to_end(tmp_path, monkeypatch):
     assert 'window.DASHBOARD = {' in s
     assert '<style>' in s and '--blue-d' in s
     assert '<link' not in s and '<script src=' not in s
-    for dead in ('dashboard.json', 'dashboard.js', 'orders.csv', 'fetch('):
+    for dead in ('dashboard.json', 'dashboard.js', 'orders.csv'):
         assert dead not in s, dead
 
 
@@ -146,7 +146,7 @@ def test_no_report_layer():
               os.path.join('web', 'data'), os.path.join('web', 'css'),
               os.path.join('web', 'js')):
         assert not os.path.exists(os.path.join(root, p)), p
-    assert os.listdir(config.WEB) == ['index.html']
+    assert set(os.listdir(config.WEB)) <= {'index.html', 'positions.enc.json'}
 
 
 def _dashboard():
@@ -181,7 +181,7 @@ def test_dashboard_contract():
 
 
 def test_no_account_data_in_page():
-    """页面产物里不能内嵌任何持仓数据：数据只能由用户在浏览器里录入并留在本机。"""
+    """页面产物里不能内嵌任何明文持仓：持仓只以密文文件形式存在。"""
     d, s = _dashboard()
     assert 'positions' not in d and 'cash' not in d and 'health' not in d
     for k in ('positions', 'shares', 'cost', 'pnl', 'weight_pct',
@@ -190,17 +190,20 @@ def test_no_account_data_in_page():
     # 观察池之外的旧持仓代码不得出现在产物中
     for c in ('512000', '588170', '158041'):
         assert c not in s, c
-    assert "localStorage" in s          # 持仓入口只落到本机浏览器
+    assert 'positions.enc.json' in s         # 持仓走密文文件
+    assert 'crypto.subtle' in s              # 解密只在本机浏览器进行
     assert '持仓分析' in s and '持仓设置' in s
 
 
-def test_tabs_have_all_pages():
-    """五个入口：市场概况 / 标的跟踪 / 持仓分析 / 持仓设置 / 系统状态。"""
+def test_tabs_are_simple():
+    """三个入口：市场概况 / 持仓分析 / 持仓设置。"""
     d, s = _dashboard()
-    for p in ('p1', 'p3', 'p5', 'p7', 'p6'):
+    for p in ('p1', 'p5', 'p7'):
         assert ('id="%s"' % p) in s, p
-    for t in ('市场概况', '标的跟踪', '持仓分析', '持仓设置', '系统状态'):
+    for t in ('市场概况', '持仓分析', '持仓设置'):
         assert t in s, t
+    for dead in ('标的跟踪', '系统状态'):
+        assert dead not in s, dead
 
 
 def test_disclaimer_and_degraded_notice():
@@ -220,6 +223,23 @@ def test_no_prompt_text():
     left = [b for b in banned if b in s]
     assert not left, left
     assert 'datasource' not in s and 'webgen' not in s
+
+
+def test_positions_crypto_roundtrip():
+    """网页端与脚本共用同一密文格式：PBKDF2-SHA256 + AES-256-GCM。"""
+    import importlib.util
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'scripts', 'positions_crypto.py')
+    spec = importlib.util.spec_from_file_location('pc', p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    obj = {'rows': [{'code': '510300', 'name': '沪深300ETF', 'shares': 1000, 'cost': 4.0}],
+           'cash': 10000}
+    blob = m.encrypt(obj, 'test-pass-123')
+    assert blob['iter'] == 210000 and blob['kdf'] == 'PBKDF2-SHA256'
+    assert m.decrypt(blob, 'test-pass-123') == obj
+    with pytest.raises(Exception):
+        m.decrypt(blob, 'wrong-pass')
 
 
 def test_no_secrets_in_repo():
