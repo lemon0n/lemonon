@@ -16,6 +16,14 @@ stop:
   buy_point_2_ma: 5
   reduce_priority: true           # 减仓优先于选股
 
+# 类别占比参考值（%），只用于页面对照，不是投资建议
+structure_target:
+  宽基: 50
+  行业: 25
+  债券: 15
+  黄金: 5
+  海外: 5
+
 orders:
   default_bracket: true
   oco: true

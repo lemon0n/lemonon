@@ -361,8 +361,7 @@ function kpi(k,v,d,warn){
 }
 function fy(v){ return v==null?'—':'¥'+Math.round(n(v)).toLocaleString(); }
 function page5(){
-  var h='<div class="pg-h"><h1>持仓分析</h1>'+
-    '<p class="pg-sub">解锁后在本机浏览器解密计算；仓库里只有密文，没有明文持仓。</p></div>';
+  var h='<div class="pg-h"><h1>持仓分析</h1></div>';
   if(!HOLD.rows.length){
     return h+'<div class="notice">还没有录入持仓。到左侧「持仓设置」填代码、份额、成本价，点「保存到云端」即可。</div>';
   }
@@ -403,11 +402,86 @@ function page5(){
     return [k,H.struct[k],f2(H.struct[k])+'%'];
   })));
 
+  h+=sec('结构指标 · 当前 / 参考');
+  var tgt=(D&&D.targets)||{},keys=Object.keys(H.struct);
+  Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
+  h+=box(kv(keys.map(function(k){
+    return [k, f2(H.struct[k]||0)+'% / '+(tgt[k]==null?'—':tgt[k]+'%')];
+  })));
+
   h+=sec('组合绩效 · 近 60 个交易日');
   h+=box('<div id="perfBox"><div class="notice">正在获取历史收盘价…</div></div>');
 
-  h+='<div class="notice">持仓以 AES-GCM 密文保存在仓库的 <b>positions.enc.json</b>，口令不上传；'+
-    '解密与计算只在本机浏览器完成。换设备后输入同一口令即可恢复。</div>';
+  var items=heldLegs(p);
+  if(items.length){
+    h+=sec('逐腿分析 · '+items.length+' 只');
+    items.forEach(function(it){ h+=legDetail(it.l,it.r); });
+  }
+  h+=ordersSection();
+  return h;
+}
+function heldLegs(p){
+  var out=[];
+  (HOLD.rows||[]).forEach(function(r){
+    var l=legOf(String(r.code));
+    if(!l) return;
+    var pr=p.rows.filter(function(x){ return String(x.code)===String(r.code); })[0];
+    out.push({l:l,r:pr||{weight:0,pnl_pct:null}});
+  });
+  return out;
+}
+function legDetail(l,r){
+  var o=l.order||{},sp=l.support||{},rd=l.reduce||{},st=l.stop||{},sc=l.score||{};
+  var h='<div class="leg"><div class="leg-h"><span class="dg">'+esc(l.level)+'</span>'+
+    '<span class="code">'+esc(l.code)+'</span><span class="nm">'+esc(l.name)+'</span>'+
+    tag(l.branch, l.level==='A'?'buy':(l.level==='D'?'sell':'hold'))+
+    '<span class="sp">'+f2(r.weight)+'% · '+col(r.pnl_pct)+' · '+esc(l.category)+'</span></div>';
+  h+='<div class="leg-b"><div class="mini">'+[
+    ['最新价',f2(l.last)],['当日',col(l.change)],['五均线',esc(l.five)],
+    ['均线',esc(l.ma_state)],['MA5',f2(l.ma5)],['MA10',f2(l.ma10)],
+    ['MA20',f2(l.ma20)],['MA60',f2(l.ma60)]
+  ].map(function(x){ return '<div class="m"><div class="k">'+x[0]+'</div><div class="v">'+x[1]+'</div></div>'; }).join('')+'</div>';
+  h+='<div class="grid2"><div>'+kv([
+    ['周期位置',esc(l.cycle)],
+    ['量能确认',esc(l.vol)+'（量比 '+f2(l.vol_ratio)+'）'],
+    ['真假突破',esc(l.breakout)+'（'+l.true_cnt+'/4）'],
+    ['折溢价',l.premium_available===false?'数据不可用':esc(l.premium)+' '+f2(l.premium_pct)+'%'],
+    ['相对大盘',esc(l.rs)+'（超额 '+f2(l.excess5)+'pct）'],
+    ['支撑位','MA5 '+f2(sp.ma5)+' / MA10 '+f2(sp.ma10)+' / 前低 '+f2(sp.prev_low)],
+    ['减仓位','20日高 '+f2(rd.high20)+' / 上影 '+f2(rd.upper_shadow_pct)+'%'],
+    ['止损位','MA10 '+f2(st.buy1_price)+' / MA5 '+f2(st.buy2_price)]
+  ])+'</div><div>'+bt('次日条件单')+
+    tbl(['方向','触发','止损','止盈'],
+      [tr([tag(o.side||'持有', o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),
+           f2(o.trigger),esc(o.stop_ma||'')+' '+f2(o.stop_price),f2(o.take_profit)])])+
+    kv([['MA120',f2(l.ma120)],['综合分',String(sc.total)+'（第 '+sc.rank+' 名）'],
+        ['动量 / 资金 / 趋势',sc.momentum+' / '+sc.fund+' / '+sc.trend],
+        ['风险标记',esc((l.risk||[]).join('、'))||'—']])+
+    '</div></div></div></div>';
+  return h;
+}
+function ordersSection(){
+  var O=(D&&D.orders)||[];
+  if(!O.length) return '';
+  var buys=O.filter(function(o){ return o.action==='BUY'; }).length;
+  var sells=O.filter(function(o){ return o.action.indexOf('SELL')===0; }).length;
+  var holds=O.filter(function(o){ return o.action==='HOLD'; }).length;
+  var ok=O.filter(function(o){ return o.ok; }).length;
+  var h=sec('次日条件单');
+  h+='<div class="grid4">'+
+    kpi('买入 / 加仓',buys+' 腿','')+kpi('卖出 / 降仓',sells+' 腿','')+
+    kpi('持有 / 观察',holds+' 腿','')+kpi('校验通过',ok+' / '+O.length,'')+'</div>';
+  h+=box(bt('条件单清单')+tbl(['代码','名称','分诊','方向','分支','触发价','止损','止盈','校验','依据'],
+    O.map(function(o){ return tr([esc(o.code),esc(o.name),'<span class="dg">'+esc(o.level)+'</span>',
+      tag(o.side,o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),esc(o.branch),
+      f2(o.trigger),esc(o.stop_ma)+' '+f2(o.stop_price),f2(o.take_profit),
+      o.ok?'<span class="down">OK</span>':'<span class="up">ERR</span>',esc(o.reason)]); })));
+  var L=(D.legs||[]).slice().sort(function(a,b){ return (a.score.rank||99)-(b.score.rank||99); });
+  h+=box(bt('标的打分')+tbl(['排名','标的','分诊','综合分','动量','资金','趋势','溢价扣分','分支','方向'],
+    L.map(function(l){ return tr([String(l.score.rank),esc(l.code)+' '+esc(l.name),
+      '<span class="dg">'+esc(l.level)+'</span>',String(l.score.total),String(l.score.momentum),
+      String(l.score.fund),String(l.score.trend),String(l.score.premium_penalty),
+      esc(l.branch),esc(l.order.side)]); })));
   return h;
 }
 
@@ -561,7 +635,7 @@ function page7(){
   if(!EDIT) draftReset();
   var s=draftCalc();
   var h='<div class="pg-h"><h1>持仓设置</h1>'+
-    '<p class="pg-sub">录入代码、份额和成本价，点「保存到云端」直接写入密文；公开访客只能看到密文。</p></div>';
+    '</div>';
   h+='<div class="bar-actions">'+
     '<button class="btn" onclick="saveCloud()">保存到云端</button>'+
     '<button class="btn ghost" onclick="addRow()">新增一行</button>'+
@@ -578,7 +652,7 @@ function page7(){
       '<input id="qShares" type="number" step="100" min="0" placeholder="份额">'+
       '<input id="qCost" type="number" step="any" min="0" placeholder="成本价">'+
       '<button class="btn" onclick="quickAdd()">添加</button>'+
-    '</div><div class="note">只填代码、份额、成本价；名称和类别自动匹配，添加后点「保存到云端」。</div>');
+    '</div>');
   h+=box('<table class="tbl edit"><thead><tr>'+
     ['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','']
       .map(function(x){ return '<th>'+x+'</th>'; }).join('')+
@@ -603,8 +677,6 @@ function page7(){
     '</div><div class="bar-actions" style="margin-top:10px">'+
       '<button class="btn ghost" onclick="ghSaveCfg(1)">保存配置</button>'+
       '<button class="btn ghost" onclick="exportEnc()">下载密文备份</button></div></details>');
-  h+='<div class="notice">不填令牌时：点「保存到云端」会加密并复制密文，同时打开 GitHub 编辑页，粘贴提交即可。'+
-    '口令忘了无法恢复。导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
   return h;
 }
 
@@ -719,7 +791,7 @@ function layoutHeatmap(){
 function page1(){
   var m=D.market, rg=m.regime, b=m.breadth, s=m.sentiment;
   var h='<div class="pg-h"><h1>市场概况</h1>'+
-    '<p class="pg-sub">每个交易日更新一版：市场宽度、行业资金分布与公开 ETF 观察池的技术面。仅供研究，不构成投资建议。</p></div>';
+    '</div>';
 
   h+=sec('市场总览');
   h+='<div class="grid4">'+[
@@ -1074,24 +1146,6 @@ function changePass(){
   saveCloud();
 }
 
-function footNote(){
-  var src=D.meta.source||{};
-  var parts=[];
-  if(src.degraded){
-    parts.push('<div class="notice err"><b>本次为降级运行</b>：部分行情已回退离线快照（'+
-      esc((src.fallback||[]).slice(0,2).join('；')||'行情接口不可用')+
-      '）。价格与指标仅供演示，不可用于实盘决策。</div>');
-  }
-  if(!src.premium_ok){
-    parts.push('<div class="notice"><b>折溢价不可用</b>：'+
-      esc(src.premium_missing_reason||'当前行情源无 IOPV')+
-      '，该项显示为「数据不可用」且不参与打分，请勿按 0% 理解。</div>');
-  }
-  parts.push('<div class="notice">数据来自公开免费行情接口（东方财富 / 腾讯 / 新浪），无 SLA，可能延迟或缺失。'+
-    '本页为量化辅助工具输出，<b>不构成投资建议</b>，实盘决策请以交易所与券商数据为准。</div>');
-  return parts.join('');
-}
-
 function render(){
   if(!D){ document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return; }
   var src=D.meta.source||{};
@@ -1102,13 +1156,11 @@ function render(){
   if(b){
     b.textContent=src.live?'实时':'降级';
     b.className='badge '+(src.live?'live':'degraded');
-    b.title=src.live?'日线与实时行情均为真实数据':'部分通道回退离线快照，详见页脚说明';
+    b.title=src.live?'日线与实时行情均为真实数据':'部分通道回退离线快照';
   }
   document.getElementById('p1').innerHTML=page1();
   document.getElementById('p5').innerHTML=page5();
   document.getElementById('p7').innerHTML=page7();
-  var f=document.getElementById('footNote');
-  if(f) f.innerHTML=footNote();
   layoutHeatmap();
   loadPerf();
 }

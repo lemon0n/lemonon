@@ -49,7 +49,7 @@ SHELL = '''<!DOCTYPE html>
       <div class="page on" id="p1"></div>
       <div class="page" id="p5"></div>
       <div class="page" id="p7"></div>
-      <div id="footNote"></div>
+      <div class="foot-note">仅供研究参考，不构成投资建议。</div>
     </div>
   </div>
 </div>
@@ -163,6 +163,7 @@ def build_data(market, sectors, regime, legs, orders, cfg, meta):
                                 leaders=regime['leaders'], laggards=regime['laggards'])),
         legs=legcards, orders=order_rows,
         trading=cfg['universe'],
+        targets=(cfg.get('risk') or {}).get('structure_target', {}),
     )
 
 
