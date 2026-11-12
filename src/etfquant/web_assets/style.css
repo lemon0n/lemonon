@@ -101,6 +101,8 @@ body{margin:0}
   font-size:12.5px;width:150px}
 .qadd input#qCode{width:170px}
 .qadd input:focus{outline:1px solid var(--blue);outline-offset:-1px}
+.cfg summary{cursor:pointer;font-size:12.5px;font-weight:650;color:var(--blue-d)}
+.cfg[open] summary{margin-bottom:6px}
 .encbox{position:fixed;inset:0;background:rgba(18,28,24,.55);display:flex;align-items:center;
   justify-content:center;z-index:80;padding:20px}
 .encbox-in{background:#fff;max-width:660px;width:100%;padding:18px 20px;border:1px solid var(--line)}

@@ -591,10 +591,20 @@ function page7(){
     '<div class="kpi"><div class="k">总仓位 / 浮动盈亏</div><div class="v" id="sumPos">'+f2(s.positionPct)+'%</div>'+
       '<div class="d" id="sumPnl">'+col(s.pnlPct)+'　'+fy(s.sumPnl)+'</div></div>'+
     '</div>';
-  h+=box('<div class="note">点「保存到云端」会：① 用当前口令加密；② 把密文复制到剪贴板；③ 新开 GitHub 编辑页。'+
-    '在那边全选粘贴、提交即可，约 1 分钟自动重新发布。口令忘了无法恢复。'+
-    '<button class="btn ghost" style="margin-left:8px" onclick="exportEnc()">下载密文备份</button></div>');
-  h+='<div class="notice">导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
+  h+=box('<details class="cfg" id="ghCfg"><summary>直写云端 · '+
+    (ghStore('etf_gh_token')?'已配置':'未配置（不配则走复制粘贴）')+'</summary>'+
+    '<div class="note">填一次写入令牌，之后「保存到云端」直接写仓库，不再跳转。令牌只存在本机浏览器，'+
+    '不要用全域 token，请用 fine-grained PAT 且只勾本仓库 <code>Contents: Read and write</code>。</div>'+
+    '<div class="grid2" style="margin-top:8px">'+
+    '<div class="kpi"><div class="k">GitHub 仓库</div>'+
+      '<input id="ghRepo" value="'+esc(ghStore('etf_gh_repo')||GH_DEFAULT)+'"></div>'+
+    '<div class="kpi"><div class="k">写入令牌</div>'+
+      '<input id="ghToken" type="password" value="'+esc(ghStore('etf_gh_token'))+'" placeholder="github_pat_..."></div>'+
+    '</div><div class="bar-actions" style="margin-top:10px">'+
+      '<button class="btn ghost" onclick="ghSaveCfg(1)">保存配置</button>'+
+      '<button class="btn ghost" onclick="exportEnc()">下载密文备份</button></div></details>');
+  h+='<div class="notice">不填令牌时：点「保存到云端」会加密并复制密文，同时打开 GitHub 编辑页，粘贴提交即可。'+
+    '口令忘了无法恢复。导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
   return h;
 }
 
@@ -970,16 +980,66 @@ function copyBox(){
   copyText(t.value).then(function(ok){ flash(ok?'已复制':'请手动全选复制',!ok); });
 }
 function closeEncBox(){ var e=document.getElementById('encBox'); if(e) e.remove(); }
+/* 可选：填写令牌后直写云端；不填则走复制粘贴 */
+var GH_DEFAULT='lemon0n/lemonon';
+function ghStore(k){ try{ return localStorage.getItem(k)||''; }catch(e){ return ''; } }
+function ghRepo(){ var e=document.getElementById('ghRepo');
+  return (e&&e.value.trim())||ghStore('etf_gh_repo')||GH_DEFAULT; }
+function ghToken(){ var e=document.getElementById('ghToken');
+  return (e&&e.value.trim())||ghStore('etf_gh_token'); }
+function ghSaveCfg(notify){
+  var r=document.getElementById('ghRepo'), t=document.getElementById('ghToken');
+  try{
+    if(r&&r.value.trim()) localStorage.setItem('etf_gh_repo',r.value.trim());
+    if(t&&t.value.trim()) localStorage.setItem('etf_gh_token',t.value.trim());
+  }catch(e){}
+  var s=document.querySelector('#ghCfg summary');
+  if(s) s.textContent='直写云端 · '+(ghStore('etf_gh_token')?'已配置':'未配置（不配则走复制粘贴）');
+  if(notify) saveMsg('配置已保存在本机，之后可直接保存到云端');
+}
+function ghPut(repo,tk,text){
+  var url='https://api.github.com/repos/'+repo+'/contents/web/positions.enc.json';
+  var h={'Authorization':'Bearer '+tk,'Accept':'application/vnd.github+json'};
+  var body={message:'chore: 更新持仓密文',content:bufToB64(new TextEncoder().encode(text).buffer)};
+  return fetch(url,{headers:h}).then(function(r){ return r.ok?r.json():null; })
+    .then(function(cur){
+      if(cur&&cur.sha) body.sha=cur.sha;
+      return fetch(url,{method:'PUT',
+        headers:Object.assign({'Content-Type':'application/json'},h),
+        body:JSON.stringify(body)});
+    }).then(function(r){
+      if(r.ok) return true;
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        throw new Error(j.message||('HTTP '+r.status));
+      });
+    });
+}
 function saveCloud(){
   if(!PASS){ openLock(); return; }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
   commitHold();
+  var tk=ghToken();
+  if(tk){
+    ghSaveCfg();
+    saveMsg('正在加密并写入云端…');
+    encBlob(HOLD,PASS).then(function(blob){
+      var text=JSON.stringify(blob,null,2);
+      return ghPut(ghRepo(),tk,text).then(function(){
+        ENC=blob;
+        saveMsg('已保存到云端，约 1 分钟生效');
+        flash('持仓已写入云端');
+      });
+    }).catch(function(e){
+      saveMsg('写入失败：'+e.message);
+      flash('写入失败：'+e.message,true);
+    });
+    return;
+  }
   saveMsg('正在加密…');
   encBlob(HOLD,PASS).then(function(blob){
     var text=JSON.stringify(blob,null,2);
     ENC=blob;
     return copyText(text).then(function(ok){
-      /* 先复制再开新标签：新窗口会抢焦点，导致剪贴板写入被拒 */
       if(ok){
         try{ window.open(EDIT_URL,'_blank'); }catch(e){}
         saveMsg('密文已复制：在新打开的 GitHub 页面全选粘贴后提交');
