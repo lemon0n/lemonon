@@ -49,6 +49,12 @@ function nav(p){
   document.querySelectorAll('.page').forEach(function(e){ e.classList.toggle('on',e.id===p); });
   document.querySelector('.content').scrollTop=0;
   if(typeof layoutHeatmap==='function') layoutHeatmap();   /* 页面隐藏时量不到宽度，切回时补一次 */
+  /* 从持仓设置切回分析时，把编辑中的持仓同步到内存并重算，未保存云端也立即可见 */
+  if(p==='p5'&&typeof HOLD!=='undefined'){
+    commitHold();
+    var e=document.getElementById('p5');
+    if(e){ e.innerHTML=page5(); loadPerf(); }
+  }
 }
 
 /* ---------------- 左侧导航收起 / 展开 ---------------- */
