@@ -53,7 +53,7 @@ function nav(p){
   if(p==='p5'&&typeof HOLD!=='undefined'){
     commitHold();
     var e=document.getElementById('p5');
-    if(e){ e.innerHTML=page5(); loadPerf(); }
+    if(e){ e.innerHTML=page5(); loadPerf(); fillLocalLegs(); }
   }
 }
 
@@ -419,12 +419,116 @@ function page5(){
   h+=box('<div id="perfBox"><div class="notice">正在获取历史收盘价…</div></div>');
 
   var items=heldLegs(p);
-  if(items.length){
-    h+=sec('逐腿分析 · '+items.length+' 只');
+  var extra=[];
+  (HOLD.rows||[]).forEach(function(r){
+    if(!legOf(String(r.code))) extra.push(r);
+  });
+  if(items.length||extra.length){
+    h+=sec('逐腿分析 · '+(items.length+extra.length)+' 只');
     items.forEach(function(it){ h+=legDetail(it.l,it.r); });
+    extra.forEach(function(r){
+      h+='<div id="loc_'+esc(String(r.code))+'"><div class="notice">正在计算 '+
+         esc(r.name||r.code)+' 的技术面…</div></div>';
+    });
   }
   h+=ordersSection();
   return h;
+}
+/* 观察池外的持仓：用腾讯日线在本地算均线/位置/支撑位，字段与后台腿保持一致 */
+var LBARS={},LIDX=null;
+function fetchBars(code,cb){
+  var sym=tSym(code),vn='kb_'+sym;
+  var s=document.createElement('script'),done=false;
+  function fin(o){
+    if(done) return;
+    done=true;
+    if(s.parentNode) s.remove();
+    try{ delete window[vn]; }catch(e){ window[vn]=undefined; }
+    cb(o);
+  }
+  s.onload=function(){
+    var arr=null;
+    try{ var d=window[vn].data[sym]; arr=d.qfqday||d.day||null; }catch(e){}
+    if(!arr){ fin(null); return; }
+    fin({
+      closes:arr.map(function(x){ return parseFloat(x[2]); }),
+      highs:arr.map(function(x){ return parseFloat(x[3]); }),
+      lows:arr.map(function(x){ return parseFloat(x[4]); }),
+      vols:arr.map(function(x){ return parseFloat(x[5]); })
+    });
+  };
+  s.onerror=function(){ fin(null); };
+  s.src='https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+sym+',day,,,140,qfq&_var='+vn;
+  document.head.appendChild(s);
+  setTimeout(function(){ fin(null); },9000);
+}
+function maOf(a,k){
+  if(!a||a.length<k) return null;
+  var s=0;
+  for(var i=a.length-k;i<a.length;i++){ if(!isFinite(a[i])) return null; s+=a[i]; }
+  return s/k;
+}
+function calcBars(b){
+  var c=b.closes.filter(function(x){ return isFinite(x)&&x>0; });
+  if(c.length<20) return null;
+  var h=b.highs.slice(-c.length),l=b.lows.slice(-c.length),v=b.vols.slice(-c.length);
+  var last=c[c.length-1],prev=c[c.length-2];
+  var ma5=maOf(c,5),ma10=maOf(c,10),ma20=maOf(c,20),ma60=maOf(c,60),ma120=maOf(c,120);
+  var h20=Math.max.apply(null,h.slice(-20)),l20=Math.min.apply(null,l.slice(-20));
+  var v5=v.slice(-6,-1),avg5=v5.length?v5.reduce(function(a,x){ return a+x; },0)/v5.length:0;
+  var state=(ma5&&ma10&&ma20)?(ma5>ma10&&ma10>ma20?'多头排列':
+            (ma5<ma10&&ma10<ma20?'空头排列':'均线纠缠')):'—';
+  var cycle=(ma20&&ma60)?(last>=ma20&&ma20>=ma60?'上升段':
+            (last<ma20&&ma20<ma60?'下降段':'震荡段')):'—';
+  var amp=(h[h.length-1]-l[l.length-1]);
+  var pos=amp>0?(last-l[l.length-1])/amp:0.5;
+  return {last:last,change:prev>0?(last/prev-1)*100:0,
+    ma5:ma5,ma10:ma10,ma20:ma20,ma60:ma60,ma120:ma120,
+    five:(ma5&&last>=ma5)?'已站上MA5':'未站回MA5',
+    ma_state:state,cycle:cycle,
+    vol:(avg5>0&&v[v.length-1]>avg5*1.2)?'放量':'常规',
+    vol_ratio:avg5>0?v[v.length-1]/avg5:0,
+    support:{ma5:ma5,ma10:ma10,prev_low:l20},
+    reduce:{high20:h20,upper_shadow_pct:last>0?(h[h.length-1]-last)/last*100:0},
+    stop:{buy1_price:ma10,buy2_price:ma5},
+    close5:c[c.length-6]||null,pos:pos};
+}
+function renderLocalLeg(code){
+  var el=document.getElementById('loc_'+code);
+  if(!el) return;
+  var b=LBARS[code];
+  if(!b){ el.innerHTML='<div class="notice">'+esc(code)+' 的日线暂时取不到，技术面留空。</div>'; return; }
+  var row=(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
+  var p=calcPort();
+  var pr=p.rows.filter(function(x){ return String(x.code)===String(code); })[0]||{weight:0,pnl_pct:null};
+  var k=calcBars(b);
+  if(!k){ el.innerHTML='<div class="notice">'+esc(code)+' 日线不足 20 根，技术面留空。</div>'; return; }
+  var ix=calcBars(LIDX);
+  var ex=(ix&&k.close5&&ix.last&&ix.close5)?((k.last/k.close5-1)-(ix.last/ix.close5-1))*100:null;
+  var l={code:String(code),name:row.name||code,category:row.category||'未分类',
+    level:'—',branch:'观察池外',last:k.last,change:k.change,five:k.five,
+    ma_state:k.ma_state,ma5:k.ma5,ma10:k.ma10,ma20:k.ma20,ma60:k.ma60,ma120:k.ma120,
+    vol:k.vol,vol_ratio:k.vol_ratio,premium_available:false,
+    breakout:(k.pos>0.8?'接近20日高':(k.pos<0.2?'接近20日低':'区间中部')),true_cnt:'—',
+    rs:ex==null?'—':(ex>0?'强于大盘':'弱于大盘'),excess5:ex==null?null:ex,
+    cycle:k.cycle,support:k.support,reduce:k.reduce,stop:k.stop,risk:[],
+    score:null,order:null,local:true};
+  el.innerHTML=legDetail(l,pr);
+}
+function fillLocalLegs(){
+  var codes=(HOLD.rows||[]).map(function(r){ return String(r.code); })
+    .filter(function(c){ return !legOf(c)&&!LBARS[c]; });
+  if(!codes.length) return;
+  if(!LIDX) fetchBars('000300',function(o){
+    LIDX=o;
+    Object.keys(LBARS).forEach(function(c){ if(LBARS[c]) renderLocalLeg(c); });
+  });
+  codes.forEach(function(c){
+    fetchBars(c,function(o){
+      LBARS[c]=o;
+      LIDX?renderLocalLeg(c):setTimeout(function(){ renderLocalLeg(c); },1200);
+    });
+  });
 }
 function heldLegs(p){
   var out=[];
@@ -447,22 +551,28 @@ function legDetail(l,r){
     ['均线',esc(l.ma_state)],['MA5',f2(l.ma5)],['MA10',f2(l.ma10)],
     ['MA20',f2(l.ma20)],['MA60',f2(l.ma60)]
   ].map(function(x){ return '<div class="m"><div class="k">'+x[0]+'</div><div class="v">'+x[1]+'</div></div>'; }).join('')+'</div>';
+  var right=bt('次日条件单');
+  if(o&&o.side){
+    right+=tbl(['方向','触发','止损','止盈'],
+      [tr([tag(o.side, o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),
+           f2(o.trigger),esc(o.stop_ma||'')+' '+f2(o.stop_price),f2(o.take_profit)])]);
+  }else{
+    right+='<div class="note">观察池外标的，暂不生成条件单。</div>';
+  }
+  var meta=[['MA120',f2(l.ma120)]];
+  if(sc.total!=null) meta.push(['综合分',String(sc.total)+'（第 '+sc.rank+' 名）'],
+    ['动量 / 资金 / 趋势',sc.momentum+' / '+sc.fund+' / '+sc.trend]);
+  meta.push(['风险标记',esc((l.risk||[]).join('、'))||'—']);
   h+='<div class="grid2"><div>'+kv([
     ['周期位置',esc(l.cycle)],
     ['量能确认',esc(l.vol)+'（量比 '+f2(l.vol_ratio)+'）'],
-    ['真假突破',esc(l.breakout)+'（'+l.true_cnt+'/4）'],
+    ['真假突破',esc(l.breakout)+'（'+(l.true_cnt||'—')+'/4）'],
     ['折溢价',l.premium_available===false?'数据不可用':esc(l.premium)+' '+f2(l.premium_pct)+'%'],
-    ['相对大盘',esc(l.rs)+'（超额 '+f2(l.excess5)+'pct）'],
+    ['相对大盘',esc(l.rs)+(l.excess5==null?'':'（超额 '+f2(l.excess5)+'pct）')],
     ['支撑位','MA5 '+f2(sp.ma5)+' / MA10 '+f2(sp.ma10)+' / 前低 '+f2(sp.prev_low)],
     ['减仓位','20日高 '+f2(rd.high20)+' / 上影 '+f2(rd.upper_shadow_pct)+'%'],
     ['止损位','MA10 '+f2(st.buy1_price)+' / MA5 '+f2(st.buy2_price)]
-  ])+'</div><div>'+bt('次日条件单')+
-    tbl(['方向','触发','止损','止盈'],
-      [tr([tag(o.side||'持有', o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),
-           f2(o.trigger),esc(o.stop_ma||'')+' '+f2(o.stop_price),f2(o.take_profit)])])+
-    kv([['MA120',f2(l.ma120)],['综合分',String(sc.total)+'（第 '+sc.rank+' 名）'],
-        ['动量 / 资金 / 趋势',sc.momentum+' / '+sc.fund+' / '+sc.trend],
-        ['风险标记',esc((l.risk||[]).join('、'))||'—']])+
+  ])+'</div><div>'+right+kv(meta)+
     '</div></div></div></div>';
   return h;
 }
@@ -1169,6 +1279,7 @@ function render(){
   document.getElementById('p7').innerHTML=page7();
   layoutHeatmap();
   loadPerf();
+  fillLocalLegs();
 }
 
 function boot(){
