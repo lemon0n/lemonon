@@ -2,9 +2,8 @@
 'use strict';
 var D = null;
 
-/* 持仓只保存在本机浏览器，不上传、不进仓库；页面产物里没有任何持仓数据 */
-var STORE = 'etf_positions_v2';   /* 本机草稿缓存，加密文件才是云端主副本 */
-var PASS = '';                    /* 解锁口令，只存在内存 / 可选本机会话 */
+/* 持仓只保存在云端密文文件，本机不留明文；页面产物里没有任何持仓数据 */
+var PASS = '';                    /* 解锁口令，只存在内存 / 当前标签页会话 */
 var HOLD = {rows: [], cash: 0};   /* 已保存的持仓 */
 var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
 var PQ = {};                      /* 非观察池标的的实时价缓存 {last,prev,chg} */
@@ -185,7 +184,7 @@ function refreshQuotes(){
 
 /* ---------------- 持仓：云端密文 + 本机解密 ----------------
    仓库里只有 positions.enc.json 密文（AES-GCM + PBKDF2），口令不上传；
-   解锁后在本机浏览器解密、计算，localStorage 仅作草稿缓存。 */
+   解锁后在本机浏览器解密、计算，明文不落盘。 */
 function legOf(code){
   var a=D.legs||[];
   for(var i=0;i<a.length;i++) if(String(a[i].code)===String(code)) return a[i];
@@ -197,10 +196,6 @@ function priceOf(code){
   var l=legOf(code);
   if(l&&n(l.last)>0) return {last:n(l.last),prev:null,chg:l.change};
   return null;
-}
-function holdSave(){
-  try{ localStorage.setItem(STORE,JSON.stringify({rows:HOLD.rows,cash:HOLD.cash})); }
-  catch(e){ flash('保存失败：浏览器禁用了本地存储',true); }
 }
 function draftReset(){
   EDIT=(HOLD.rows||[]).map(function(r){ return Object.assign({},r); });
@@ -480,7 +475,6 @@ function delRow(i){
 function saveAll(){
   HOLD={rows:(EDIT||[]).map(function(r){ return Object.assign({},r); }),
         cash:n(CASH_EDIT)};
-  holdSave();
   PERF=null;
   ensureHoldQuotes(function(){ render(); });
   var m=document.getElementById('saveMsg');
@@ -491,7 +485,6 @@ function saveAll(){
 function clearAll(){
   if(!confirm('清空本机保存的持仓？建议先导出 CSV 备份。')) return;
   HOLD={rows:[],cash:0};
-  try{ localStorage.removeItem(STORE); }catch(e){}
   draftReset(); PERF=null; render();
 }
 function pickCsv(){ var f=document.getElementById('csvFile'); if(f) f.click(); }
@@ -534,7 +527,7 @@ function importCsv(input){
     });
     EDIT=rows; CASH_EDIT=cash;
     HOLD={rows:rows.map(function(r){ return Object.assign({},r); }),cash:cash};
-    holdSave(); PERF=null;
+    PERF=null;
     ensureHoldQuotes(function(){ render(); });
     render();
     var m=document.getElementById('saveMsg');
@@ -559,6 +552,13 @@ function page7(){
     '<span id="saveMsg"></span>'+
     '<input type="file" id="csvFile" accept=".csv,text/csv" onchange="importCsv(this)" style="display:none">'+
     '</div>';
+  h+=box(bt('云端写入')+
+    '<div class="grid2">'+
+    '<div class="kpi"><div class="k">GitHub 仓库</div>'+
+      '<input id="ghRepo" value="'+esc(ghStore('etf_gh_repo')||GH_DEFAULT)+'" onchange="ghSaveCfg()"></div>'+
+    '<div class="kpi"><div class="k">写入令牌（contents:write，可留空）</div>'+
+      '<input id="ghToken" type="password" value="'+esc(ghStore('etf_gh_token'))+'" onchange="ghSaveCfg()" placeholder="留空则改为下载文件"></div>'+
+    '</div><div class="note">令牌只存在本机浏览器，用于把密文直接写入仓库；填写后「保存到云端」一键生效。</div>');
   h+=box('<table class="tbl edit"><thead><tr>'+
     ['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','']
       .map(function(x){ return '<th>'+x+'</th>'; }).join('')+
@@ -571,7 +571,7 @@ function page7(){
     '<div class="kpi"><div class="k">总仓位 / 浮动盈亏</div><div class="v" id="sumPos">'+f2(s.positionPct)+'%</div>'+
       '<div class="d" id="sumPnl">'+col(s.pnlPct)+'　'+fy(s.sumPnl)+'</div></div>'+
     '</div>';
-  h+='<div class="notice">「保存到云端」会用当前口令加密，下载 <b>positions.enc.json</b>；把它替换仓库 <code>web/positions.enc.json</code> 并推送，每日更新与后续 Agent 都能读到密文。'+
+  h+='<div class="notice">「保存到云端」先用当前口令加密：填了令牌就直接写入仓库 <b>web/positions.enc.json</b>（约 1 分钟后生效）；没填令牌则下载文件手动替换。'+
     '口令忘了无法恢复，请自行保管。导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
   return h;
 }
@@ -822,7 +822,6 @@ function fetchEnc(){
 function applyHold(obj){
   HOLD={rows:(obj&&obj.rows)||[],cash:n(obj&&obj.cash)};
   EDIT=null; draftReset(); PERF=null;
-  try{ localStorage.setItem(STORE,JSON.stringify(HOLD)); }catch(e){}
 }
 function unlock(pass,quiet){
   if(!cryptoReady()){
@@ -844,11 +843,6 @@ function unlock(pass,quiet){
       PASS=p;
       applyHold(obj);
       try{ sessionStorage.setItem('etf_pass',p); }catch(e){}
-      var rm=document.getElementById('rememberPass');
-      try{
-        if(rm&&rm.checked) localStorage.setItem('etf_pass',p);
-        else localStorage.removeItem('etf_pass');
-      }catch(e){}
       closeLock(); render();
       ensureHoldQuotes(function(){ render(); });
       flash('持仓已解锁');
@@ -860,7 +854,7 @@ function unlock(pass,quiet){
 }
 function autoUnlock(){
   var p=null;
-  try{ p=sessionStorage.getItem('etf_pass')||localStorage.getItem('etf_pass'); }catch(e){}
+  try{ p=sessionStorage.getItem('etf_pass'); }catch(e){}
   if(p){ unlock(p,true); return; }
   fetchEnc().then(function(blob){
     openLock();
@@ -875,7 +869,7 @@ function initCloud(){
   if(!cryptoReady()){ lockMsg('当前环境不支持浏览器加密，请用 https 或 localhost 打开。'); return; }
   var a=(document.getElementById('lockPass')||{}).value||'';
   var b=(document.getElementById('lockPass2')||{}).value||'';
-  if(String(a).length<8){ lockMsg('口令至少 8 位'); return; }
+  if(String(a).length<6){ lockMsg('口令至少 6 位'); return; }
   if(a!==b){ lockMsg('两次输入不一致'); return; }
   encBlob({rows:[],cash:0},String(a)).then(function(blob){
     downloadText(JSON.stringify(blob,null,2),ENCFILE);
@@ -913,22 +907,64 @@ function downloadText(txt,name){
 }
 function commitHold(){
   HOLD={rows:(EDIT||[]).map(function(r){ return Object.assign({},r); }),cash:n(CASH_EDIT)};
-  try{ localStorage.setItem(STORE,JSON.stringify(HOLD)); }catch(e){}
 }
+/* 云端直写：GitHub Contents API；令牌只存本机浏览器，留空则退化为下载文件 */
+var GH_DEFAULT='lemon0n/lemonon';
+function ghStore(k){ try{ return localStorage.getItem(k)||''; }catch(e){ return ''; } }
+function ghRepo(){ var e=document.getElementById('ghRepo');
+  return (e&&e.value.trim())||ghStore('etf_gh_repo')||GH_DEFAULT; }
+function ghToken(){ var e=document.getElementById('ghToken');
+  return (e&&e.value.trim())||ghStore('etf_gh_token'); }
+function ghSaveCfg(){
+  var r=document.getElementById('ghRepo'), t=document.getElementById('ghToken');
+  try{
+    if(r) localStorage.setItem('etf_gh_repo',r.value.trim());
+    if(t&&t.value.trim()) localStorage.setItem('etf_gh_token',t.value.trim());
+  }catch(e){}
+}
+function ghPut(repo,tk,text){
+  var url='https://api.github.com/repos/'+repo+'/contents/web/positions.enc.json';
+  var h={'Authorization':'Bearer '+tk,'Accept':'application/vnd.github+json'};
+  var body={message:'chore: 更新持仓密文',content:bufToB64(new TextEncoder().encode(text).buffer)};
+  return fetch(url,{headers:h}).then(function(r){ return r.ok?r.json():null; })
+    .then(function(cur){
+      if(cur&&cur.sha) body.sha=cur.sha;
+      return fetch(url,{method:'PUT',
+        headers:Object.assign({'Content-Type':'application/json'},h),
+        body:JSON.stringify(body)});
+    }).then(function(r){
+      if(r.ok){ ENC=JSON.parse(text); return; }
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        throw new Error(j.message||('HTTP '+r.status));
+      });
+    });
+}
+function saveMsg(t){ var m=document.getElementById('saveMsg'); if(m) m.textContent=t||''; }
 function saveCloud(){
   if(!PASS){ openLock(); return; }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
-  commitHold();
+  commitHold(); ghSaveCfg();
+  var tk=ghToken(), repo=ghRepo();
   encBlob(HOLD,PASS).then(function(blob){
-    downloadText(JSON.stringify(blob,null,2),ENCFILE);
-    var m=document.getElementById('saveMsg');
-    if(m) m.textContent='已导出 positions.enc.json，提交到仓库即可';
-  }).catch(function(e){ flash('加密失败：'+e.message,true); });
+    var text=JSON.stringify(blob,null,2);
+    if(!tk){
+      downloadText(text,ENCFILE);
+      saveMsg('未填写入令牌：已下载密文，手动替换 web/positions.enc.json');
+      return;
+    }
+    return ghPut(repo,tk,text).then(function(){
+      saveMsg('已写入云端，约 1 分钟后页面生效');
+      flash('持仓已写入云端');
+    }).catch(function(e){
+      saveMsg('写入失败：'+e.message);
+      flash('写入失败：'+e.message,true);
+    });
+  });
 }
 function changePass(){
-  var a=prompt('设置新口令（至少 8 位）。旧口令立即失效，仓库密文需重新提交。');
+  var a=prompt('设置新口令（至少 6 位）。旧口令立即失效，需重新写入云端密文。');
   if(a==null) return;
-  if(String(a).length<8){ alert('口令至少 8 位'); return; }
+  if(String(a).length<6){ alert('口令至少 6 位'); return; }
   var b=prompt('再输一次新口令');
   if(b!==a){ alert('两次输入不一致'); return; }
   PASS=String(a);

@@ -14,6 +14,8 @@ on:
         description: '严格模式：任一关键通道降级就判失败'
         required: false
         default: 'false'
+  push:
+    branches: [main]             # 页面「保存到云端」写入密文后自动重新发布
 
 concurrency:
   group: etf-daily-update

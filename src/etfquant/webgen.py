@@ -59,7 +59,6 @@ SHELL = '''<!DOCTYPE html>
     <div class="lock-d">输入口令解锁持仓分析与持仓设置。解密只在本机浏览器内完成，口令不会上传。</div>
     <input id="lockPass" type="password" placeholder="口令" autocomplete="current-password"
            onkeydown="if(event.key==='Enter')unlock()">
-    <label class="lock-rm"><input id="rememberPass" type="checkbox"> 本机记住口令</label>
     <div id="initWrap" style="display:none">
       <input id="lockPass2" type="password" placeholder="再次输入口令"
              onkeydown="if(event.key==='Enter')initCloud()">
