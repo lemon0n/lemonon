@@ -17,13 +17,25 @@ body{margin:0}
 .dot{display:inline-block;width:7px;height:7px;background:#4ade80;margin-right:8px}
 .body{display:flex;flex:1;min-height:0}
 .side{width:196px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);
-  display:flex;flex-direction:column}
-.nav-i{padding:14px 18px;border-left:3px solid transparent;border-bottom:1px solid var(--line);
-  cursor:pointer;color:var(--text);font-size:13px}
+  display:flex;flex-direction:column;overflow:hidden;transition:width .18s ease}
+.side-toggle{width:100%;height:34px;flex-shrink:0;background:#fff;border:0;
+  border-bottom:1px solid var(--line);color:var(--muted);font-family:inherit;
+  font-size:13px;line-height:1;cursor:pointer;letter-spacing:2px}
+.side-toggle:hover{background:var(--blue-l2);color:var(--blue)}
+.nav-i{display:flex;align-items:center;gap:10px;padding:13px 18px;
+  border-left:3px solid transparent;border-bottom:1px solid var(--line);
+  cursor:pointer;color:var(--text);font-size:13px;white-space:nowrap}
+.nav-i .ic{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;background:var(--blue-l);color:var(--blue-d)}
 .nav-i:hover{background:var(--blue-l2)}
 .nav-i.on{border-left-color:var(--blue);background:var(--blue-l);color:var(--blue-d);font-weight:650}
 .side-foot{margin-top:auto;padding:12px 16px;border-top:1px solid var(--line);
-  font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between}
+  font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;white-space:nowrap}
+/* 收起态：只留图标，正文区域变宽 */
+.side.collapsed{width:56px}
+.side.collapsed .nav-i{padding:13px 0;justify-content:center;gap:0}
+.side.collapsed .nav-i .lb{display:none}
+.side.collapsed .side-foot{display:none}
 .content{flex:1;overflow-y:auto;padding:22px 26px 60px}
 .page{display:none}
 .page.on{display:block}
@@ -70,6 +82,24 @@ body{margin:0}
   font-weight:800;color:#fff;background:var(--blue)}
 .dg.A{background:#15803d} .dg.B{background:#1d4ed8}
 .dg.C{background:#b45309} .dg.D{background:#b91c1c}
+/* 持仓设置：操作按钮与可编辑表格（数据只存本机浏览器） */
+.bar-actions{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.btn{background:var(--blue);color:#fff;border:1px solid var(--blue);padding:5px 14px;
+  font-size:12px;font-weight:650;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--blue-d);border-color:var(--blue-d)}
+.btn.ghost{background:#fff;color:var(--blue-d)}
+.btn.ghost:hover{background:var(--blue-l)}
+#saveMsg{font-size:11.5px;color:var(--muted)}
+.tbl.edit td{padding:2px 3px}
+.tbl.edit input{width:100%;border:1px solid var(--line);background:#fff;padding:4px 6px;
+  font-family:inherit;font-size:12px;color:inherit}
+.tbl.edit input:focus{outline:1px solid var(--blue);outline-offset:-1px}
+.del{background:#fff;border:1px solid var(--line);color:var(--up);font-size:11px;
+  padding:2px 7px;cursor:pointer;font-family:inherit}
+.del:hover{border-color:var(--up)}
+.kpi input{width:100%;border:1px solid var(--line);padding:4px 6px;margin-top:4px;
+  font-family:inherit;font-size:15px;font-weight:650;color:var(--blue-d)}
+.notice code{background:#fff;border:1px solid #f0d9ac;padding:0 3px;font-size:11px}
 .heatmap{position:relative;width:100%;height:430px;background:#fff;
   border:1px solid var(--line);overflow:hidden}
 .heatmap .hm{position:absolute;box-sizing:border-box;border:1px solid #fff;

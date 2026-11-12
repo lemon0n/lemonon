@@ -181,21 +181,26 @@ def test_dashboard_contract():
 
 
 def test_no_account_data_in_page():
-    """公开页面绝不能出现任何持仓 / 成本 / 份额 / 资金字段。"""
+    """页面产物里不能内嵌任何持仓数据：数据只能由用户在浏览器里录入并留在本机。"""
     d, s = _dashboard()
-    for bad in ('positions', 'shares', 'cost', 'pnl', 'weight_pct',
-                'total_asset', 'position_pct', 'health_score', '总仓位', '持仓分析'):
-        assert bad not in s, bad
     assert 'positions' not in d and 'cash' not in d and 'health' not in d
-    assert '当前持仓设置' not in s
+    for k in ('positions', 'shares', 'cost', 'pnl', 'weight_pct',
+              'total_asset', 'position_pct', 'health_score'):
+        assert k not in d, k
+    # 观察池之外的旧持仓代码不得出现在产物中
+    for c in ('512000', '588170', '158041'):
+        assert c not in s, c
+    assert "localStorage" in s          # 持仓入口只落到本机浏览器
+    assert '持仓分析' in s and '持仓设置' in s
 
 
-def test_tabs_are_simple():
-    """只剩三页：市场概况 / 标的跟踪 / 系统状态。"""
+def test_tabs_have_all_pages():
+    """五个入口：市场概况 / 标的跟踪 / 持仓分析 / 持仓设置 / 系统状态。"""
     d, s = _dashboard()
-    assert 'id="p1"' in s and 'id="p3"' in s and 'id="p6"' in s
-    assert 'id="p5"' not in s
-    assert '市场概况' in s and '标的跟踪' in s and '系统状态' in s
+    for p in ('p1', 'p3', 'p5', 'p7', 'p6'):
+        assert ('id="%s"' % p) in s, p
+    for t in ('市场概况', '标的跟踪', '持仓分析', '持仓设置', '系统状态'):
+        assert t in s, t
 
 
 def test_disclaimer_and_degraded_notice():

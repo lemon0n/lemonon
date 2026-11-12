@@ -2,6 +2,13 @@
 'use strict';
 var D = null;
 
+/* 持仓只保存在本机浏览器，不上传、不进仓库；页面产物里没有任何持仓数据 */
+var STORE = 'etf_positions_v2';
+var HOLD = {rows: [], cash: 0};   /* 已保存的持仓 */
+var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
+var PQ = {};                      /* 非观察池标的的实时价缓存 {last,prev,chg} */
+var PERF = null, PERF_BUSY = false;
+
 /* ---------------- 基础工具 ---------------- */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -43,6 +50,27 @@ function nav(p){
   if(typeof layoutHeatmap==='function') layoutHeatmap();   /* 页面隐藏时量不到宽度，切回时补一次 */
 }
 
+/* ---------------- 左侧导航收起 / 展开 ---------------- */
+function setSide(collapsed, save){
+  var s=document.getElementById('side');
+  if(!s) return;
+  s.classList.toggle('collapsed', !!collapsed);
+  var b=document.getElementById('sideToggle');
+  if(b){
+    b.textContent=collapsed?'»':'«';
+    b.title=collapsed?'展开导航':'收起导航';
+    b.setAttribute('aria-expanded', collapsed?'false':'true');
+  }
+  if(save!==false){ try{ localStorage.setItem('sideCollapsed', collapsed?'1':'0'); }catch(e){} }
+  clearTimeout(setSide._t);
+  /* 等 180ms 宽度过渡结束再重排树图，否则量到的还是旧宽度 */
+  setSide._t=setTimeout(function(){ if(typeof layoutHeatmap==='function') layoutHeatmap(); }, 220);
+}
+function toggleSide(){
+  var s=document.getElementById('side');
+  setSide(!(s&&s.classList.contains('collapsed')));
+}
+
 /* ---------------- 时间（统一北京时间 UTC+8） ---------------- */
 function bjNow(){
   var d=new Date(Date.now()+8*3600*1000), p=function(x){ return (x<10?'0':'')+x; };
@@ -66,6 +94,7 @@ function flash(msg, isErr){
 function tSym(code){ return (code[0]==='5'||code[0]==='6'||code[0]==='9'?'sh':'sz')+code; }
 function applyQuote(code,last,prev){
   var chg=(isFinite(prev)&&prev>0)?Math.round((last/prev-1)*10000)/100:null;
+  PQ[String(code)]={last:last,prev:prev,chg:chg};   /* 持仓里可能有观察池之外的标的 */
   (D.legs||[]).forEach(function(l){
     if(String(l.code)===code){
       l.last=last;
@@ -124,7 +153,8 @@ function parseSina(syms){
 }
 function refreshQuotes(){
   var codes=(D.legs||[]).map(function(l){ return String(l.code); })
-    .filter(function(c){ return /^\d{6}$/.test(c); });
+    .concat((HOLD.rows||[]).map(function(r){ return String(r.code); }))
+    .filter(function(c,i,a){ return /^\d{6}$/.test(c)&&a.indexOf(c)===i; });
   if(!codes.length){ flash('没有可刷新的标的', true); return; }
   var btn=document.getElementById('btnRefresh');
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
@@ -149,6 +179,403 @@ function refreshQuotes(){
       finish(ok2?parseSina(syms):0);
     });
   });
+}
+
+/* ---------------- 持仓：本机存储 + 实时重算 ----------------
+   公开仓库 / 页面产物里没有任何持仓数据；录入的内容只写 localStorage，
+   换浏览器或清缓存会丢，用「导出 CSV」备份。 */
+function legOf(code){
+  var a=D.legs||[];
+  for(var i=0;i<a.length;i++) if(String(a[i].code)===String(code)) return a[i];
+  return null;
+}
+function priceOf(code){
+  var q=PQ[String(code)];
+  if(q) return q;
+  var l=legOf(code);
+  if(l&&n(l.last)>0) return {last:n(l.last),prev:null,chg:l.change};
+  return null;
+}
+function holdLoad(){
+  try{
+    var s=JSON.parse(localStorage.getItem(STORE)||'null');
+    if(s&&Array.isArray(s.rows)) return {rows:s.rows,cash:n(s.cash)};
+  }catch(e){}
+  return {rows:[],cash:0};
+}
+function holdSave(){
+  try{ localStorage.setItem(STORE,JSON.stringify({rows:HOLD.rows,cash:HOLD.cash})); }
+  catch(e){ flash('保存失败：浏览器禁用了本地存储',true); }
+}
+function draftReset(){
+  EDIT=(HOLD.rows||[]).map(function(r){ return Object.assign({},r); });
+  CASH_EDIT=n(HOLD.cash);
+}
+function calcPort(){
+  var rows=[],totalPos=0,dayPnl=0,hasDay=false,costBasis=0,sumPnl=0;
+  (HOLD.rows||[]).forEach(function(r){
+    var q=priceOf(r.code);
+    var shares=n(r.shares),cost=n(r.cost),last=q?n(q.last):0;
+    var mv=last*shares;
+    var pnl=(last>0&&cost>0)?(last-cost)*shares:0;
+    var day=null;
+    if(q){
+      if(n(q.prev)>0) day=(last-n(q.prev))*shares;
+      else if(q.chg!=null&&isFinite(q.chg)) day=shares*(last-last/(1+n(q.chg)/100));
+    }
+    if(day!=null){ dayPnl+=day; hasDay=true; }
+    totalPos+=mv; costBasis+=cost*shares; sumPnl+=pnl;
+    rows.push({code:String(r.code),name:r.name,category:r.category||'未分类',
+      shares:shares,cost:cost,last:last,mv:mv,pnl:pnl,
+      pnl_pct:(last>0&&cost>0)?(last/cost-1)*100:null,
+      day:day,priced:!!q,settle:r.settle||'T+1',leg:legOf(r.code)});
+  });
+  var totalAsset=totalPos+n(HOLD.cash);
+  rows.forEach(function(x){ x.weight=totalAsset>0?x.mv/totalAsset*100:0; });
+  return {rows:rows,totalPos:totalPos,totalAsset:totalAsset,cash:n(HOLD.cash),
+          positionPct:totalAsset>0?totalPos/totalAsset*100:0,
+          cashPct:totalAsset>0?n(HOLD.cash)/totalAsset*100:0,
+          pnl:sumPnl,pnlPct:costBasis>0?sumPnl/costBasis*100:null,
+          dayPnl:hasDay?dayPnl:null};
+}
+function healthOf(p){
+  var rg=(D.market&&D.market.regime)||{fit_lo:40,fit_hi:70};
+  var held=p.rows.map(function(r){ return r.leg; }).filter(Boolean);
+  var cnt=held.length;
+  var lvSc=function(l){ return l.level==='A'?85:(l.level==='B'?70:(l.level==='C'?45:20)); };
+  var trend=cnt?held.reduce(function(s,l){ return s+lvSc(l); },0)/cnt:55;
+  var pos=p.positionPct;
+  var posFit=(pos>=rg.fit_lo&&pos<=rg.fit_hi)?100:Math.max(20,100-Math.abs(pos-rg.fit_hi)*3.2);
+  var catMax=0,legMax=0,st={};
+  p.rows.forEach(function(r){
+    st[r.category]=(st[r.category]||0)+r.weight;
+    if(r.weight>legMax) legMax=r.weight;
+  });
+  Object.keys(st).forEach(function(k){ if(st[k]>catMax) catMax=st[k]; });
+  var div=Math.max(20,100-Math.max(0,catMax-35)*2-Math.max(0,legMax-22)*2);
+  var disc=cnt?100*held.filter(function(l){ return l.level!=='D'; }).length/cnt:70;
+  var ma5=cnt?100*held.filter(function(l){ return l.five&&l.five.indexOf('未站回')<0; }).length/cnt:60;
+  var prem=Math.max(0,100-held.filter(function(l){ return l.premium_available===false; }).length*14);
+  var parts={'趋势适配':trend,'仓位适配':posFit,'分散度':div,
+             '止损纪律':disc,'五均线确认':ma5,'折溢价':prem};
+  var w={'趋势适配':.22,'仓位适配':.22,'分散度':.14,'止损纪律':.14,'五均线确认':.14,'折溢价':.14};
+  var sc=0,tw=0;
+  Object.keys(parts).forEach(function(k){ sc+=parts[k]*w[k]; tw+=w[k]; });
+  var score=Math.round(sc/tw);
+  return {score:score,label:score>=75?'良好':'需优化',parts:parts,
+          catMax:catMax,legMax:legMax,fit_lo:rg.fit_lo,fit_hi:rg.fit_hi,struct:st};
+}
+function ensureHoldQuotes(done){
+  var codes=(HOLD.rows||[]).map(function(r){ return String(r.code); })
+    .filter(function(c){ return /^\d{6}$/.test(c)&&!priceOf(c); });
+  if(!codes.length){ if(done) done(); return; }
+  var syms=codes.map(tSym);
+  loadScript('https://qt.gtimg.cn/q='+syms.join(','),'gbk',function(ok){
+    if(ok&&parseTencent(syms)){ if(done) done(); return; }
+    loadScript('https://hq.sinajs.cn/list='+syms.join(','),'gbk',function(ok2){
+      if(ok2) parseSina(syms);
+      if(done) done();
+    });
+  });
+}
+/* 近 60 日收盘价（腾讯 K 线，JSONP）；失败返回 null，不影响持仓盈亏 */
+function fetchKline(code,cb){
+  var sym=tSym(code),vn='kq_'+sym;
+  var s=document.createElement('script'),done=false;
+  function fin(arr){
+    if(done) return;
+    done=true;
+    if(s.parentNode) s.remove();
+    try{ delete window[vn]; }catch(e){ window[vn]=undefined; }
+    cb(arr||null);
+  }
+  s.onload=function(){
+    var arr=null;
+    try{
+      var d=window[vn].data[sym];
+      arr=d.qfqday||d.day||null;
+    }catch(e){}
+    fin(arr?arr.map(function(x){ return parseFloat(x[2]); })
+               .filter(function(x){ return isFinite(x)&&x>0; }):null);
+  };
+  s.onerror=function(){ fin(null); };
+  s.src='https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+sym+',day,,,60,qfq&_var='+vn;
+  document.head.appendChild(s);
+  setTimeout(function(){ fin(null); },9000);
+}
+function perfOf(series,p){
+  var codes=Object.keys(series).filter(function(c){
+    return series[c]&&series[c].length>=20; });
+  if(!codes.length) return null;
+  var m=Math.min.apply(null,codes.map(function(c){ return series[c].length; }));
+  var nav=[],i;
+  for(i=0;i<m;i++){
+    var v=0;
+    codes.forEach(function(c){
+      var row=p.rows.filter(function(r){ return r.code===c; })[0];
+      if(row) v+=series[c][series[c].length-m+i]*row.shares;
+    });
+    nav.push(v);
+  }
+  var rets=[];
+  for(i=1;i<nav.length;i++) if(nav[i-1]>0) rets.push(nav[i]/nav[i-1]-1);
+  if(!rets.length) return null;
+  var mean=rets.reduce(function(a,b){ return a+b; },0)/rets.length;
+  var sd=Math.sqrt(rets.reduce(function(a,b){ return a+(b-mean)*(b-mean); },0)/rets.length);
+  var peak=nav[0],maxdd=0;
+  nav.forEach(function(x){ if(x>peak) peak=x; var dd=(x-peak)/peak*100; if(dd<maxdd) maxdd=dd; });
+  var annual=nav[0]>0?Math.pow(nav[nav.length-1]/nav[0],252/(nav.length-1))-1:0;
+  return {days:nav.length,annual:annual*100,
+          sharpe:sd>0?mean/sd*Math.sqrt(252):0,
+          calmar:maxdd<0?annual*100/Math.abs(maxdd):0,maxdd:maxdd};
+}
+function paintPerf(){
+  var el=document.getElementById('perfBox');
+  if(!el) return;
+  if(PERF_BUSY){ el.innerHTML='<div class="notice">正在获取近 60 个交易日收盘价…</div>'; return; }
+  if(!PERF){ el.innerHTML='<div class="notice">该标的的历史收盘价暂不可用，组合绩效留空（持仓盈亏不受影响）。</div>'; return; }
+  el.innerHTML='<div class="grid4">'+[
+    ['区间',PERF.days+' 个交易日',''],
+    ['年化收益',sign(PERF.annual)+f2(PERF.annual)+'%',''],
+    ['夏普',f2(PERF.sharpe),''],
+    ['卡玛',f2(PERF.calmar),''],
+    ['最大回撤',f2(PERF.maxdd)+'%','']
+  ].map(function(k){ return kpi(k[0],k[1],k[2]); }).join('')+'</div>';
+}
+function loadPerf(){
+  var el=document.getElementById('perfBox');
+  if(!el) return;
+  if(PERF||PERF_BUSY){ paintPerf(); return; }
+  var rows=(HOLD.rows||[]).filter(function(r){ return n(r.shares)>0&&priceOf(r.code); });
+  if(!rows.length){ PERF=null; return; }
+  PERF_BUSY=true;
+  var series={},pending=rows.length;
+  rows.forEach(function(r){
+    fetchKline(r.code,function(cl){
+      series[String(r.code)]=cl;
+      if(--pending===0){
+        PERF_BUSY=false;
+        PERF=perfOf(series,calcPort());
+        paintPerf();
+      }
+    });
+  });
+  paintPerf();
+}
+
+/* ---------------- p5 持仓分析 ---------------- */
+function kpi(k,v,d,warn){
+  return '<div class="kpi"><div class="k">'+esc(k)+'</div>'+
+    '<div class="v'+(warn?' warn':'')+'">'+v+'</div>'+
+    '<div class="d">'+esc(d||'')+'</div></div>';
+}
+function fy(v){ return v==null?'—':'¥'+Math.round(n(v)).toLocaleString(); }
+function page5(){
+  var h='<div class="pg-h"><h1>持仓分析</h1>'+
+    '<p class="pg-sub">只在本机浏览器计算：持仓与成本保存在 localStorage，不上传、不进仓库。</p></div>';
+  if(!HOLD.rows.length){
+    return h+'<div class="notice">还没有录入持仓。到左侧「持仓设置」新增标的或导入 CSV 后，这里会显示组合概览、健康分项与逐只盈亏。</div>';
+  }
+  var p=calcPort(),H=healthOf(p);
+  var over=Math.round((p.positionPct-H.fit_hi)*100)/100;
+
+  h+=sec('组合概览');
+  h+='<div class="grid4">'+
+    kpi('总资产',fy(p.totalAsset),'现金 '+fy(p.cash))+
+    kpi('持仓市值',fy(p.totalPos),p.rows.length+' 只标的')+
+    kpi('浮动盈亏',col(p.pnlPct)+'　'+fy(p.pnl),'按成本价计算')+
+    kpi('当日盈亏',p.dayPnl==null?'—':col(p.dayPnl/p.totalAsset*100)+'　'+fy(p.dayPnl),'按实时价估算')+
+    '</div>';
+  h+='<div class="grid4" style="margin-top:12px">'+
+    kpi('总仓位',f2(p.positionPct)+'%','现金 '+f2(p.cashPct)+'%',over>0)+
+    kpi('阶段适配仓位',H.fit_lo+'~'+H.fit_hi+'%',over>0?('超配 '+f2(over)+' pct'):'区间内',over>0)+
+    kpi('健康评分',H.score+' / 100',H.label,H.score<75)+
+    kpi('集中度','单只 '+f2(H.legMax)+'%','单类 '+f2(H.catMax)+'%',H.catMax>35)+
+    '</div>';
+
+  h+=sec('健康分项');
+  h+=box(bars(Object.keys(H.parts).map(function(k){
+    return [k,H.parts[k],Math.round(H.parts[k])];
+  }),function(v){ return v>=70?'#148f5b':(v>=50?'#b45309':'#c0392b'); }));
+
+  h+=sec('持仓明细 · '+p.rows.length+' 只');
+  h+=box(tbl(['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','当日','分诊'],
+    p.rows.map(function(r){
+      return tr([esc(r.code),esc(r.name),esc(r.category),String(r.shares),f2(r.cost),
+        f2(r.last),fy(r.mv),f2(r.weight)+'%',
+        r.pnl_pct==null?'—':col(r.pnl_pct)+'　'+fy(r.pnl),
+        r.day==null?'—':col(r.day/r.mv*100)+'　'+fy(r.day),
+        r.leg?'<span class="dg">'+esc(r.leg.level)+'</span> '+esc(r.leg.branch):'<span class="tag watch">观察池外</span>']);
+    }),['','','','r','r','r','r','r','r','r','']));
+
+  h+=sec('类别结构');
+  h+=box(bars(Object.keys(H.struct).map(function(k){
+    return [k,H.struct[k],f2(H.struct[k])+'%'];
+  })));
+
+  h+=sec('组合绩效 · 近 60 个交易日');
+  h+=box('<div id="perfBox"><div class="notice">正在获取历史收盘价…</div></div>');
+
+  h+='<div class="notice">持仓数据只写在本机浏览器（localStorage 键 <b>'+STORE+'</b>），页面产物与仓库里没有任何持仓内容；换设备或清缓存会丢失，可在「持仓设置」导出 CSV 备份。</div>';
+  return h;
+}
+
+/* ---------------- p7 持仓设置 ---------------- */
+function draftCalc(){
+  var rows=[],totalPos=0,costBasis=0,sumPnl=0;
+  (EDIT||[]).forEach(function(r){
+    var q=priceOf(r.code),last=q?n(q.last):0,sh=n(r.shares),co=n(r.cost);
+    var mv=last*sh,pnl=(last>0&&co>0)?(last-co)*sh:0;
+    totalPos+=mv; costBasis+=co*sh; sumPnl+=pnl;
+    rows.push({mv:mv,pnl:pnl,pct:(last>0&&co>0)?(last/co-1)*100:null,last:last});
+  });
+  var totalAsset=totalPos+n(CASH_EDIT);
+  rows.forEach(function(x){ x.weight=totalAsset>0?x.mv/totalAsset*100:0; });
+  return {rows:rows,totalPos:totalPos,totalAsset:totalAsset,sumPnl:sumPnl,
+          pnlPct:costBasis>0?sumPnl/costBasis*100:null,
+          positionPct:totalAsset>0?totalPos/totalAsset*100:0};
+}
+function inp(i,k,v,type){
+  var step=(type==='number')?' step="any"':'';
+  return '<td><input type="'+type+'"'+step+' value="'+esc(v)+'" title="'+esc(v)+
+    '" oninput="editField('+i+',\''+k+'\',this.value)"></td>';
+}
+function posRows(){
+  var s=draftCalc();
+  return (EDIT||[]).map(function(p,i){
+    return '<tr>'+
+      inp(i,'code',p.code,'text')+inp(i,'name',p.name,'text')+
+      inp(i,'category',p.category||'', 'text')+
+      inp(i,'shares',p.shares,'number')+inp(i,'cost',p.cost,'number')+
+      '<td class="r">'+f2(s.rows[i].last)+'</td>'+
+      '<td class="r" id="mv_'+i+'">'+fy(s.rows[i].mv)+'</td>'+
+      '<td class="r" id="wt_'+i+'">'+f2(s.rows[i].weight)+'%</td>'+
+      '<td class="r" id="pl_'+i+'">'+(s.rows[i].pct==null?'—':col(s.rows[i].pct))+'</td>'+
+      '<td><button class="del" onclick="delRow('+i+')">删除</button></td></tr>';
+  }).join('');
+}
+function refreshDerived(){
+  var s=draftCalc();
+  (EDIT||[]).forEach(function(p,i){
+    var a=document.getElementById('mv_'+i),b=document.getElementById('wt_'+i),
+        c=document.getElementById('pl_'+i);
+    if(a) a.innerHTML=fy(s.rows[i].mv);
+    if(b) b.innerHTML=f2(s.rows[i].weight)+'%';
+    if(c) c.innerHTML=(s.rows[i].pct==null?'—':col(s.rows[i].pct));
+  });
+  var A=document.getElementById('sumAsset'),B=document.getElementById('sumPos'),
+      C=document.getElementById('sumPnl');
+  if(A) A.textContent=fy(s.totalAsset);
+  if(B) B.textContent=f2(s.positionPct)+'%';
+  if(C) C.innerHTML=col(s.pnlPct)+'　'+fy(s.sumPnl);
+}
+function editField(i,k,v){ if(!EDIT[i]) return; EDIT[i][k]=v; refreshDerived(); }
+function editCash(v){ CASH_EDIT=n(v); refreshDerived(); }
+function addRow(){
+  EDIT.push({code:'',name:'',category:'行业',shares:0,cost:0,settle:'T+1',note:''});
+  document.getElementById('p7').innerHTML=page7();
+  refreshDerived();
+}
+function delRow(i){
+  EDIT.splice(i,1);
+  document.getElementById('p7').innerHTML=page7();
+  refreshDerived();
+}
+function saveAll(){
+  HOLD={rows:(EDIT||[]).map(function(r){ return Object.assign({},r); }),
+        cash:n(CASH_EDIT)};
+  holdSave();
+  PERF=null;
+  ensureHoldQuotes(function(){ render(); });
+  var m=document.getElementById('saveMsg');
+  if(m){ m.textContent='已保存到本机'; setTimeout(function(){
+    var e=document.getElementById('saveMsg'); if(e) e.textContent=''; },2400); }
+  render();
+}
+function clearAll(){
+  if(!confirm('清空本机保存的持仓？建议先导出 CSV 备份。')) return;
+  HOLD={rows:[],cash:0};
+  try{ localStorage.removeItem(STORE); }catch(e){}
+  draftReset(); PERF=null; render();
+}
+function pickCsv(){ var f=document.getElementById('csvFile'); if(f) f.click(); }
+function exportCsv(){
+  var q=function(v){ var s=String(v==null?'':v);
+    return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  var lines=[['code','name','category','shares','cost','settle','benchmark','note'].join(',')];
+  lines.push(['CASH','现金','现金',CASH_EDIT,1,'T+0','','可用现金'].map(q).join(','));
+  (EDIT||[]).forEach(function(p){
+    lines.push([p.code,p.name,p.category,p.shares,p.cost,p.settle||'T+1','',p.note||''].map(q).join(','));
+  });
+  var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='positions.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+  var m=document.getElementById('saveMsg'); if(m) m.textContent='已导出 positions.csv';
+}
+function importCsv(input){
+  var f=input.files&&input.files[0];
+  if(!f) return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    var txt=String(rd.result||'').replace(/^\uFEFF/,'');
+    var lines=txt.split(/\r?\n/).filter(function(x){ return x.trim(); });
+    if(!lines.length){ flash('CSV 是空的',true); return; }
+    var head=lines[0].split(',').map(function(x){ return x.trim().replace(/^"|"$/g,''); });
+    var idx={}; head.forEach(function(h,i){ idx[h]=i; });
+    if(idx.code==null||idx.shares==null){ flash('CSV 缺少 code / shares 列',true); return; }
+    var rows=[],cash=0;
+    lines.slice(1).forEach(function(line){
+      var c=line.split(','),o={};
+      Object.keys(idx).forEach(function(k){
+        o[k]=String(c[idx[k]]==null?'':c[idx[k]]).trim().replace(/^"|"$/g,'');
+      });
+      if(!o.code) return;
+      if(o.code.toUpperCase()==='CASH'){ cash=n(o.shares); return; }
+      rows.push({code:o.code,name:o.name||o.code,category:o.category||'未分类',
+                 shares:n(o.shares),cost:n(o.cost),settle:o.settle||'T+1',note:o.note||''});
+    });
+    EDIT=rows; CASH_EDIT=cash;
+    HOLD={rows:rows.map(function(r){ return Object.assign({},r); }),cash:cash};
+    holdSave(); PERF=null;
+    ensureHoldQuotes(function(){ render(); });
+    render();
+    var m=document.getElementById('saveMsg');
+    if(m) m.textContent='已导入 '+rows.length+' 行（仅本机）';
+  };
+  rd.readAsText(f,'utf-8');
+  input.value='';
+}
+function page7(){
+  if(!EDIT) draftReset();
+  var s=draftCalc();
+  var h='<div class="pg-h"><h1>持仓设置</h1>'+
+    '<p class="pg-sub">在这里录入自己的持仓与成本。数据只保存在本机浏览器，页面与仓库都不会包含。</p></div>';
+  h+='<div class="bar-actions">'+
+    '<button class="btn" onclick="saveAll()">保存</button>'+
+    '<button class="btn ghost" onclick="addRow()">新增一行</button>'+
+    '<button class="btn ghost" onclick="pickCsv()">导入 CSV</button>'+
+    '<button class="btn ghost" onclick="exportCsv()">导出 CSV</button>'+
+    '<button class="btn ghost" onclick="clearAll()">清空</button>'+
+    '<span id="saveMsg"></span>'+
+    '<input type="file" id="csvFile" accept=".csv,text/csv" onchange="importCsv(this)" style="display:none">'+
+    '</div>';
+  h+=box('<table class="tbl edit"><thead><tr>'+
+    ['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','']
+      .map(function(x){ return '<th>'+x+'</th>'; }).join('')+
+    '</tr></thead><tbody>'+posRows()+'</tbody></table>');
+  h+='<div class="grid3" style="margin-top:12px">'+
+    '<div class="kpi"><div class="k">可用现金</div>'+
+      '<input id="cashInput" type="number" step="any" value="'+esc(CASH_EDIT)+'" oninput="editCash(this.value)"></div>'+
+    '<div class="kpi"><div class="k">总资产</div><div class="v" id="sumAsset">'+fy(s.totalAsset)+'</div>'+
+      '<div class="d">持仓 '+fy(s.totalPos)+'</div></div>'+
+    '<div class="kpi"><div class="k">总仓位 / 浮动盈亏</div><div class="v" id="sumPos">'+f2(s.positionPct)+'%</div>'+
+      '<div class="d" id="sumPnl">'+col(s.pnlPct)+'　'+fy(s.sumPnl)+'</div></div>'+
+    '</div>';
+  h+='<div class="notice">持仓只写在 localStorage（键 <b>'+STORE+'</b>）。同一浏览器长期有效；换设备、清缓存或换域名都会丢失，建议定期「导出 CSV」。'+
+    '导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
+  return h;
 }
 
 /* ---------------- p1 市场概况 ---------------- */
@@ -474,10 +901,13 @@ function render(){
   }
   document.getElementById('p1').innerHTML=page1();
   document.getElementById('p3').innerHTML=page3();
+  document.getElementById('p5').innerHTML=page5();
+  document.getElementById('p7').innerHTML=page7();
   document.getElementById('p6').innerHTML=page6();
   var f=document.getElementById('footNote');
   if(f) f.innerHTML=footNote();
   layoutHeatmap();
+  loadPerf();
 }
 
 function boot(){
@@ -485,7 +915,17 @@ function boot(){
     document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return;
   }
   D=window.DASHBOARD;
+  HOLD=holdLoad();
+  draftReset();
   render();
+  /* 持仓里可能有观察池之外的标的：补一次实时价，再重绘（绩效不阻塞首屏） */
+  if(HOLD.rows.length){
+    ensureHoldQuotes(function(){ render(); });
+  }
+  var saved=null;
+  try{ saved=localStorage.getItem('sideCollapsed'); }catch(e){}
+  /* 窄屏首次打开默认收起，避免导航挤占正文；用户手动切换后记住选择 */
+  if(saved==null ? window.innerWidth<720 : saved==='1') setSide(true, false);
 }
 window.addEventListener('resize', function(){ layoutHeatmap(); });
 boot();

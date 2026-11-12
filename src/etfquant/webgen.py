@@ -33,15 +33,26 @@ SHELL = '''<!DOCTYPE html>
     </div>
   </div>
   <div class="body">
-    <div class="side">
-      <div class="nav-i on" data-p="p1" onclick="nav('p1')">市场概况</div>
-      <div class="nav-i" data-p="p3" onclick="nav('p3')">标的跟踪</div>
-      <div class="nav-i" data-p="p6" onclick="nav('p6')">系统状态</div>
+    <div class="side" id="side">
+      <button class="side-toggle" id="sideToggle" type="button" onclick="toggleSide()"
+              title="收起导航" aria-label="收起或展开导航">«</button>
+      <div class="nav-i on" data-p="p1" onclick="nav('p1')" title="市场概况">
+        <span class="ic">市</span><span class="lb">市场概况</span></div>
+      <div class="nav-i" data-p="p3" onclick="nav('p3')" title="标的跟踪">
+        <span class="ic">标</span><span class="lb">标的跟踪</span></div>
+      <div class="nav-i" data-p="p5" onclick="nav('p5')" title="持仓分析">
+        <span class="ic">仓</span><span class="lb">持仓分析</span></div>
+      <div class="nav-i" data-p="p7" onclick="nav('p7')" title="持仓设置">
+        <span class="ic">设</span><span class="lb">持仓设置</span></div>
+      <div class="nav-i" data-p="p6" onclick="nav('p6')" title="系统状态">
+        <span class="ic">系</span><span class="lb">系统状态</span></div>
       <div class="side-foot"><span id="sideUpdate">—</span></div>
     </div>
     <div class="content">
       <div class="page on" id="p1"></div>
       <div class="page" id="p3"></div>
+      <div class="page" id="p5"></div>
+      <div class="page" id="p7"></div>
       <div class="page" id="p6"></div>
       <div id="footNote"></div>
     </div>
