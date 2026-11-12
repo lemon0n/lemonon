@@ -81,7 +81,13 @@ jobs:
             echo "无变化，跳过提交"
           else
             git commit -m "chore: 每日更新 $(date -u '+%Y-%m-%d %H:%M UTC')"
-            git push
+            # 若期间有人手动推送，先 rebase 再推，最多重试 3 次
+            for i in 1 2 3; do
+              if git push; then exit 0; fi
+              echo "推送被拒，拉取远端后重试（第 $i 次）"
+              git pull --rebase --autostash origin main
+            done
+            exit 1
           fi
 
       - name: 归档单文件 HTML
