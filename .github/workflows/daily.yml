@@ -1,0 +1,112 @@
+name: 每日更新
+
+# 每天北京 07:30 自动跑一版（UTC 23:30 前一天），
+# 也支持在 GitHub 页面点「Run workflow」或让 agent 调用 workflow_dispatch 立即跑一版。
+# 说明：GitHub 免费版 cron 在高峰期可能延迟 10~30 分钟；07:30 触发是为了
+# 在 09:30 开盘前留出余量。若那次失败，下面的重试步骤会自动再试 2 次。
+
+on:
+  schedule:
+    - cron: '30 23 * * 0-4'      # UTC 23:30 = 北京 07:30（周一~周五盘前）
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: '严格模式：任一关键通道降级就判失败'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: etf-daily-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 单元测试（不触网，先挡住逻辑回归）
+        run: python -m pytest tests/ -q
+
+      - name: 生成当日决策（实时取数，失败自动降级）
+        id: run
+        run: |
+          set +e
+          for i in 1 2 3; do
+            echo "--- 第 $i 次尝试 ---"
+            python scripts/run_update.py --json > run.json
+            code=$?
+            if [ "$code" = "0" ]; then break; fi
+            echo "退出码 $code，60 秒后重试"
+            sleep 60
+          done
+          python - <<'PY'
+          import json
+          d = json.load(open('run.json'))
+          print('数据日期', d.get('data_date'), '| 来源',
+                '实时' if not d.get('degraded') else '降级')
+          print('标的', d.get('levels'), '| 参考价位',
+                d.get('orders_valid'), '/', d.get('orders'))
+          open('summary.md', 'w', encoding='utf-8').write(
+              '数据日期 %s · 来源 %s · 标的 %s 只 · 参考价位 %s/%s\n\n降级明细：\n%s\n'
+              % (d.get('data_date'), '实时' if not d.get('degraded') else '降级',
+                 d.get('levels'), d.get('orders_valid'), d.get('orders'),
+                 '\n'.join('- ' + x for x in d.get('source', {}).get('fallback', [])) or '- 无'))
+          PY
+          cat summary.md >> $GITHUB_STEP_SUMMARY
+          exit $code
+
+      - name: 提交产物（触发 Pages 重新发布）
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/index.html data/last_run.json
+          if git diff --cached --quiet; then
+            echo "无变化，跳过提交"
+          else
+            git commit -m "chore: 每日更新 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
+
+      - name: 归档单文件 HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: etf-dashboard-${{ github.run_number }}
+          path: |
+            web/index.html
+            data/last_run.json
+          retention-days: 30
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    # 私有仓库不支持 Pages（免费版），这一步会失败但不该把每日更新标红；
+    # 仓库改为 public 并启用 Pages 后，这里会自动生效。
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}      # 取上一步刚提交的产物
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deploy
+        uses: actions/deploy-pages@v4

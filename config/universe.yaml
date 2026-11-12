@@ -1,0 +1,24 @@
+# 标的池与交易规则参数（报价精度 / T+0·T+1 / 基准映射）
+market: CN-ETF
+base_currency: CNY
+quote_precision: 0.001          # ETF 报价最小变动
+stamp_duty_exempt: true         # ETF 免印花税
+lot_size: 100                   # 最小买入单位（份）
+
+# 基准指数映射（相对强弱用）
+benchmarks:
+  '000300': 沪深300
+  '000905': 中证500
+  '399006': 创业板指
+  '000688': 科创50
+  NDX: 纳斯达克100
+  AU9999: 黄金现货
+  CBA00301: 中债总财富
+
+# 公开观察池：只做技术面跟踪，不含任何个人持仓、成本、份额或资金数据。
+# 想换成自己关注的品种，改这里即可；代码需为 6 位 ETF 代码。
+etfs:
+  - {code: '510300', name: 沪深300ETF, category: 宽基, settle: T+1, benchmark: '000300', track: 沪深300, watchlist: true}
+  - {code: '510500', name: 中证500ETF, category: 宽基, settle: T+1, benchmark: '000905', track: 中证500, watchlist: true}
+  - {code: '588000', name: 科创50ETF,  category: 宽基, settle: T+1, benchmark: '000688', track: 上证科创板50, watchlist: true}
+  - {code: '159915', name: 创业板ETF,  category: 宽基, settle: T+1, benchmark: '399006', track: 创业板指, watchlist: true}

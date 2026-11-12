@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "ran_at": "2026-11-12 18:49:40",
+  "mode": "live",
+  "data_date": "2026-11-12",
+  "degraded": false,
+  "levels": 4,
+  "level_count": {
+    "A": 0,
+    "B": 3,
+    "C": 0,
+    "D": 1
+  },
+  "orders": 4,
+  "orders_valid": 4,
+  "skipped": [],
+  "fallback": [
+    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与打分）"
+  ],
+  "html": "/workspace/etf-decision-platform/web/index.html"
+}

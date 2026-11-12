@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/cache/
+.DS_Store
+*.log
+.venv/
+venv/
+
+# CI 临时产物
+run.json
+summary.md
+
+# 个人数据与凭证：一律不进仓库（本项目对外公开）
+positions/
+.env
+.env.*
+*.pem
+*.key

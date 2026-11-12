@@ -1,0 +1,53 @@
+# 策略阈值参数（五均线 / 量能 / 结构 / 分诊 / 打分）
+ma:
+  periods: [5, 10, 20, 60, 120]
+  stand_back: 收盘价 > MA5                    # 短期回暖确认
+  add_requires_days_above_ma5: 3            # 五均线上三日才可考虑加仓 (7879/7681)
+  stop_ma: 10                               # 买点一止损十均线（主力成本）
+  stop_consecutive_days: 2                  # 连两日收盘下方无条件执行 (3657)
+  stop_buy2_ma: 5                           # 买点二止损五均线
+  tangle_atr_pct: 0.012                     # 5/10/20 聚集缠绕阈值
+  cross_signal: MA5 上穿 MA20                # 趋势扭转信号 (8231)
+
+breakout:
+  true_all_of:                              # 真突破四条（须全中）
+    - 不破关键位
+    - 明显缩量
+    - 慢跌快涨
+    - 有承接（下影线/小阳线/连续不破低）
+  false_if: [放量下跌, 跌破重要均线]          # 假突破 = 出货
+  shrink_ratio: 0.80                        # 量比 < 0.8 判明显缩量
+  expand_ratio: 1.30                        # 量比 > 1.3 判放量
+  main_cost_ma: 10
+  abandon_ma: 20                            # 跌破 20 日线 = 主力放弃
+
+cycle:
+  fib: [0.382, 0.618]
+  phases: [A杀, B反, C杀, 缩量横盘整理, 主升浪]
+  c_kill_confirm: 跌破 A 浪最低点
+
+# A/B/C/D 分诊：命中任一触发项即入该级，优先级 D > C > A > B
+triage:
+  D:
+    - 连两日收盘在 MA10 下方
+    - 放量下跌破 MA20
+    - 无业绩纯题材 且 板块破位新低
+    - 假突破成立
+  C:
+    - 跌破 MA5
+    - 放量滞涨 / 冲高回落
+    - 折溢价偏高
+    - 板块首轮分歧
+  A:
+    - 收盘站回 MA5 且 站上三日
+    - 缩量回踩不破关键位
+    - 先于大盘企稳
+    - 真突破四条全中
+  B:
+    - 均线缠绕 / 缩量整理
+    - 趋势未破坏但缺确认
+    - 等待 MA5 上穿 MA20
+
+score:
+  weights: {momentum: 0.30, fund: 0.25, trend: 0.30, premium: 0.15}
+  premium_penalty_threshold_pct: 1.0

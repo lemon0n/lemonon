@@ -1,0 +1,22 @@
+# 市场阶段适配仓位 / 止损与价位规则（公开版不含组合层与个人仓位）
+position:
+  regime_fit:                     # 市场阶段 → 适配仓位区间（只作市场判断，不是个人持仓建议）
+    'C杀':            [30, 40]
+    缩量横盘整理:       [60, 70]
+    主升浪:            [80, 90]
+    A杀:               [30, 40]
+    B反:               [40, 50]
+  current_regime: 缩量横盘整理
+  test_layers: [3, 4]
+  test_layer_pct: 10
+
+stop:
+  hard_rule: true
+  buy_point_1_ma: 10
+  buy_point_2_ma: 5
+  reduce_priority: true           # 减仓优先于选股
+
+orders:
+  default_bracket: true
+  oco: true
+  max_orders_per_leg: 1
