@@ -6,7 +6,7 @@ primary_channel: agent
 fallback_channel: github_actions
 
 run:
-  daily_at: '07:30'               # 北京时间；留足到 09:30 开盘前的余量
+  daily_at: '06:50'               # 北京时间；留足到 09:30 开盘前的余量
   on_demand: true                 # 随时手动/agent 触发
 
 channels:
@@ -16,7 +16,7 @@ channels:
   github_actions:
     enabled: true
     workflow: '.github/workflows/daily.yml'
-    cron: '30 23 * * 0-4'         # UTC 23:30 = 北京 07:30（周一到周五盘前）
+    cron: '50 22 * * 0-4'         # UTC 22:50 = 北京 06:50（每个交易日盘前）
     artifacts: [web/index.html, data/last_run.json]
 
 # 页面「刷新行情」按钮只更新价格（免费 JSONP），不重算指标。

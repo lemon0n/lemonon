@@ -39,9 +39,9 @@ python3.11 -m pytest tests/ -q              # 22 项测试，不触网
 
 | 方式 | 触发 | 说明 |
 |---|---|---|
-| agent 每日定时 | 每天 07:30（北京时间） | 主通道，执行 `python3 scripts/run_update.py` |
-| agent 按需 | 随时说一句 | 同一命令 |
-| GitHub Actions | cron + 手动 | 兜底通道；UTC 23:30 = 北京 07:30，周一至周五盘前 |
+| GitHub Actions 定时 | 每个交易日 06:50（北京时间） | 自动运行，不消耗 token |
+| GitHub Actions 手动 | 页面 Actions → Run workflow | 盘中想再跑一次时用 |
+| 本地/agent 按需 | 随时 | `python3 scripts/run_update.py --push` |
 
 Actions 流程：跑测试 → 实时生成 → 提交 `web/index.html` 与 `data/last_run.json` → 归档 artifact → 部署 GitHub Pages（仓库需公开并开启 Pages）。
 
@@ -79,7 +79,7 @@ data/last_run.json  最近一次运行清单
 src/etfquant/   datasource / indicators / signals / portfolio / orders / webgen
 scripts/        run_update（唯一入口）/ gen_snapshot / run_backtest
 web/            index.html ← 唯一交付物
-.github/workflows/daily.yml   每日 07:30 + 手动触发 + Pages 部署
+.github/workflows/daily.yml   每交易日 06:50 + 手动触发 + Pages 部署
 tests/          pytest（22 项，含无密钥 / 无明文持仓护栏）
 ```
 
