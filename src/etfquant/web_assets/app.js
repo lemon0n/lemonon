@@ -364,7 +364,7 @@ function page5(){
   var h='<div class="pg-h"><h1>持仓分析</h1>'+
     '<p class="pg-sub">解锁后在本机浏览器解密计算；仓库里只有密文，没有明文持仓。</p></div>';
   if(!HOLD.rows.length){
-    return h+'<div class="notice">还没有录入持仓。到左侧「持仓设置」新增标的或导入 CSV，再点「保存到云端」生成密文文件。</div>';
+    return h+'<div class="notice">还没有录入持仓。到左侧「持仓设置」填代码、份额、成本价，点「保存到云端」即可。</div>';
   }
   var p=calcPort(),H=healthOf(p);
   var over=Math.round((p.positionPct-H.fit_hi)*100)/100;
@@ -472,18 +472,39 @@ function delRow(i){
   document.getElementById('p7').innerHTML=page7();
   refreshDerived();
 }
-function saveAll(){
-  HOLD={rows:(EDIT||[]).map(function(r){ return Object.assign({},r); }),
-        cash:n(CASH_EDIT)};
-  PERF=null;
-  ensureHoldQuotes(function(){ render(); });
-  var m=document.getElementById('saveMsg');
-  if(m){ m.textContent='已保存到本机'; setTimeout(function(){
-    var e=document.getElementById('saveMsg'); if(e) e.textContent=''; },2400); }
-  render();
+function legOf(code){
+  var m=(D&&D.legs)||[];
+  for(var i=0;i<m.length;i++) if(String(m[i].code)===code) return m[i];
+  return null;
+}
+function quickAdd(){
+  var c=((document.getElementById('qCode')||{}).value||'').trim();
+  if(!/^\d{6}$/.test(c)){ flash('代码应为 6 位数字',true); return; }
+  var sh=n((document.getElementById('qShares')||{}).value);
+  var co=n((document.getElementById('qCost')||{}).value);
+  if(!(sh>0)){ flash('请填写份额',true); return; }
+  if(!(co>0)){ flash('请填写成本价',true); return; }
+  var l=legOf(c);
+  EDIT.push({code:c,name:l?l.name:c,category:l?l.category:'未分类',
+             shares:sh,cost:co,settle:'T+1',note:''});
+  document.getElementById('p7').innerHTML=page7();
+  refreshDerived();
+  if(!l) autoName(c);
+}
+/* 观察池外的代码：用腾讯行情补名称，失败就留代码 */
+function autoName(code){
+  loadScript('https://qt.gtimg.cn/q='+tSym(code),'gbk',function(){
+    var raw=window['v_'+tSym(code)];
+    if(typeof raw!=='string') return;
+    var nm=String(raw.split('~')[1]||'').trim();
+    if(!nm) return;
+    (EDIT||[]).forEach(function(r){ if(r.code===code) r.name=nm; });
+    var el=document.getElementById('p7');
+    if(el) el.innerHTML=page7();
+  });
 }
 function clearAll(){
-  if(!confirm('清空本机保存的持仓？建议先导出 CSV 备份。')) return;
+  if(!confirm('清空持仓？清空后需再点「保存到云端」才生效。建议先导出 CSV 备份。')) return;
   HOLD={rows:[],cash:0};
   draftReset(); PERF=null; render();
 }
@@ -539,26 +560,26 @@ function importCsv(input){
 function page7(){
   if(!EDIT) draftReset();
   var s=draftCalc();
+  var tk=ghStore('etf_gh_token');
   var h='<div class="pg-h"><h1>持仓设置</h1>'+
-    '<p class="pg-sub">录入持仓与成本，用口令加密后写入仓库；公开访客只能看到密文。</p></div>';
+    '<p class="pg-sub">录入代码、份额和成本价，点「保存到云端」直接写入密文；公开访客只能看到密文。</p></div>';
   h+='<div class="bar-actions">'+
-    '<button class="btn" onclick="saveAll()">保存</button>'+
-    '<button class="btn" onclick="saveCloud()">保存到云端（导出密文）</button>'+
-    '<button class="btn ghost" onclick="changePass()">改口令</button>'+
+    '<button class="btn" onclick="saveCloud()">保存到云端</button>'+
     '<button class="btn ghost" onclick="addRow()">新增一行</button>'+
     '<button class="btn ghost" onclick="pickCsv()">导入 CSV</button>'+
     '<button class="btn ghost" onclick="exportCsv()">导出 CSV</button>'+
+    '<button class="btn ghost" onclick="changePass()">改口令</button>'+
     '<button class="btn ghost" onclick="clearAll()">清空</button>'+
     '<span id="saveMsg"></span>'+
     '<input type="file" id="csvFile" accept=".csv,text/csv" onchange="importCsv(this)" style="display:none">'+
     '</div>';
-  h+=box(bt('云端写入')+
-    '<div class="grid2">'+
-    '<div class="kpi"><div class="k">GitHub 仓库</div>'+
-      '<input id="ghRepo" value="'+esc(ghStore('etf_gh_repo')||GH_DEFAULT)+'" onchange="ghSaveCfg()"></div>'+
-    '<div class="kpi"><div class="k">写入令牌（contents:write，可留空）</div>'+
-      '<input id="ghToken" type="password" value="'+esc(ghStore('etf_gh_token'))+'" onchange="ghSaveCfg()" placeholder="留空则改为下载文件"></div>'+
-    '</div><div class="note">令牌只存在本机浏览器，用于把密文直接写入仓库；填写后「保存到云端」一键生效。</div>');
+  h+=box(bt('快速添加')+
+    '<div class="qadd">'+
+      '<input id="qCode" placeholder="代码，如 510300" maxlength="6">'+
+      '<input id="qShares" type="number" step="100" min="0" placeholder="份额">'+
+      '<input id="qCost" type="number" step="any" min="0" placeholder="成本价">'+
+      '<button class="btn" onclick="quickAdd()">添加</button>'+
+    '</div><div class="note">只填代码、份额、成本价；名称和类别自动匹配，添加后点「保存到云端」。</div>');
   h+=box('<table class="tbl edit"><thead><tr>'+
     ['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','']
       .map(function(x){ return '<th>'+x+'</th>'; }).join('')+
@@ -571,7 +592,19 @@ function page7(){
     '<div class="kpi"><div class="k">总仓位 / 浮动盈亏</div><div class="v" id="sumPos">'+f2(s.positionPct)+'%</div>'+
       '<div class="d" id="sumPnl">'+col(s.pnlPct)+'　'+fy(s.sumPnl)+'</div></div>'+
     '</div>';
-  h+='<div class="notice">「保存到云端」先用当前口令加密：填了令牌就直接写入仓库 <b>web/positions.enc.json</b>（约 1 分钟后生效）；没填令牌则下载文件手动替换。'+
+  h+=box('<details class="cfg" id="ghCfg"><summary>云同步设置 · '+
+    (tk?'已配置':'未配置')+'</summary>'+
+    '<div class="note">首次使用填一次写入令牌即可，之后「保存到云端」直接生效。令牌只存在本机浏览器，'+
+    '建议用 fine-grained PAT，仅授予本仓库 <code>Contents: Read and write</code>。</div>'+
+    '<div class="grid2" style="margin-top:8px">'+
+    '<div class="kpi"><div class="k">GitHub 仓库</div>'+
+      '<input id="ghRepo" value="'+esc(ghStore('etf_gh_repo')||GH_DEFAULT)+'"></div>'+
+    '<div class="kpi"><div class="k">写入令牌</div>'+
+      '<input id="ghToken" type="password" value="'+esc(ghStore('etf_gh_token'))+'" placeholder="github_pat_... 或 ghp_..."></div>'+
+    '</div><div class="bar-actions" style="margin-top:10px">'+
+      '<button class="btn ghost" onclick="ghSaveCfg();saveMsg(\'令牌已保存在本机\')">保存配置</button>'+
+      '<button class="btn ghost" onclick="exportEnc()">下载密文备份</button></div></details>');
+  h+='<div class="notice">「保存到云端」用当前口令加密后写入仓库 <b>web/positions.enc.json</b>，约 1 分钟自动重新发布。'+
     '口令忘了无法恢复，请自行保管。导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
   return h;
 }
@@ -921,6 +954,8 @@ function ghSaveCfg(){
     if(r) localStorage.setItem('etf_gh_repo',r.value.trim());
     if(t&&t.value.trim()) localStorage.setItem('etf_gh_token',t.value.trim());
   }catch(e){}
+  var s=document.querySelector('#ghCfg summary');
+  if(s) s.textContent='云同步设置 · '+(ghToken()?'已配置':'未配置');
 }
 function ghPut(repo,tk,text){
   var url='https://api.github.com/repos/'+repo+'/contents/web/positions.enc.json';
@@ -942,23 +977,35 @@ function ghPut(repo,tk,text){
 function saveMsg(t){ var m=document.getElementById('saveMsg'); if(m) m.textContent=t||''; }
 function saveCloud(){
   if(!PASS){ openLock(); return; }
+  var tk=ghToken();
+  if(!tk){
+    var d=document.getElementById('ghCfg'); if(d) d.open=true;
+    var t=document.getElementById('ghToken'); if(t) t.focus();
+    saveMsg('首次使用：先在下方填写一次写入令牌');
+    return;
+  }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
   commitHold(); ghSaveCfg();
-  var tk=ghToken(), repo=ghRepo();
+  var repo=ghRepo();
+  saveMsg('正在加密并写入云端…');
   encBlob(HOLD,PASS).then(function(blob){
     var text=JSON.stringify(blob,null,2);
-    if(!tk){
-      downloadText(text,ENCFILE);
-      saveMsg('未填写入令牌：已下载密文，手动替换 web/positions.enc.json');
-      return;
-    }
     return ghPut(repo,tk,text).then(function(){
-      saveMsg('已写入云端，约 1 分钟后页面生效');
+      saveMsg('已保存到云端，约 1 分钟后页面生效');
       flash('持仓已写入云端');
-    }).catch(function(e){
-      saveMsg('写入失败：'+e.message);
-      flash('写入失败：'+e.message,true);
     });
+  }).catch(function(e){
+    saveMsg('写入失败：'+e.message);
+    flash('写入失败：'+e.message,true);
+  });
+}
+function exportEnc(){
+  if(!PASS){ openLock(); return; }
+  if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
+  commitHold(); ghSaveCfg();
+  encBlob(HOLD,PASS).then(function(blob){
+    downloadText(JSON.stringify(blob,null,2),ENCFILE);
+    saveMsg('已下载密文备份，可手动提交到仓库');
   });
 }
 function changePass(){

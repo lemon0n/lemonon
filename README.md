@@ -8,7 +8,7 @@
 
 > 页面打开时要求输入口令，解锁后才显示持仓分析 / 持仓设置。持仓以 **AES-256-GCM 密文**保存在 `web/positions.enc.json`，密钥由口令经 PBKDF2-SHA256 派生，解密只在你本机浏览器完成；仓库与页面里没有明文持仓。口令不写入仓库、不上传，忘记无法找回。观察池在 `config/universe.yaml` 里公开维护。
 >
-> 云端读写：在「持仓设置 → 云端写入」填一次 GitHub 仓库与 `contents:write` 令牌（只存在本机浏览器），之后点「保存到云端」即可把密文直接写进 `web/positions.enc.json`，约 1 分钟自动重新发布；不填令牌则退化为下载文件手动提交。Agent / CI 需要读持仓做分析时，用环境变量传口令：
+> 录入：在「持仓设置 → 快速添加」填代码、份额、成本价，点「保存到云端」即可。首次需在「云同步设置」填一次 GitHub 写入令牌（`contents:write`，只存本机浏览器），之后都是点一下就写进 `web/positions.enc.json`，约 1 分钟自动重新发布；也可「下载密文备份」手动提交。Agent / CI 需要读持仓做分析时，用环境变量传口令：
 >
 > ```bash
 > POSITIONS_PASSPHRASE='口令' python3 scripts/positions_crypto.py \
