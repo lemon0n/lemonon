@@ -164,6 +164,25 @@ body{margin:0}
 .mini .m{border:1px solid var(--line);padding:7px 9px;background:var(--blue-l2)}
 .mini .m .k{font-size:10.5px;color:var(--muted)}
 .mini .m .v{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
+/* 今日建议（第一模块） */
+.adv{border:1px solid var(--line);background:#fff;margin-bottom:12px}
+.adv-h{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:10px 14px;
+  background:var(--blue-l2);border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.adv-h b{font-size:13px;color:var(--blue-d)}
+.adv-b{padding:12px 14px}
+.mini-2{font-size:11.5px;line-height:1.75;color:var(--muted);margin-bottom:10px}
+.adv-b .mini-2 b,.adv-b .mini-2{color:var(--muted)}
+/* 组合体检的一行指标条 */
+.strip{display:flex;flex-wrap:wrap;gap:6px 18px;padding:9px 12px;margin-bottom:12px;
+  border:1px solid var(--line);background:var(--blue-l2);font-size:11.5px;color:var(--muted)}
+.strip b{color:var(--blue-d);font-variant-numeric:tabular-nums;margin-left:3px}
+.strip .warn b{color:var(--warn)}
+/* 逐只分析顶部的动作条 */
+.adv-s{display:flex;align-items:baseline;gap:10px;padding:9px 14px 0}
+.adv-p{font-size:12px;color:var(--blue-d);font-weight:650}
+.adv-w{padding:3px 14px 9px;font-size:11.5px;color:var(--muted);line-height:1.65}
+.lk{font-size:12px;line-height:1.85;color:var(--blue-d)}
+.lk b{font-variant-numeric:tabular-nums}
 .hl{border-left:3px solid var(--blue);background:var(--blue-l2);padding:9px 12px;
   font-size:11.5px;line-height:1.7;margin-top:8px}
 .hl b{color:var(--blue-d)}

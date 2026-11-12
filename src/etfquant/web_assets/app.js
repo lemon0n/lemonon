@@ -374,31 +374,40 @@ function page5(){
   var p=calcPort(),H=healthOf(p);
   var over=Math.round((p.positionPct-H.fit_hi)*100)/100;
 
-  h+=sec('组合概览');
+  /* ① 今日建议：组合层定仓位，逐只定动作，另给新增方向 */
+  h+=sec('① 今日持仓建议');
+  h+=adviceBox(p);
+
+  /* ② 组合体检与持仓明细（原「组合概览」与「持仓明细」合并） */
+  h+=sec('② 组合体检与持仓明细');
+  var adv=rows5adv(p);
+  var acts=adv.rows.filter(function(x){ return x.a.kind!=='hold'; });
   h+='<div class="grid4">'+
     kpi('总资产',fy(p.totalAsset),'现金 '+fy(p.cash))+
     kpi('持仓市值',fy(p.totalPos),p.rows.length+' 只标的')+
     kpi('浮动盈亏',col(p.pnlPct)+'　'+fy(p.pnl),'按成本价计算')+
     kpi('当日盈亏',p.dayPnl==null?'—':col(p.dayPnl/p.totalAsset*100)+'　'+fy(p.dayPnl),'按实时价估算')+
     '</div>';
-  h+='<div class="grid4" style="margin-top:12px">'+
-    kpi('总仓位',f2(p.positionPct)+'%','现金 '+f2(p.cashPct)+'%',over>0)+
-    kpi('阶段适配仓位',H.fit_lo+'~'+H.fit_hi+'%',over>0?('超配 '+f2(over)+' pct'):'区间内',over>0)+
-    kpi('健康评分',H.score+' / 100',H.label,H.score<75)+
-    kpi('集中度','单只 '+f2(H.legMax)+'%','单类 '+f2(H.catMax)+'%',H.catMax>35)+
-    '</div>';
+  h+='<div class="strip">'+[
+    ['总仓位',f2(p.positionPct)+'%（现金 '+f2(p.cashPct)+'%）',over>0],
+    ['目标仓位',H.fit_lo+'~'+H.fit_hi+'%',over>0],
+    ['健康评分',H.score+' / 100 · '+H.label,H.score<75],
+    ['集中度','单只 '+f2(H.legMax)+'% · 单类 '+f2(H.catMax)+'%',H.catMax>35],
+    ['今日操作',acts.length?acts.length+' 项':'无需操作',false]
+  ].map(function(x){ return '<span class="'+(x[2]?'warn':'')+'">'+esc(x[0])+' <b>'+x[1]+'</b></span>'; }).join('')+'</div>';
 
-  h+=sec('持仓明细 · '+p.rows.length+' 只');
   var hasLeg=p.rows.some(function(r){ return !!r.leg; });
-  var head=['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','当日'];
-  var al=['','','','r','r','r','r','r','r','r'];
+  var head=['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','当日','建议','参考价 / 条件'];
+  var al=['','','','r','r','r','r','r','r','r','',''];
   if(hasLeg){ head.push('分诊'); al.push(''); }
   h+=box(tbl(head,
-    p.rows.map(function(r){
+    p.rows.map(function(r,i){
+      var a=adv.rows[i].a;
       var c=[esc(r.code),esc(r.name),esc(r.category),String(r.shares),f2(r.cost),
         f2(r.last),fy(r.mv),f2(r.weight)+'%',
         r.pnl_pct==null?'—':col(r.pnl_pct)+'　'+fy(r.pnl),
-        r.day==null?'—':col(r.day/r.mv*100)+'　'+fy(r.day)];
+        r.day==null?'—':col(r.day/r.mv*100)+'　'+fy(r.day),
+        tag(a.act,a.kind),esc(a.price||'—')];
       if(hasLeg) c.push(r.leg?'<span class="dg">'+esc(r.leg.level)+'</span> '+esc(r.leg.branch):'<span class="muted">—</span>');
       return tr(c);
     }),al));
@@ -420,7 +429,7 @@ function page5(){
     if(!legOf(String(r.code))) extra.push(r);
   });
   if(items.length||extra.length){
-    h+=sec('逐只分析 · '+(items.length+extra.length)+' 只');
+    h+=sec('③ 逐只分析 · '+(items.length+extra.length)+' 只');
     items.forEach(function(it){ h+=legDetail(it.l,it.r); });
     extra.forEach(function(r){
       h+='<div id="loc_'+esc(String(r.code))+'"><div class="notice">正在计算 '+
@@ -489,19 +498,16 @@ function calcBars(b){
     stop:{buy1_price:ma10,buy2_price:ma5},
     close5:c[c.length-6]||null,pos:pos};
 }
-function renderLocalLeg(code){
-  var el=document.getElementById('loc_'+code);
-  if(!el) return;
+/* 池外持仓 → 与后台腿同形的对象；日线未到返回 null */
+function localLeg(code,row){
   var b=LBARS[code];
-  if(!b){ el.innerHTML='<div class="notice">'+esc(code)+' 的日线暂时取不到，技术面留空。</div>'; return; }
-  var row=(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
-  var p=calcPort();
-  var pr=p.rows.filter(function(x){ return String(x.code)===String(code); })[0]||{weight:0,pnl_pct:null};
+  if(!b) return null;
   var k=calcBars(b);
-  if(!k){ el.innerHTML='<div class="notice">'+esc(code)+' 日线不足 20 根，技术面留空。</div>'; return; }
+  if(!k) return null;
+  row=row||(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
   var ix=calcBars(LIDX);
   var ex=(ix&&k.close5&&ix.last&&ix.close5)?((k.last/k.close5-1)-(ix.last/ix.close5-1))*100:null;
-  var l={code:String(code),name:row.name||code,category:row.category||'未分类',
+  return {code:String(code),name:row.name||code,category:row.category||'未分类',
     level:'—',branch:'',last:k.last,change:k.change,five:k.five,
     ma_state:k.ma_state,ma5:k.ma5,ma10:k.ma10,ma20:k.ma20,ma60:k.ma60,ma120:k.ma120,
     vol:k.vol,vol_ratio:k.vol_ratio,premium_available:false,
@@ -509,7 +515,131 @@ function renderLocalLeg(code){
     rs:ex==null?'—':(ex>0?'强于大盘':'弱于大盘'),excess5:ex==null?null:ex,
     cycle:k.cycle,support:k.support,reduce:k.reduce,stop:k.stop,risk:[],
     score:null,order:null,local:true};
+}
+function renderLocalLeg(code){
+  var el=document.getElementById('loc_'+code);
+  if(!el) return;
+  if(!LBARS[code]){ el.innerHTML='<div class="notice">'+esc(code)+' 的日线暂时取不到，技术面留空。</div>'; return; }
+  var l=localLeg(code);
+  if(!l){ el.innerHTML='<div class="notice">'+esc(code)+' 日线不足 20 根，技术面留空。</div>'; return; }
+  var p=calcPort();
+  var pr=p.rows.filter(function(x){ return String(x.code)===String(code); })[0]||{weight:0,pnl_pct:null};
   el.innerHTML=legDetail(l,pr);
+}
+
+/* ---------------- 组合建议规则 ----------------
+   四步定动作：先看阶段定总仓位，再挑强势方向，个股等回踩五均线，
+   跌破 MA10（主力运作成本线）即出局。这里只做规则化表达，不构成投资建议。 */
+function stageHint(){
+  var rg=(D.market&&D.market.regime)||{};
+  return {regime:rg.regime||'—',lo:n(rg.fit_lo,50),hi:n(rg.fit_hi,70),
+          leaders:(rg.leaders||[]).slice(0,4),laggards:(rg.laggards||[]).slice(0,3),
+          note:rg.stage_note||''};
+}
+function legSignal(l){
+  l=l||{};
+  var last=n(l.last),ma5=n(l.ma5),ma10=n(l.ma10),ma20=n(l.ma20);
+  var high20=n((l.reduce||{}).high20);
+  return {last:last,ma5:ma5,ma10:ma10,ma20:ma20,high20:high20,
+    above5:ma5>0&&last>=ma5,above10:ma10>0&&last>=ma10,above20:ma20>0&&last>=ma20,
+    bull:!!(l.ma_state&&l.ma_state.indexOf('多头')>=0),
+    bear:!!(l.ma_state&&l.ma_state.indexOf('空头')>=0),
+    pos:high20>0?Math.min(1,last/high20):0.5};
+}
+/* 单只持仓：动作 + 价格 + 依据 */
+function legAdvice(l,r){
+  var s=legSignal(l), pnl=(r&&r.pnl_pct!=null)?n(r.pnl_pct):null;
+  var act='持有',kind='hold',price='',why=[];
+  if(l&&l.level==='D'){
+    act='清仓';kind='sell';
+    price='反弹到 '+f2(s.ma5>0?s.ma5:s.last)+' 附近分批出';
+    why.push('分诊 D：趋势已破，规则先于成本');
+  }else if(!s.last){
+    act='观察';kind='hold';price='等待行情后再判断';
+  }else if(s.ma10>0&&s.last<s.ma10*0.995){
+    act='减仓';kind='sell';
+    price='反弹不过 MA10 '+f2(s.ma10)+' 即减；收盘连续两日在 MA10 下方无条件出局';
+    why.push('跌破 MA10，主力运作成本线失守');
+  }else if(!s.above5){
+    act='观察';kind='hold';
+    price='站回 MA5 '+f2(s.ma5)+' 再加，未站回不动';
+    why.push('未站回五均线，短线未确认');
+  }else if(s.bull&&s.pos<0.9){
+    act='持有可加';kind='buy';
+    price='回踩 MA5 '+f2(s.ma5)+' 缩量不破可加，止损 MA10 '+f2(s.ma10);
+    why.push('多头排列且站上五均线：回踩五均线是买点一');
+  }else if(s.pos>=0.93&&s.high20>0){
+    act='减仓止盈';kind='sell';
+    price='贴近 20 日高 '+f2(s.high20)+'，冲高先减 1/3';
+    why.push('临近前高，先落一部分，突破确认再加回');
+  }else{
+    act='持有';kind='hold';
+    price='跌破 MA10 '+f2(s.ma10)+' 出局';
+    why.push('趋势未破，沿均线持有');
+  }
+  if(pnl!=null&&pnl<-8){
+    why.push('浮亏 '+f2(pnl)+'%，先控风险再谈加仓');
+    if(kind==='buy'){ act='持有'; kind='hold'; }
+  }
+  if(pnl!=null&&pnl>30&&kind==='buy'){
+    act='持有'; kind='hold'; why.push('浮盈 '+f2(pnl)+'%，不追高只持有');
+  }
+  return {act:act,kind:kind,price:price,why:why};
+}
+/* 第一模块：今日持仓建议（组合层 + 逐只 + 新增方向） */
+function adviceBox(p){
+  var st=stageHint(), pos=p.positionPct, room=Math.round((st.hi-pos)*100)/100;
+  var body=rows5adv(p), h='<div class="adv">';
+  var posTxt=pos>st.hi?('超配 '+f2(pos-st.hi)+' pct'):(pos<st.lo?('低配 '+f2(st.lo-pos)+' pct'):'区间内');
+  h+='<div class="adv-h"><b>'+esc(st.regime)+'</b>'+
+    '<span>目标仓位 '+st.lo+'~'+st.hi+'%</span><span>当前 '+f2(pos)+'% · '+posTxt+'</span>'+
+    '<span>主线 '+esc((st.leaders||[]).join('、')||'—')+'</span></div>';
+  h+='<div class="adv-b"><div class="mini-2">组合层：'+
+    esc(pos>st.hi?'先降总仓位，再调结构；不要在高位补仓。'
+      :(pos<st.lo?'可分 '+f2(Math.max(0,st.hi-pos))+' pct 仓位补主线方向，分 2~3 次，别一次打满。'
+      :'总仓位不动，只调结构：弱的换强的。'))+
+    '　顺序：大盘定仓位 → 板块定方向 → 个股等回踩 → 跌破 MA10 出局。</div>';
+  h+=tbl(['动作','标的','权重','参考价 / 条件','依据'],
+    body.rows.map(function(x){
+      return tr([tag(x.a.act,x.a.kind),'<b>'+esc(x.code)+'</b> '+esc(x.name),
+        f2(x.w)+'%',esc(x.a.price||'—'),esc(x.a.why[0]||'')]);
+    }),['','','r','','']);
+  if(body.pending) h+='<div class="mini-2">池外标的日线加载中，其建议会在技术面就绪后自动补上。</div>';
+  if(body.adds.length){
+    h+=bt('新增方向 · 未持有的观察池标的');
+    h+=tbl(['分诊','标的','参考价 / 条件','依据'],body.adds.map(function(x){
+      return tr([tag(x.level,x.level==='A'?'buy':'hold'),'<b>'+esc(x.code)+'</b> '+esc(x.name),
+        esc(x.price),esc(x.why)]);
+    }),['','','','']);
+  }else if(!room||room<0){
+    h+='<div class="mini-2">仓位已到区间上沿，暂不新增；等回调或阶段升级再考虑。</div>';
+  }
+  h+='</div></div>';
+  return h;
+}
+function rows5adv(p){
+  var rows=[],pending=false;
+  p.rows.forEach(function(r){
+    var l=r.leg||localLeg(r.code,r);
+    if(!l&&!r.leg){ pending=true; }
+    var a=legAdvice(l||{last:r.last,ma_state:''},r);
+    rows.push({a:a,code:r.code,name:r.name,w:r.weight});
+  });
+  var st=stageHint(), held={};
+  p.rows.forEach(function(r){ held[r.code]=1; });
+  var adds=[];
+  if(p.positionPct<st.hi){
+    (D.legs||[]).forEach(function(l){
+      if(held[String(l.code)]) return;
+      if(l.level!=='A'&&l.level!=='B') return;
+      var o=l.order||{};
+      adds.push({code:l.code,name:l.name,level:l.level,
+        price:'回踩 '+f2(o.trigger)+' 分批建仓；止损 '+(o.stop_ma||'MA')+' '+f2(o.stop_price)+
+              '；止盈 '+f2(o.take_profit),
+        why:'分诊 '+l.level+'（'+l.branch+'）· '+l.rs});
+    });
+  }
+  return {rows:rows,adds:adds,pending:pending};
 }
 function fillLocalLegs(){
   /* 页面重绘后，已缓存的日线直接重渲染，避免一直停在「正在计算」 */
@@ -543,11 +673,15 @@ function heldLegs(p){
 function legDetail(l,r){
   var o=l.order||{},sp=l.support||{},rd=l.reduce||{},st=l.stop||{},sc=l.score||{};
   var hasLv=l.level&&l.level!=='—';
+  var a=legAdvice(l,r);
   var h='<div class="leg"><div class="leg-h">'+
     (hasLv?'<span class="dg">'+esc(l.level)+'</span>':'')+
     '<span class="code">'+esc(l.code)+'</span><span class="nm">'+esc(l.name)+'</span>'+
     (hasLv?tag(l.branch, l.level==='A'?'buy':(l.level==='D'?'sell':'hold')):'')+
     '<span class="sp">'+f2(r.weight)+'% · '+col(r.pnl_pct)+' · '+esc(l.category)+'</span></div>';
+  h+='<div class="adv-s"><span class="adv-t">'+tag(a.act,a.kind)+'</span>'+
+    '<span class="adv-p">'+esc(a.price||'—')+'</span></div>'+
+    '<div class="adv-w">'+a.why.map(esc).join('；')+'</div>';
   h+='<div class="leg-b"><div class="mini">'+[
     ['最新价',f2(l.last)],['当日',col(l.change)],['五均线',esc(l.five)],
     ['均线',esc(l.ma_state)],['MA5',f2(l.ma5)],['MA10',f2(l.ma10)],
@@ -919,6 +1053,22 @@ function layoutHeatmap(){
   });
 }
 
+/* 市场 → 持仓的联动条：同一套阶段与仓位口径 */
+function linkStrip(){
+  var st=stageHint();
+  var has=!!(HOLD&&HOLD.rows&&HOLD.rows.length);
+  var txt='当前阶段 <b>'+esc(st.regime)+'</b>，目标仓位 <b>'+st.lo+'~'+st.hi+'%</b>';
+  if(has){
+    var p=calcPort(), pos=n(p.positionPct);
+    var tail=pos>st.hi?('当前 '+f2(pos)+'%，超配 '+f2(pos-st.hi)+' pct，先降仓')
+      :(pos<st.lo?('当前 '+f2(pos)+'%，低于下沿 '+f2(st.lo-pos)+' pct，可分批补主线')
+      :('当前 '+f2(pos)+'%，在区间内，只调结构不加总仓'));
+    return txt+'；你的持仓 '+tail+
+      '。<a class="inl" href="javascript:void(0)" onclick="nav(\'p5\')">看持仓建议 →</a>';
+  }
+  return txt+'；解锁持仓后这里会显示你的仓位与该区间的差距，'+
+    '并可直接跳到「今日持仓建议」。';
+}
 function page1(){
   var m=D.market, rg=m.regime, b=m.breadth, s=m.sentiment;
   var h='<div class="pg-h"><h1>市场概况</h1>'+
@@ -938,6 +1088,9 @@ function page1(){
     m.indices.map(function(x){ return tr([lnk(x.url,x.name),f2(x.last),col(x.chg_pct),esc(x.ma_state)]); })));
   h+=box(bt('市场状态与情绪')+kv(s.items.map(function(x){ return [x.k,esc(x.v),x.url]; })));
   h+='</div>';
+
+  /* 与持仓分析联动：同一套阶段/仓位口径，页面间互相印证 */
+  h+=box(bt('阶段 → 仓位 → 我的持仓')+'<div class="lk">'+linkStrip()+'</div>');
 
   h+=sec('申万一级行业 · 面积=流通市值 颜色=涨跌幅');
   h+=heatMap(m.heat);
