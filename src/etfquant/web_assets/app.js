@@ -436,8 +436,9 @@ function page5(){
 }
 /* 观察池外的持仓：用腾讯日线在本地算均线/位置/支撑位，字段与后台腿保持一致 */
 var LBARS={},LIDX=null;
-function fetchBars(code,cb){
-  var sym=tSym(code),vn='kb_'+sym;
+function fetchBars(code,cb,sym){
+  sym=sym||tSym(code);
+  var vn='kb_'+sym;
   var s=document.createElement('script'),done=false;
   function fin(o){
     if(done) return;
@@ -516,13 +517,17 @@ function renderLocalLeg(code){
   el.innerHTML=legDetail(l,pr);
 }
 function fillLocalLegs(){
+  /* 页面重绘后，已缓存的日线直接重渲染，避免一直停在「正在计算」 */
+  Object.keys(LBARS).forEach(function(c){
+    if(LBARS[c]&&document.getElementById('loc_'+c)) renderLocalLeg(c);
+  });
   var codes=(HOLD.rows||[]).map(function(r){ return String(r.code); })
     .filter(function(c){ return !legOf(c)&&!LBARS[c]; });
   if(!codes.length) return;
   if(!LIDX) fetchBars('000300',function(o){
     LIDX=o;
     Object.keys(LBARS).forEach(function(c){ if(LBARS[c]) renderLocalLeg(c); });
-  });
+  },'sh000300');
   codes.forEach(function(c){
     fetchBars(c,function(o){
       LBARS[c]=o;
