@@ -122,8 +122,19 @@ body{margin:0}
 .heatmap .hm{position:absolute;box-sizing:border-box;border:1px solid #fff;
   padding:5px 4px;font-size:10.5px;line-height:1.25;overflow:hidden;
   display:flex;flex-direction:column;justify-content:center;align-items:center;
-  text-align:center;cursor:default;transition:filter .12s}
+  text-align:center;cursor:pointer;transition:filter .12s}
 .heatmap .hm:hover{filter:brightness(1.08);z-index:2}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.34);display:none;
+  align-items:center;justify-content:center;z-index:60}
+.modal.on{display:flex}
+.modal-box{background:#fff;border:1px solid var(--line);min-width:260px;max-width:340px;
+  box-shadow:0 8px 28px rgba(15,23,42,.18)}
+.modal-h{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:10px 14px;background:var(--blue-l2);border-bottom:1px solid var(--line);
+  font-weight:650;color:var(--blue-d);font-size:13px}
+.modal-x{cursor:pointer;font-size:17px;line-height:1;color:var(--muted)}
+.modal-x:hover{color:var(--up)}
+.modal-b{padding:12px 14px}
 .heatmap .hm b{font-weight:600;max-width:100%;line-height:1.2;
   overflow-wrap:anywhere;word-break:break-all}
 .heatmap .hm i{font-style:normal;opacity:.92;font-variant-numeric:tabular-nums}

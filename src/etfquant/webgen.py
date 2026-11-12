@@ -16,7 +16,7 @@ SHELL = '''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>中国 ETF 量化观察台</title>
+<title>老林的ETF模型</title>
 <style>
 @@CSS@@
 </style>
@@ -24,7 +24,7 @@ SHELL = '''<!DOCTYPE html>
 <body>
 <div class="app">
   <div class="top">
-    <div class="brand"><span class="mark">ETF</span><span class="t">中国 ETF 量化观察台</span></div>
+    <div class="brand"><span class="mark">ETF</span><span class="t">老林的ETF模型</span></div>
     <div class="top-r">
       <span id="flash" class="flash"></span>
       <span id="srcBadge" class="badge"></span>

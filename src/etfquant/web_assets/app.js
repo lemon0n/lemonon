@@ -388,11 +388,6 @@ function page5(){
     kpi('集中度','单只 '+f2(H.legMax)+'%','单类 '+f2(H.catMax)+'%',H.catMax>35)+
     '</div>';
 
-  h+=sec('健康分项');
-  h+=box(bars(Object.keys(H.parts).map(function(k){
-    return [k,H.parts[k],Math.round(H.parts[k])];
-  }),function(v){ return v>=70?'#148f5b':(v>=50?'#b45309':'#c0392b'); }));
-
   h+=sec('持仓明细 · '+p.rows.length+' 只');
   h+=box(tbl(['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','当日','分诊'],
     p.rows.map(function(r){
@@ -402,11 +397,6 @@ function page5(){
         r.day==null?'—':col(r.day/r.mv*100)+'　'+fy(r.day),
         r.leg?'<span class="dg">'+esc(r.leg.level)+'</span> '+esc(r.leg.branch):'<span class="tag watch">观察池外</span>']);
     }),['','','','r','r','r','r','r','r','r','']));
-
-  h+=sec('类别结构');
-  h+=box(bars(Object.keys(H.struct).map(function(k){
-    return [k,H.struct[k],f2(H.struct[k])+'%'];
-  })));
 
   h+=sec('结构指标 · 当前 / 参考');
   var tgt=(D&&D.targets)||{},keys=Object.keys(H.struct);
@@ -431,7 +421,6 @@ function page5(){
          esc(r.name||r.code)+' 的技术面…</div></div>';
     });
   }
-  h+=ordersSection();
   return h;
 }
 /* 观察池外的持仓：用腾讯日线在本地算均线/位置/支撑位，字段与后台腿保持一致 */
@@ -581,30 +570,7 @@ function legDetail(l,r){
     '</div></div></div></div>';
   return h;
 }
-function ordersSection(){
-  var O=(D&&D.orders)||[];
-  if(!O.length) return '';
-  var buys=O.filter(function(o){ return o.action==='BUY'; }).length;
-  var sells=O.filter(function(o){ return o.action.indexOf('SELL')===0; }).length;
-  var holds=O.filter(function(o){ return o.action==='HOLD'; }).length;
-  var ok=O.filter(function(o){ return o.ok; }).length;
-  var h=sec('次日条件单');
-  h+='<div class="grid4">'+
-    kpi('买入 / 加仓',buys+' 腿','')+kpi('卖出 / 降仓',sells+' 腿','')+
-    kpi('持有 / 观察',holds+' 腿','')+kpi('校验通过',ok+' / '+O.length,'')+'</div>';
-  h+=box(bt('条件单清单')+tbl(['代码','名称','分诊','方向','分支','触发价','止损','止盈','校验','依据'],
-    O.map(function(o){ return tr([esc(o.code),esc(o.name),'<span class="dg">'+esc(o.level)+'</span>',
-      tag(o.side,o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),esc(o.branch),
-      f2(o.trigger),esc(o.stop_ma)+' '+f2(o.stop_price),f2(o.take_profit),
-      o.ok?'<span class="down">OK</span>':'<span class="up">ERR</span>',esc(o.reason)]); })));
-  var L=(D.legs||[]).slice().sort(function(a,b){ return (a.score.rank||99)-(b.score.rank||99); });
-  h+=box(bt('标的打分')+tbl(['排名','标的','分诊','综合分','动量','资金','趋势','溢价扣分','分支','方向'],
-    L.map(function(l){ return tr([String(l.score.rank),esc(l.code)+' '+esc(l.name),
-      '<span class="dg">'+esc(l.level)+'</span>',String(l.score.total),String(l.score.momentum),
-      String(l.score.fund),String(l.score.trend),String(l.score.premium_penalty),
-      esc(l.branch),esc(l.order.side)]); })));
-  return h;
-}
+
 
 /* ---------------- p7 持仓设置 ---------------- */
 function draftCalc(){
@@ -876,11 +842,49 @@ function heatMap(heat){
     var s = r.it, c = heatColor(s.chg);
     var tip = s.name+' · 涨跌 '+sign(s.chg)+f2(s.chg)+'% · 成交 '+f2(s.v)+' 亿 · 市值 '+
               Math.round(s.cap).toLocaleString()+' 亿';
-    return '<div class="hm" data-x="'+(r.x/W).toFixed(5)+'" data-y="'+(r.y/H).toFixed(5)+
+    return '<div class="hm" data-name="'+esc(s.name)+'" data-x="'+(r.x/W).toFixed(5)+'" data-y="'+(r.y/H).toFixed(5)+
       '" data-w="'+(r.w/W).toFixed(5)+'" data-h="'+(r.h/H).toFixed(5)+
-      '" style="background:'+c+';color:'+inkFor(s.chg)+'" title="'+esc(tip)+'">'+
+      '" style="background:'+c+';color:'+inkFor(s.chg)+'" title="'+esc(tip)+
+      '" onclick="heatDetail(this.getAttribute(\'data-name\'))">'+
       '<b>'+esc(s.name)+'</b><i>'+sign(s.chg)+f2(s.chg)+'%</i></div>';
   }).join('')+'</div>');
+}
+
+/* 点击热力图格子：弹出该板块的成交额、占比、市值等明细 */
+function heatDetail(name){
+  if(!name) return;
+  var m=D.market;
+  var h=(m.heat||[]).filter(function(x){ return x.name===name; })[0];
+  var f=(m.flow||[]).filter(function(x){ return x.sector===name; })[0];
+  if(!h&&!f) return;
+  var rows=[];
+  if(h){
+    rows.push(['涨跌幅',col(h.chg)]);
+    rows.push(['成交额',f2(h.v)+' 亿']);
+    rows.push(['流通市值',Math.round(n(h.cap)).toLocaleString()+' 亿']);
+  }
+  if(f){
+    rows.push(['成交额占比',f2(f.share)+'%']);
+    if(f.code) rows.push(['板块代码',esc(f.code)]);
+  }
+  var rank=(m.flow||[]).slice().sort(function(a,b){ return n(b.turnover)-n(a.turnover); })
+    .map(function(x){ return x.sector; }).indexOf(name)+1;
+  if(rank>0) rows.push(['成交额排名','第 '+rank+' / '+(m.flow||[]).length+' 名']);
+  var el=document.getElementById('heatBox');
+  if(!el){
+    el=document.createElement('div');
+    el.id='heatBox'; el.className='modal';
+    el.onclick=function(e){ if(e.target===el) closeHeat(); };
+    document.body.appendChild(el);
+  }
+  el.innerHTML='<div class="modal-box"><div class="modal-h"><span>'+esc(name)+'</span>'+
+    '<span class="modal-x" onclick="closeHeat()">×</span></div>'+
+    '<div class="modal-b">'+kv(rows)+'</div></div>';
+  el.classList.add('on');
+}
+function closeHeat(){
+  var el=document.getElementById('heatBox');
+  if(el) el.classList.remove('on');
 }
 
 /* 用容器实测像素定位每一格：宽度取整后由 (right-left) 反算，最后一列天然贴齐右边 */
