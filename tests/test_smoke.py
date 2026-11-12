@@ -120,7 +120,9 @@ def test_regime():
     assert rg['fit_lo'] == 60 and rg['fit_hi'] == 70
 
 
-def test_pipeline_end_to_end():
+def test_pipeline_end_to_end(tmp_path, monkeypatch):
+    """离线跑全链路；输出重定向到临时目录，绝不覆盖仓库里的正式产物。"""
+    monkeypatch.setattr(config, 'WEB', str(tmp_path))
     r = pipeline.run(use_live=False)
     assert r['legs'] == 4
     assert sum(r['level_count'].values()) == 4
