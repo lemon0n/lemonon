@@ -949,29 +949,32 @@ function copyText(t){
   return Promise.resolve(fallback());
 }
 function saveMsg(t){ var m=document.getElementById('saveMsg'); if(m) m.textContent=t||''; }
+function saveMsgHtml(h){ var m=document.getElementById('saveMsg'); if(m) m.innerHTML=h; }
 function saveCloud(){
   if(!PASS){ openLock(); return; }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
   commitHold();
-  var w=window.open(EDIT_URL,'_blank');     /* 必须在点击同步阶段打开，否则被拦截 */
   saveMsg('正在加密…');
   encBlob(HOLD,PASS).then(function(blob){
     var text=JSON.stringify(blob,null,2);
     ENC=blob;
     return copyText(text).then(function(ok){
+      /* 先复制再开新标签：新窗口会抢焦点，导致剪贴板写入被拒 */
+      var w=null;
+      try{ w=window.open(EDIT_URL,'_blank'); }catch(e){}
+      var link='<a href="'+EDIT_URL+'" target="_blank">打开 GitHub 编辑页</a>';
       if(ok){
-        saveMsg('密文已复制：在 GitHub 页面全选粘贴后提交');
+        saveMsgHtml('密文已复制。'+(w?'在新打开的页面全选粘贴后提交':'打开 '+link+' 粘贴后提交'));
         flash('密文已复制，粘贴到 GitHub 页面提交');
       }else{
         downloadText(text,ENCFILE);
-        saveMsg('无法访问剪贴板，已下载密文：打开 GitHub 页面粘贴后提交');
+        saveMsgHtml('剪贴板不可用，已下载密文。'+link+'，粘贴后提交');
       }
     });
   }).catch(function(e){
     saveMsg('加密失败：'+e.message);
     flash('加密失败：'+e.message,true);
   });
-  if(!w) saveMsg('浏览器拦截了新窗口，请手动打开 GitHub 编辑页');
 }
 function exportEnc(){
   if(!PASS){ openLock(); return; }
