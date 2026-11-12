@@ -389,14 +389,19 @@ function page5(){
     '</div>';
 
   h+=sec('持仓明细 · '+p.rows.length+' 只');
-  h+=box(tbl(['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','当日','分诊'],
+  var hasLeg=p.rows.some(function(r){ return !!r.leg; });
+  var head=['代码','名称','类别','份额','成本','现价','市值','权重','浮动盈亏','当日'];
+  var al=['','','','r','r','r','r','r','r','r'];
+  if(hasLeg){ head.push('分诊'); al.push(''); }
+  h+=box(tbl(head,
     p.rows.map(function(r){
-      return tr([esc(r.code),esc(r.name),esc(r.category),String(r.shares),f2(r.cost),
+      var c=[esc(r.code),esc(r.name),esc(r.category),String(r.shares),f2(r.cost),
         f2(r.last),fy(r.mv),f2(r.weight)+'%',
         r.pnl_pct==null?'—':col(r.pnl_pct)+'　'+fy(r.pnl),
-        r.day==null?'—':col(r.day/r.mv*100)+'　'+fy(r.day),
-        r.leg?'<span class="dg">'+esc(r.leg.level)+'</span> '+esc(r.leg.branch):'<span class="tag watch">观察池外</span>']);
-    }),['','','','r','r','r','r','r','r','r','']));
+        r.day==null?'—':col(r.day/r.mv*100)+'　'+fy(r.day)];
+      if(hasLeg) c.push(r.leg?'<span class="dg">'+esc(r.leg.level)+'</span> '+esc(r.leg.branch):'<span class="muted">—</span>');
+      return tr(c);
+    }),al));
 
   var tgt=(D&&D.targets)||{},keys=Object.keys(H.struct);
   Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
@@ -497,7 +502,7 @@ function renderLocalLeg(code){
   var ix=calcBars(LIDX);
   var ex=(ix&&k.close5&&ix.last&&ix.close5)?((k.last/k.close5-1)-(ix.last/ix.close5-1))*100:null;
   var l={code:String(code),name:row.name||code,category:row.category||'未分类',
-    level:'—',branch:'观察池外',last:k.last,change:k.change,five:k.five,
+    level:'—',branch:'',last:k.last,change:k.change,five:k.five,
     ma_state:k.ma_state,ma5:k.ma5,ma10:k.ma10,ma20:k.ma20,ma60:k.ma60,ma120:k.ma120,
     vol:k.vol,vol_ratio:k.vol_ratio,premium_available:false,
     breakout:(k.pos>0.8?'接近20日高':(k.pos<0.2?'接近20日低':'区间中部')),true_cnt:'—',
@@ -537,22 +542,22 @@ function heldLegs(p){
 }
 function legDetail(l,r){
   var o=l.order||{},sp=l.support||{},rd=l.reduce||{},st=l.stop||{},sc=l.score||{};
-  var h='<div class="leg"><div class="leg-h"><span class="dg">'+esc(l.level)+'</span>'+
+  var hasLv=l.level&&l.level!=='—';
+  var h='<div class="leg"><div class="leg-h">'+
+    (hasLv?'<span class="dg">'+esc(l.level)+'</span>':'')+
     '<span class="code">'+esc(l.code)+'</span><span class="nm">'+esc(l.name)+'</span>'+
-    tag(l.branch, l.level==='A'?'buy':(l.level==='D'?'sell':'hold'))+
+    (hasLv?tag(l.branch, l.level==='A'?'buy':(l.level==='D'?'sell':'hold')):'')+
     '<span class="sp">'+f2(r.weight)+'% · '+col(r.pnl_pct)+' · '+esc(l.category)+'</span></div>';
   h+='<div class="leg-b"><div class="mini">'+[
     ['最新价',f2(l.last)],['当日',col(l.change)],['五均线',esc(l.five)],
     ['均线',esc(l.ma_state)],['MA5',f2(l.ma5)],['MA10',f2(l.ma10)],
     ['MA20',f2(l.ma20)],['MA60',f2(l.ma60)]
   ].map(function(x){ return '<div class="m"><div class="k">'+x[0]+'</div><div class="v">'+x[1]+'</div></div>'; }).join('')+'</div>';
-  var right=bt('次日条件单');
+  var right='';
   if(o&&o.side){
-    right+=tbl(['方向','触发','止损','止盈'],
+    right=bt('次日条件单')+tbl(['方向','触发','止损','止盈'],
       [tr([tag(o.side, o.side==='买入'?'buy':(o.side==='卖出'?'sell':'hold')),
            f2(o.trigger),esc(o.stop_ma||'')+' '+f2(o.stop_price),f2(o.take_profit)])]);
-  }else{
-    right+='<div class="note">观察池外标的，暂不生成条件单。</div>';
   }
   var meta=[['MA120',f2(l.ma120)]];
   if(sc.total!=null) meta.push(['综合分',String(sc.total)+'（第 '+sc.rank+' 名）'],
