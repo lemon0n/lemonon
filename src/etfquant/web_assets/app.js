@@ -560,7 +560,6 @@ function importCsv(input){
 function page7(){
   if(!EDIT) draftReset();
   var s=draftCalc();
-  var tk=ghStore('etf_gh_token');
   var h='<div class="pg-h"><h1>持仓设置</h1>'+
     '<p class="pg-sub">录入代码、份额和成本价，点「保存到云端」直接写入密文；公开访客只能看到密文。</p></div>';
   h+='<div class="bar-actions">'+
@@ -592,20 +591,10 @@ function page7(){
     '<div class="kpi"><div class="k">总仓位 / 浮动盈亏</div><div class="v" id="sumPos">'+f2(s.positionPct)+'%</div>'+
       '<div class="d" id="sumPnl">'+col(s.pnlPct)+'　'+fy(s.sumPnl)+'</div></div>'+
     '</div>';
-  h+=box('<details class="cfg" id="ghCfg"><summary>云同步设置 · '+
-    (tk?'已配置':'未配置')+'</summary>'+
-    '<div class="note">首次使用填一次写入令牌即可，之后「保存到云端」直接生效。令牌只存在本机浏览器，'+
-    '建议用 fine-grained PAT，仅授予本仓库 <code>Contents: Read and write</code>。</div>'+
-    '<div class="grid2" style="margin-top:8px">'+
-    '<div class="kpi"><div class="k">GitHub 仓库</div>'+
-      '<input id="ghRepo" value="'+esc(ghStore('etf_gh_repo')||GH_DEFAULT)+'"></div>'+
-    '<div class="kpi"><div class="k">写入令牌</div>'+
-      '<input id="ghToken" type="password" value="'+esc(ghStore('etf_gh_token'))+'" placeholder="github_pat_... 或 ghp_..."></div>'+
-    '</div><div class="bar-actions" style="margin-top:10px">'+
-      '<button class="btn ghost" onclick="ghSaveCfg();saveMsg(\'令牌已保存在本机\')">保存配置</button>'+
-      '<button class="btn ghost" onclick="exportEnc()">下载密文备份</button></div></details>');
-  h+='<div class="notice">「保存到云端」用当前口令加密后写入仓库 <b>web/positions.enc.json</b>，约 1 分钟自动重新发布。'+
-    '口令忘了无法恢复，请自行保管。导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
+  h+=box('<div class="note">点「保存到云端」会：① 用当前口令加密；② 把密文复制到剪贴板；③ 新开 GitHub 编辑页。'+
+    '在那边全选粘贴、提交即可，约 1 分钟自动重新发布。口令忘了无法恢复。'+
+    '<button class="btn ghost" style="margin-left:8px" onclick="exportEnc()">下载密文备份</button></div>');
+  h+='<div class="notice">导入格式：<code>code,name,category,shares,cost,settle,benchmark,note</code>，现金用 <code>CASH</code> 行。</div>';
   return h;
 }
 
@@ -941,68 +930,53 @@ function downloadText(txt,name){
 function commitHold(){
   HOLD={rows:(EDIT||[]).map(function(r){ return Object.assign({},r); }),cash:n(CASH_EDIT)};
 }
-/* 云端直写：GitHub Contents API；令牌只存本机浏览器，留空则退化为下载文件 */
-var GH_DEFAULT='lemon0n/lemonon';
-function ghStore(k){ try{ return localStorage.getItem(k)||''; }catch(e){ return ''; } }
-function ghRepo(){ var e=document.getElementById('ghRepo');
-  return (e&&e.value.trim())||ghStore('etf_gh_repo')||GH_DEFAULT; }
-function ghToken(){ var e=document.getElementById('ghToken');
-  return (e&&e.value.trim())||ghStore('etf_gh_token'); }
-function ghSaveCfg(){
-  var r=document.getElementById('ghRepo'), t=document.getElementById('ghToken');
-  try{
-    if(r) localStorage.setItem('etf_gh_repo',r.value.trim());
-    if(t&&t.value.trim()) localStorage.setItem('etf_gh_token',t.value.trim());
-  }catch(e){}
-  var s=document.querySelector('#ghCfg summary');
-  if(s) s.textContent='云同步设置 · '+(ghToken()?'已配置':'未配置');
-}
-function ghPut(repo,tk,text){
-  var url='https://api.github.com/repos/'+repo+'/contents/web/positions.enc.json';
-  var h={'Authorization':'Bearer '+tk,'Accept':'application/vnd.github+json'};
-  var body={message:'chore: 更新持仓密文',content:bufToB64(new TextEncoder().encode(text).buffer)};
-  return fetch(url,{headers:h}).then(function(r){ return r.ok?r.json():null; })
-    .then(function(cur){
-      if(cur&&cur.sha) body.sha=cur.sha;
-      return fetch(url,{method:'PUT',
-        headers:Object.assign({'Content-Type':'application/json'},h),
-        body:JSON.stringify(body)});
-    }).then(function(r){
-      if(r.ok){ ENC=JSON.parse(text); return; }
-      return r.json().catch(function(){ return {}; }).then(function(j){
-        throw new Error(j.message||('HTTP '+r.status));
-      });
-    });
+/* 无令牌保存：加密 → 复制剪贴板 → 打开 GitHub 编辑页，粘贴提交 */
+var EDIT_URL='https://github.com/lemon0n/lemonon/edit/main/web/positions.enc.json';
+function copyText(t){
+  function fallback(){
+    try{
+      var ta=document.createElement('textarea');
+      ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      var ok=document.execCommand('copy'); document.body.removeChild(ta);
+      return ok;
+    }catch(e){ return false; }
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(t).then(function(){ return true; },
+                                                function(){ return fallback(); });
+  }
+  return Promise.resolve(fallback());
 }
 function saveMsg(t){ var m=document.getElementById('saveMsg'); if(m) m.textContent=t||''; }
 function saveCloud(){
   if(!PASS){ openLock(); return; }
-  var tk=ghToken();
-  if(!tk){
-    var d=document.getElementById('ghCfg'); if(d) d.open=true;
-    var t=document.getElementById('ghToken'); if(t) t.focus();
-    saveMsg('首次使用：先在下方填写一次写入令牌');
-    return;
-  }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
-  commitHold(); ghSaveCfg();
-  var repo=ghRepo();
-  saveMsg('正在加密并写入云端…');
+  commitHold();
+  var w=window.open(EDIT_URL,'_blank');     /* 必须在点击同步阶段打开，否则被拦截 */
+  saveMsg('正在加密…');
   encBlob(HOLD,PASS).then(function(blob){
     var text=JSON.stringify(blob,null,2);
-    return ghPut(repo,tk,text).then(function(){
-      saveMsg('已保存到云端，约 1 分钟后页面生效');
-      flash('持仓已写入云端');
+    ENC=blob;
+    return copyText(text).then(function(ok){
+      if(ok){
+        saveMsg('密文已复制：在 GitHub 页面全选粘贴后提交');
+        flash('密文已复制，粘贴到 GitHub 页面提交');
+      }else{
+        downloadText(text,ENCFILE);
+        saveMsg('无法访问剪贴板，已下载密文：打开 GitHub 页面粘贴后提交');
+      }
     });
   }).catch(function(e){
-    saveMsg('写入失败：'+e.message);
-    flash('写入失败：'+e.message,true);
+    saveMsg('加密失败：'+e.message);
+    flash('加密失败：'+e.message,true);
   });
+  if(!w) saveMsg('浏览器拦截了新窗口，请手动打开 GitHub 编辑页');
 }
 function exportEnc(){
   if(!PASS){ openLock(); return; }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
-  commitHold(); ghSaveCfg();
+  commitHold();
   encBlob(HOLD,PASS).then(function(blob){
     downloadText(JSON.stringify(blob,null,2),ENCFILE);
     saveMsg('已下载密文备份，可手动提交到仓库');
