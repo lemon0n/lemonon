@@ -949,7 +949,27 @@ function copyText(t){
   return Promise.resolve(fallback());
 }
 function saveMsg(t){ var m=document.getElementById('saveMsg'); if(m) m.textContent=t||''; }
-function saveMsgHtml(h){ var m=document.getElementById('saveMsg'); if(m) m.innerHTML=h; }
+/* 剪贴板被浏览器拒绝时的兜底：显示密文，手动复制 */
+function showEncBox(text){
+  var old=document.getElementById('encBox'); if(old) old.remove();
+  var d=document.createElement('div');
+  d.id='encBox'; d.className='encbox';
+  d.innerHTML='<div class="encbox-in"><div class="encbox-t">密文已生成</div>'+
+    '<div class="note">点「复制密文」，再到 GitHub 编辑页全选粘贴、提交。</div>'+
+    '<textarea id="encText" readonly spellcheck="false"></textarea>'+
+    '<div class="bar-actions"><button class="btn" onclick="copyBox()">复制密文</button>'+
+    '<a class="btn ghost" href="'+EDIT_URL+'" target="_blank">打开 GitHub 编辑页</a>'+
+    '<button class="btn ghost" onclick="closeEncBox()">关闭</button></div></div>';
+  document.body.appendChild(d);
+  document.getElementById('encText').value=text;
+}
+function copyBox(){
+  var t=document.getElementById('encText');
+  if(!t) return;
+  t.select();
+  copyText(t.value).then(function(ok){ flash(ok?'已复制':'请手动全选复制',!ok); });
+}
+function closeEncBox(){ var e=document.getElementById('encBox'); if(e) e.remove(); }
 function saveCloud(){
   if(!PASS){ openLock(); return; }
   if(!cryptoReady()){ flash('当前环境不支持加密，请用 https 打开',true); return; }
@@ -960,15 +980,13 @@ function saveCloud(){
     ENC=blob;
     return copyText(text).then(function(ok){
       /* 先复制再开新标签：新窗口会抢焦点，导致剪贴板写入被拒 */
-      var w=null;
-      try{ w=window.open(EDIT_URL,'_blank'); }catch(e){}
-      var link='<a href="'+EDIT_URL+'" target="_blank">打开 GitHub 编辑页</a>';
       if(ok){
-        saveMsgHtml('密文已复制。'+(w?'在新打开的页面全选粘贴后提交':'打开 '+link+' 粘贴后提交'));
+        try{ window.open(EDIT_URL,'_blank'); }catch(e){}
+        saveMsg('密文已复制：在新打开的 GitHub 页面全选粘贴后提交');
         flash('密文已复制，粘贴到 GitHub 页面提交');
       }else{
-        downloadText(text,ENCFILE);
-        saveMsgHtml('剪贴板不可用，已下载密文。'+link+'，粘贴后提交');
+        showEncBox(text);
+        saveMsg('剪贴板不可用，已在弹窗中显示密文');
       }
     });
   }).catch(function(e){

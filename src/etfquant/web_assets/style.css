@@ -101,6 +101,13 @@ body{margin:0}
   font-size:12.5px;width:150px}
 .qadd input#qCode{width:170px}
 .qadd input:focus{outline:1px solid var(--blue);outline-offset:-1px}
+.encbox{position:fixed;inset:0;background:rgba(18,28,24,.55);display:flex;align-items:center;
+  justify-content:center;z-index:80;padding:20px}
+.encbox-in{background:#fff;max-width:660px;width:100%;padding:18px 20px;border:1px solid var(--line)}
+.encbox-t{font-size:15px;font-weight:700;margin-bottom:4px}
+.encbox textarea{width:100%;height:120px;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  border:1px solid var(--line);padding:8px;margin:8px 0;resize:vertical}
+.encbox a.btn{text-decoration:none;display:inline-block}
 .del{background:#fff;border:1px solid var(--line);color:var(--up);font-size:11px;
   padding:2px 7px;cursor:pointer;font-family:inherit}
 .del:hover{border-color:var(--up)}
