@@ -329,14 +329,14 @@ function paintPerf(){
   var el=document.getElementById('perfBox');
   if(!el) return;
   if(PERF_BUSY){ el.innerHTML='<div class="notice">正在获取近 60 个交易日收盘价…</div>'; return; }
-  if(!PERF){ el.innerHTML='<div class="notice">该标的的历史收盘价暂不可用，组合绩效留空（持仓盈亏不受影响）。</div>'; return; }
-  el.innerHTML='<div class="grid4">'+[
-    ['区间',PERF.days+' 个交易日',''],
-    ['年化收益',sign(PERF.annual)+f2(PERF.annual)+'%',''],
-    ['夏普',f2(PERF.sharpe),''],
-    ['卡玛',f2(PERF.calmar),''],
-    ['最大回撤',f2(PERF.maxdd)+'%','']
-  ].map(function(k){ return kpi(k[0],k[1],k[2]); }).join('')+'</div>';
+  if(!PERF){ el.innerHTML='<div class="notice">历史收盘价暂不可用，绩效留空（持仓盈亏不受影响）。</div>'; return; }
+  el.innerHTML='<div class="chips">'+[
+    ['区间',PERF.days+' 个交易日'],
+    ['年化收益',sign(PERF.annual)+f2(PERF.annual)+'%'],
+    ['夏普',f2(PERF.sharpe)],
+    ['卡玛',f2(PERF.calmar)],
+    ['最大回撤',f2(PERF.maxdd)+'%']
+  ].map(function(k){ return '<span class="chip">'+esc(k[0])+' <b>'+k[1]+'</b></span>'; }).join('')+'</div>';
 }
 function loadPerf(){
   var el=document.getElementById('perfBox');
@@ -398,15 +398,16 @@ function page5(){
         r.leg?'<span class="dg">'+esc(r.leg.level)+'</span> '+esc(r.leg.branch):'<span class="tag watch">观察池外</span>']);
     }),['','','','r','r','r','r','r','r','r','']));
 
-  h+=sec('结构指标 · 当前 / 参考');
   var tgt=(D&&D.targets)||{},keys=Object.keys(H.struct);
   Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
-  h+=box(kv(keys.map(function(k){
+  h+=sec('结构与绩效');
+  h+='<div class="grid2">';
+  h+=box(bt('结构占比 · 当前 / 参考')+kv(keys.map(function(k){
     return [k, f2(H.struct[k]||0)+'% / '+(tgt[k]==null?'—':tgt[k]+'%')];
   })));
-
-  h+=sec('组合绩效 · 近 60 个交易日');
-  h+=box('<div id="perfBox"><div class="notice">正在获取历史收盘价…</div></div>');
+  h+=box(bt('组合绩效 · 近 60 个交易日')+
+    '<div id="perfBox"><div class="notice">正在获取历史收盘价…</div></div>');
+  h+='</div>';
 
   var items=heldLegs(p);
   var extra=[];
@@ -414,7 +415,7 @@ function page5(){
     if(!legOf(String(r.code))) extra.push(r);
   });
   if(items.length||extra.length){
-    h+=sec('逐腿分析 · '+(items.length+extra.length)+' 只');
+    h+=sec('逐只分析 · '+(items.length+extra.length)+' 只');
     items.forEach(function(it){ h+=legDetail(it.l,it.r); });
     extra.forEach(function(r){
       h+='<div id="loc_'+esc(String(r.code))+'"><div class="notice">正在计算 '+
@@ -423,7 +424,7 @@ function page5(){
   }
   return h;
 }
-/* 观察池外的持仓：用腾讯日线在本地算均线/位置/支撑位，字段与后台腿保持一致 */
+/* 观察池外的持仓：用腾讯日线在本地算均线/位置/支撑位，字段与后台一致 */
 var LBARS={},LIDX=null;
 function fetchBars(code,cb,sym){
   sym=sym||tSym(code);

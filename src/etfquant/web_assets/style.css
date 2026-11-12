@@ -59,6 +59,10 @@ body{margin:0}
 .kv2{display:grid;grid-template-columns:1fr 1fr}
 .kv2 .kv:nth-child(odd){padding-right:20px;border-right:1px solid var(--line)}
 .kv2 .kv:nth-child(even){padding-left:20px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11.5px;color:var(--muted);background:var(--blue-l2);
+  border:1px solid var(--line);padding:3px 8px}
+.chip b{color:var(--blue-d);font-variant-numeric:tabular-nums;margin-left:2px}
 .kpi{background:#fff;border:1px solid var(--line);padding:12px 14px}
 .kpi .k{font-size:11.5px;color:var(--muted)}
 .kpi .v{font-size:21px;font-weight:750;color:var(--blue-d);font-variant-numeric:tabular-nums;margin-top:4px}
