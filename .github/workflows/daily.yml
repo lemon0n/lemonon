@@ -94,9 +94,6 @@ jobs:
   deploy:
     needs: update
     runs-on: ubuntu-latest
-    # 私有仓库不支持 Pages（免费版），这一步会失败但不该把每日更新标红；
-    # 仓库改为 public 并启用 Pages 后，这里会自动生效。
-    continue-on-error: true
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
