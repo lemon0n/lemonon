@@ -8,6 +8,7 @@
   · 前端（浏览器解密持仓）用同一规则卡渲染，两端输出同构。
 """
 from .. import methodology as M
+from .. import pricing as P
 from .. import universe
 
 
@@ -23,21 +24,8 @@ def _round(x, d=3):
 
 
 def _price(mode, f, prec=0.001):
-    """按 pricing 规则卡生成触发/止损/止盈价。"""
-    last, ma5, ma10 = f.get('last') or 0, f.get('ma5'), f.get('ma10')
-    hi20 = (f.get('reduce_think') or {}).get('high20') or (last or 0)
-    table = {
-        'last_x0.995': (last or 0) * 0.995,
-        'high20': hi20,
-        'high20_x0.995': hi20 * 0.995,
-        'ma5_x1.002': (ma5 or last or 0) * 1.002,
-        'ma5': ma5 or last or 0,
-        'ma10': ma10 or last or 0,
-    }
-    v = table.get(mode)
-    if v is None or v <= 0:
-        return None
-    return round(round(v / prec) * prec, 3)
+    """按 pricing 规则卡生成 买入/卖出价、止损、目标价（与前端 rulePrice 同构）。"""
+    return P.prices(mode, f, prec)
 
 
 def s1_position(snap, regime):
@@ -110,7 +98,6 @@ def _leg_action(f, snap_row, s1, uni=None):
     hits = list(ev['hits'])
     rule_ids = list(ev['rule_ids'])
     ov = []
-    price_mode = m['pricing'].get(action) or m['pricing']['HOLD']
 
     # 组合层覆盖（O-1/O-2/O-3）：ADD 一律降级 HOLD
     if action == 'ADD':
@@ -130,11 +117,10 @@ def _leg_action(f, snap_row, s1, uni=None):
             hits.append(_ov_hit(ov[-1], why, level, action))
             rule_ids.append(ov[-1])
 
-    entry = _price(price_mode['entry'], f)
-    stop = _price(price_mode['stop'], f)
-    tp = _price(price_mode['tp'], f)
+    prices = P.prices(action, f)
     return dict(code=snap_row['code'], name=snap_row['name'], level=level, action=action,
-                entry=entry, stop=stop, take_profit=tp,
+                side=prices['side'], entry=prices['entry'], stop=prices['stop'],
+                take_profit=prices['tp'],
                 rule_ids=rule_ids, hits=hits,
                 weight=_round(snap_row.get('weight'), 2),
                 pnl_pct=_round(snap_row.get('pnl_pct'), 2),

@@ -119,6 +119,22 @@ def test_analysis_five_steps():
     assert res['health']['score'] >= 0
 
 
+def test_prices_semantics():
+    """价位语义：止损 < 现价 < 目标价；买入价低于现价，卖出价高于现价。"""
+    from etfquant import pricing
+    f = dict(last=10.0, ma5=9.5, ma10=9.0, ma20=8.5,
+             support=dict(prev_low=8.8, low20=8.0),
+             reduce_think=dict(high20=10.5))
+    for act in ('ADD', 'HOLD', 'WATCH', 'TRIM', 'CLEAR'):
+        p = pricing.prices(act, f)
+        assert p['stop'] < f['last'] < p['tp'], act
+        assert p['stop'] != p['tp'], act
+        if p['side'] == 'buy':
+            assert p['entry'] < f['last'] and p['stop'] < p['entry'], act
+        else:
+            assert p['entry'] > f['last'], act
+
+
 def test_analysis_overweight_demotes_add():
     """O-1 超配禁加仓：ADD 一律降级 HOLD。"""
     port = dict(rows=[dict(code='510300', name='沪深300ETF', category='宽基',

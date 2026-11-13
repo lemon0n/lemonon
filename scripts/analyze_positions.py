@@ -125,8 +125,8 @@ def main():
     lines = []
     now = datetime.utcnow() + timedelta(hours=8)
     lines.append('# 当前持仓分析报告\n\n')
-    lines.append('- 数据时点：%s（日线最后交易日：见逐腿表）\n' % now.strftime('%Y-%m-%d %H:%M'))
-    lines.append('- 分析引擎：五步固化流程（S1 大盘定仓 → S2 结构核对 → S3 逐腿分诊 → S4 动作生成 → S5 组合输出）\n')
+    lines.append('- 数据时点：%s（日线最后交易日：见逐只表）\n' % now.strftime('%Y-%m-%d %H:%M'))
+    lines.append('- 分析引擎：五步固化流程（S1 大盘定仓 → S2 结构核对 → S3 逐只评级 → S4 动作生成 → S5 组合输出）\n')
     lines.append('- 规则来源：沉关河方法论蒸馏规则卡（config/methodology.yaml），每条动作可回查规则编号与出处\n')
     lines.append('- 简报逻辑链：每条操作附「现象 → 判断 → 动作 → 执行」理性链，来自规则卡 rationale 区（蒸馏 M1 理性链抽取产物）\n\n')
 
@@ -168,9 +168,9 @@ def main():
     if res['s2']['deviation_flags']:
         lines.append('\n偏离超 ±5pct：%s\n' % '、'.join(res['s2']['deviation_flags']))
 
-    # ---- S3/S4 逐腿 ----
-    lines.append('\n## S3+S4 逐腿分诊与动作\n\n')
-    lines.append('| 代码 | 名称 | 分诊 | 动作 | 触发价 | 止损价 | 止盈价 | 规则 |\n')
+    # ---- S3/S4 逐只评级与动作 ----
+    lines.append('\n## S3+S4 逐只评级与今日动作\n\n')
+    lines.append('| 代码 | 名称 | 评级 | 动作 | 买入/卖出价 | 止损价 | 目标价 | 规则 |\n')
     lines.append('|---|---|---|---|---:|---:|---:|---|\n')
     for l in res['legs']:
         lines.append('| %s | %s | %s | %s | %s | %s | %s | %s |\n' % (
@@ -180,8 +180,8 @@ def main():
             '—' if l['take_profit'] is None else '%.3f' % l['take_profit'],
             ' / '.join(l['rule_ids']) or '—'))
 
-    # ---- 逐腿专业叙述 ----
-    lines.append('\n## 逐腿专业分析\n')
+    # ---- 逐只专业分析 ----
+    lines.append('\n## 逐只专业分析\n')
     for l in res['legs']:
         f = features.get(l['code'])
         if not f:
@@ -217,8 +217,9 @@ def main():
         hits = '；'.join('%s %s（%s）' % (h.get('id', ''), h.get('text', ''), h.get('src', ''))
                         for h in l['hits']) if l['hits'] else '—'
         lines.append('- **规则命中**：%s\n' % hits)
-        lines.append('- **建议**：%s。触发价 %s / 止损 %s / 止盈 %s。\n' % (
+        lines.append('- **建议**：%s。%s %s / 止损 %s / 目标 %s。\n' % (
             l['action_text'],
+            '卖出价' if l.get('side') == 'sell' else '买入价',
             '—' if l['entry'] is None else '%.3f' % l['entry'],
             '—' if l['stop'] is None else '%.3f' % l['stop'],
             '—' if l['take_profit'] is None else '%.3f' % l['take_profit']))
@@ -227,8 +228,8 @@ def main():
         elif l['level'] == 'C':
             lines.append('\n  > C 级：保利优先。冲高先减，落袋一部分；回踩缩量不破关键位再接回。\n')
 
-    # ---- S5 今日操作简报 ----
-    lines.append('\n## S5 今日操作简报\n\n')
+    # ---- S5 今日推荐 ----
+    lines.append('\n## S5 今日推荐\n\n')
     br = res.get('brief') or {}
     if br.get('phen'):
         lines.append('**组合层**\n\n')
@@ -236,7 +237,7 @@ def main():
         lines.append('- 判断：%s\n' % br['judge'])
         lines.append('- 动作：%s\n\n' % br['act'])
     if res['orders']:
-        lines.append('| 动作 | 标的 | 权重% | 触发 | 止损 | 止盈 | 规则 |\n|---|---|---:|---:|---:|---:|---|\n')
+        lines.append('| 动作 | ETF | 权重% | 买入/卖出价 | 止损 | 目标价 | 规则 |\n|---|---|---:|---:|---:|---:|---|\n')
         for l in res['orders']:
             lines.append('| %s | %s %s | %.2f | %s | %s | %s | %s |\n' % (
                 l['action_text'], l['code'], l['name'], l['weight'],
@@ -259,7 +260,8 @@ def main():
             lines.append('- **动作**：%s\n' % (b.get('act') or l['action_text']))
             if b.get('exec'):
                 lines.append('- **执行**：%s\n' % b['exec'])
-            lines.append('- **价位**：触发 %s / 止损 %s / 止盈 %s。\n' % (
+            lines.append('- **价位**：%s %s / 止损 %s / 目标 %s。\n' % (
+                '卖出价' if l.get('side') == 'sell' else '买入价',
                 '—' if l['entry'] is None else '%.3f' % l['entry'],
                 '—' if l['stop'] is None else '%.3f' % l['stop'],
                 '—' if l['take_profit'] is None else '%.3f' % l['take_profit']))
@@ -268,8 +270,8 @@ def main():
             lines.append('\n')
     else:
         lines.append('%s\n' % (br.get('no_action') or 'S4 规则求值均为 HOLD：今日无触发动作。'))
-        # 无动作时仍给出逐腿持有理由简报（持有也是动作，需要逻辑链）
-        lines.append('\n**持有逻辑链**（S4 求值均为 HOLD/WATCH，逐腿理由如下）\n\n')
+        # 无动作时仍给出逐只持有理由（持有也是动作，需要逻辑链）
+        lines.append('\n**持有逻辑链**（S4 求值均为 HOLD/WATCH，逐只理由如下）\n\n')
         for l in res['legs']:
             b = l.get('brief') or {}
             if not b:

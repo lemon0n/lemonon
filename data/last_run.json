@@ -1,15 +1,15 @@
 {
   "ok": true,
-  "ran_at": "2026-11-13 12:19:41",
+  "ran_at": "2026-11-13 14:29:28",
   "mode": "live",
   "data_date": "2026-11-13",
   "degraded": false,
   "levels": 4,
   "level_count": {
-    "A": 1,
+    "A": 0,
     "B": 1,
     "C": 0,
-    "D": 2
+    "D": 3
   },
   "orders": 4,
   "orders_valid": 4,
@@ -17,5 +17,5 @@
   "fallback": [
     "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与打分）"
   ],
-  "html": "/home/runner/work/lemonon/lemonon/web/index.html"
+  "html": "/workspace/etf-decision-platform/web/index.html"
 }

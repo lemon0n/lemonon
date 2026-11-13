@@ -160,18 +160,21 @@ rules:
 
 # ---- S5 简报模板（组合层 → 今日操作清单头部；占位符由渲染端填充）----
 brief:
-  header_phen: '盘面「{regime}」，阶段适配仓位 {lo}~{hi}%；当前总仓位 {pos}%，{pos_state}；今日触发动作 {n} 项'
+  header_phen: '盘面「{regime}」，建议仓位 {lo}~{hi}%；现在总仓位 {pos}%，{pos_state}；今日要做 {n} 笔'
   header_judge: '{regime_note}'
-  header_act: '按规则卡执行：{acts}；先控仓位后调结构（L4-05 减仓优先级最高）'
-  no_action: 'S4 规则求值均为 HOLD：今日无触发动作，等均线方向自证（R-B1）'
+  header_act: '今日推荐：{acts}；先降仓位再调结构（减仓优先）'
+  no_action: '今天没有要动的：全部持有，等均线方向自己走出来（R-B1）'
 
-# ---- 参考价位生成（动作 → 触发/止损/止盈模式）----
+# ---- 参考价位生成（动作 → 买入价 / 止损 / 目标价）----
+# 语义铁律（前后端同构，analysis.prices / app.js rulePrice 共同保证）：
+#   buy  买入方向：买入价 < 现价（回踩支撑，不是现价）；止损 < 买入价；目标价 > 现价
+#   sell 卖出方向：卖出价 > 现价（反弹出货，不按现价砸）；硬止损 < 现价；目标价 ≠ 止损
 pricing:
-  CLEAR: {entry: last_x0.995, stop: ma10, tp: ma10}
-  TRIM:  {entry: high20_x0.995, stop: ma10, tp: high20}
-  ADD:   {entry: ma5_x1.002, stop: ma10, tp: high20}
-  HOLD:  {entry: ma5, stop: ma10, tp: high20}
-  WATCH: {entry: ma5, stop: ma10, tp: high20}
+  ADD:   {side: buy,  entry: pullback_ma5, stop: support_below, tp: target_up}
+  HOLD:  {side: buy,  entry: pullback_ma5, stop: support_below, tp: target_up}
+  WATCH: {side: buy,  entry: pullback_ma5, stop: support_below, tp: target_up}
+  TRIM:  {side: sell, entry: bounce_up,    stop: support_below, tp: target_up}
+  CLEAR: {side: sell, entry: bounce_up,    stop: support_below, tp: target_up}
 
 # ---- 组合层覆盖规则（优先于逐腿 ADD）----
 overrides:
@@ -197,7 +200,7 @@ regime_fit:
 pipeline:
   - {step: S1, name: 大盘定仓, output: [regime, fit_lo, fit_hi, position_pct, position_action]}
   - {step: S2, name: 结构核对, output: [category, current_pct, target_pct, deviation_pct]}
-  - {step: S3, name: 逐腿分诊, output: [code, name, level, action, hits]}
+  - {step: S3, name: 逐只评级, output: [code, name, level, action, hits]}
   - {step: S4, name: 动作生成, output: [code, action, entry, stop, tp, rule_ids]}
   - {step: S5, name: 组合输出, output: [orders, risk_flags, health_score]}
 

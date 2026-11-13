@@ -94,7 +94,7 @@ def main():
         print(json.dumps(r, ensure_ascii=False))
     else:
         print('已生成 %s（%.1f KB）' % (r['html'], r['html_bytes'] / 1024))
-        print('数据日期 %s · 来源 %s · 标的 %s 只 · 分诊 %s · 参考价位 %s/%s'
+        print('数据日期 %s · 来源 %s · ETF %s 只 · 评级 %s · 价位 %s/%s'
               % (r['data_date'] or '—',
                  '实时' if not r['degraded'] else '降级',
                  r['levels'], r['level_count'],
