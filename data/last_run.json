@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "ran_at": "2026-11-13 00:57:25",
+  "ran_at": "2026-11-13 10:58:36",
   "mode": "live",
-  "data_date": "2026-11-12",
+  "data_date": "2026-11-13",
   "degraded": false,
   "levels": 4,
   "level_count": {
-    "A": 0,
-    "B": 3,
+    "A": 1,
+    "B": 2,
     "C": 0,
     "D": 1
   },
