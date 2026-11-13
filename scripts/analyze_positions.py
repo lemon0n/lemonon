@@ -49,6 +49,36 @@ def rmb(x):
     return '—' if x is None else ('¥%.2f' % x)
 
 
+def _phen_line(f, l):
+    """操作简报的「现象」行：当日数据事实（价/均线/量能/相对强度/周期位置），纯数据拼装。"""
+    if not f:
+        return '日线数据缺失。'
+    parts = []
+    last = f.get('last')
+    ma5, ma10, ma20 = f.get('ma5'), f.get('ma10'), f.get('ma20')
+    below = f.get('below_ma10_2d', 0)
+    days = f.get('days_above_ma5', 0)
+    if last is not None and ma10 is not None:
+        if below:
+            parts.append('现价 %.3f 低于 MA10 %.3f 连续 %d 日' % (last, ma10, below))
+        elif days:
+            parts.append('现价 %.3f 站上 MA5（%.3f）满 %d 日' % (last, ma5 or last, days))
+        else:
+            parts.append('现价 %.3f（MA5 %.3f / MA10 %.3f）' % (last, ma5 or last, ma10))
+    vr = f.get('vol_ratio')
+    if vr is not None:
+        state = '放量' if f.get('expand') else ('缩量' if f.get('shrink') else '平量')
+        parts.append('量比 %.2f（%s）' % (vr, state))
+    ex5 = f.get('excess5')
+    if ex5 is not None:
+        parts.append('5 日相对大盘 %+.2fpct' % ex5)
+    if f.get('cycle_phase'):
+        parts.append('周期「%s」' % f['cycle_phase'])
+    if f.get('breakout_label'):
+        parts.append('突破「%s」' % f['breakout_label'])
+    return '；'.join(parts) + '。'
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', default='')
@@ -97,7 +127,8 @@ def main():
     lines.append('# 当前持仓分析报告\n\n')
     lines.append('- 数据时点：%s（日线最后交易日：见逐腿表）\n' % now.strftime('%Y-%m-%d %H:%M'))
     lines.append('- 分析引擎：五步固化流程（S1 大盘定仓 → S2 结构核对 → S3 逐腿分诊 → S4 动作生成 → S5 组合输出）\n')
-    lines.append('- 规则来源：沉关河方法论蒸馏规则卡（config/methodology.yaml），每条动作可回查规则编号与出处\n\n')
+    lines.append('- 规则来源：沉关河方法论蒸馏规则卡（config/methodology.yaml），每条动作可回查规则编号与出处\n')
+    lines.append('- 简报逻辑链：每条操作附「现象 → 判断 → 动作 → 执行」理性链，来自规则卡 rationale 区（蒸馏 M1 理性链抽取产物）\n\n')
 
     # ---- 组合快照 ----
     lines.append('## 组合快照\n\n')
@@ -196,8 +227,14 @@ def main():
         elif l['level'] == 'C':
             lines.append('\n  > C 级：保利优先。冲高先减，落袋一部分；回踩缩量不破关键位再接回。\n')
 
-    # ---- S5 ----
-    lines.append('\n## S5 今日操作清单\n\n')
+    # ---- S5 今日操作简报 ----
+    lines.append('\n## S5 今日操作简报\n\n')
+    br = res.get('brief') or {}
+    if br.get('phen'):
+        lines.append('**组合层**\n\n')
+        lines.append('- 现象：%s\n' % br['phen'])
+        lines.append('- 判断：%s\n' % br['judge'])
+        lines.append('- 动作：%s\n\n' % br['act'])
     if res['orders']:
         lines.append('| 动作 | 标的 | 权重% | 触发 | 止损 | 止盈 | 规则 |\n|---|---|---:|---:|---:|---:|---|\n')
         for l in res['orders']:
@@ -207,8 +244,39 @@ def main():
                 '—' if l['stop'] is None else '%.3f' % l['stop'],
                 '—' if l['take_profit'] is None else '%.3f' % l['take_profit'],
                 ' / '.join(l['rule_ids'])))
+        lines.append('\n**逐条操作逻辑链**（现象 → 判断 → 动作 → 执行；理性链来自规则卡 rationale，出处可回查）\n\n')
+        for i, l in enumerate(res['orders'], 1):
+            f = features.get(l['code']) or {}
+            lines.append('### %d. %s %s %s（权重 %.2f%%，浮动盈亏 %s）—— %s %s（出处 #%s）\n\n' % (
+                i, l['action_text'], l['code'], l['name'], l['weight'],
+                '—' if l['pnl_pct'] is None else '%.2f%%' % l['pnl_pct'],
+                ' / '.join(l['rule_ids']),
+                (l.get('brief') or {}).get('name', ''),
+                (l.get('brief') or {}).get('src', '')))
+            lines.append('- **现象**：%s\n' % _phen_line(f, l))
+            b = l.get('brief') or {}
+            lines.append('- **判断**：%s\n' % (b.get('judge') or '—'))
+            lines.append('- **动作**：%s\n' % (b.get('act') or l['action_text']))
+            if b.get('exec'):
+                lines.append('- **执行**：%s\n' % b['exec'])
+            lines.append('- **价位**：触发 %s / 止损 %s / 止盈 %s。\n' % (
+                '—' if l['entry'] is None else '%.3f' % l['entry'],
+                '—' if l['stop'] is None else '%.3f' % l['stop'],
+                '—' if l['take_profit'] is None else '%.3f' % l['take_profit']))
+            if l.get('override_brief'):
+                lines.append('- **组合层覆盖**：%s\n' % l['override_brief'])
+            lines.append('\n')
     else:
-        lines.append('S4 规则求值均为 HOLD：今日无触发动作。\n')
+        lines.append('%s\n' % (br.get('no_action') or 'S4 规则求值均为 HOLD：今日无触发动作。'))
+        # 无动作时仍给出逐腿持有理由简报（持有也是动作，需要逻辑链）
+        lines.append('\n**持有逻辑链**（S4 求值均为 HOLD/WATCH，逐腿理由如下）\n\n')
+        for l in res['legs']:
+            b = l.get('brief') or {}
+            if not b:
+                continue
+            lines.append('- %s %s：%s → %s（%s，出处 #%s）\n' % (
+                l['code'], l['name'], b.get('judge', '—'), b.get('act', '—'),
+                ' / '.join(l['rule_ids']), b.get('src', '')))
     h = res['health']
     lines.append('\n## 组合健康分\n\n')
     lines.append('| 维度 | 得分 |\n|---|---:|\n')

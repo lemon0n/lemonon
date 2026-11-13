@@ -71,6 +71,37 @@ def s2_structure(snap, targets):
     return dict(step='S2', name='结构核对', rows=rows, deviation_flags=flags)
 
 
+def _ov_hit(oid, why, level, action):
+    """组合覆盖命中项：从 overrides 卡补齐出处与理性链。"""
+    m = M.load()
+    ov = next((o for o in m.get('overrides', []) if o['id'] == oid), {})
+    return dict(id=oid, text=why, src=ov.get('src', 'methodology'),
+                level=level, action=action, name=ov.get('name', '组合覆盖'),
+                rationale={'judge': ov.get('rationale', why)}, exec=None)
+
+
+def _brief(hits):
+    """首个技术性命中的理性链 → 腿级简报（phen/judge/act/exec + 规则出处）。"""
+    for h in hits or []:
+        if not str(h.get('id', '')).startswith('O-'):
+            r = h.get('rationale') or {}
+            if r.get('judge'):
+                return dict(phen=r.get('phen'), judge=r.get('judge'), act=r.get('act'),
+                            exec=h.get('exec'), rule=h.get('id'), name=h.get('name'),
+                            src=h.get('src'))
+    return None
+
+
+def _ov_brief(hits):
+    """组合覆盖命中（O-1/O-2/O-3）的降级理由，追加在腿级简报之后。"""
+    ovs = [h for h in hits or [] if str(h.get('id', '')).startswith('O-')]
+    if not ovs:
+        return None
+    return '；'.join('%s（%s）' % (h.get('text', h.get('id')),
+                                   (h.get('rationale') or {}).get('judge', ''))
+                     for h in ovs)
+
+
 def _leg_action(f, snap_row, s1, uni=None):
     """S3+S4 单腿：规则求值 → 动作 + 参考价位 + 组合层覆盖。"""
     ev = M.evaluate(f)
@@ -96,8 +127,7 @@ def _leg_action(f, snap_row, s1, uni=None):
         else:
             why = None
         if why:
-            hits.append(dict(id=ov[-1], text=why, src='methodology',
-                             level=level, action=action, name='组合覆盖'))
+            hits.append(_ov_hit(ov[-1], why, level, action))
             rule_ids.append(ov[-1])
 
     entry = _price(price_mode['entry'], f)
@@ -108,7 +138,8 @@ def _leg_action(f, snap_row, s1, uni=None):
                 rule_ids=rule_ids, hits=hits,
                 weight=_round(snap_row.get('weight'), 2),
                 pnl_pct=_round(snap_row.get('pnl_pct'), 2),
-                action_text=m['actions'].get(action, action))
+                action_text=m['actions'].get(action, action),
+                brief=_brief(hits), override_brief=_ov_brief(hits))
 
 
 def health(snap, leg_results):
@@ -144,6 +175,27 @@ def health(snap, leg_results):
                 cat_max=_round(cat_max, 2), leg_max=_round(leg_max, 2))
 
 
+def s5_brief(snap, s1, s2, orders, regime, m):
+    """S5 组合层简报（盘面→仓位→操作总览），模板来自规则卡 brief 区，占位符填充数据。"""
+    b = m.get('brief') or {}
+    acts_cnt = {}
+    for l in orders:
+        acts_cnt[l['action']] = acts_cnt.get(l['action'], 0) + 1
+    acts_txt = '、'.join('%s %d 只' % (m['actions'].get(a, a), c) for a, c in acts_cnt.items()) or '无'
+    pos_state = {'REDUCE': '超配，先降总仓', 'ADD': '低于下沿，可分批补',
+                 'HOLD': '区间内维持'}[s1['position_action']]
+    phen = (b.get('header_phen') or '').format(
+        regime=s1['regime'], lo=s1['fit_lo'], hi=s1['fit_hi'],
+        pos=s1['position_pct'], pos_state=pos_state, n=len(orders))
+    note = (regime or {}).get('stage_note') or ''
+    if not note:
+        note = ('结构偏离：' + '、'.join(s2['deviation_flags'])) if s2['deviation_flags'] else '结构无明显偏离'
+    judge = (b.get('header_judge') or '').format(regime_note=note)
+    act = (b.get('header_act') or '').format(acts=acts_txt)
+    return dict(phen=phen, judge=judge, act=act,
+                no_action=b.get('no_action', 'S4 规则求值均为 HOLD：今日无触发动作。'))
+
+
 def analyze(port, snap, features, regime, cfg=None):
     """五步固化流程入口。
 
@@ -167,6 +219,7 @@ def analyze(port, snap, features, regime, cfg=None):
                              hits=[], weight=_round(r['weight'], 2),
                              pnl_pct=_round(r.get('pnl_pct'), 2),
                              action_text=m['actions']['WATCH'],
+                             brief=None, override_brief=None,
                              s1=s1, fit_lo=regime['fit_lo'], fit_hi=regime['fit_hi']))
             risk_flags.append('%s 数据缺失' % r['code'])
             continue
@@ -180,6 +233,7 @@ def analyze(port, snap, features, regime, cfg=None):
 
     orders = [l for l in legs if l['action'] in ('CLEAR', 'TRIM', 'ADD')]
     h = health(snap, legs)
-    return dict(step='S5', s1=s1, s2=s2, legs=legs, orders=orders,
+    brief = s5_brief(snap, s1, s2, orders, regime, m)
+    return dict(step='S5', s1=s1, s2=s2, legs=legs, orders=orders, brief=brief,
                 risk_flags=risk_flags or ['无'], health=h,
                 pipeline=m['pipeline'])

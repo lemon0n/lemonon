@@ -11,8 +11,11 @@ from .. import methodology as M
 def _hit(rid, text=None):
     for r in M.rules():
         if r['id'] == rid:
-            return {'id': rid, 'text': text or r['text'], 'src': r['src']}
-    return {'id': rid, 'text': text or rid, 'src': ''}
+            h = {'id': rid, 'text': text or r['text'], 'src': r['src'],
+                 'name': r['name'], 'rationale': r.get('rationale'), 'exec': r.get('exec')}
+            return h
+    return {'id': rid, 'text': text or rid, 'src': '', 'name': rid,
+            'rationale': None, 'exec': None}
 
 
 def compute(f, rs, cfg):

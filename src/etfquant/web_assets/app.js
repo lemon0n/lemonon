@@ -485,9 +485,9 @@ function page5(){
   var s1=s1Position(p);
   var adv=rows5adv(p,s1);
 
-  /* ① 今日操作清单（S4 求值 → S5 输出） */
-  h+=sec('① 今日操作清单');
-  h+=orderList(p,s1,adv);
+  /* ① 今日操作简报（S4 求值 → S5 输出：组合层简报 + 动作表 + 逐条逻辑链） */
+  h+=sec('① 今日操作简报');
+  h+='<div id="orderListBox">'+orderList(p,s1,adv)+'</div>';
 
   /* ② 组合体检与持仓明细（S1 快照 + S2 结构 + 持仓表） */
   h+=sec('② 组合体检与持仓明细');
@@ -549,7 +549,85 @@ function page5(){
   return h;
 }
 
-/* ① 操作清单：S1 组合层 + 逐腿动作 + 池内新增方向 */
+/* ① 操作清单：S1 组合层简报 + 逐腿动作表 + 逐条逻辑链简报 + 池内新增方向 */
+function bRow(k,v){
+  return '<div class="b-row"><span class="b-k">'+k+'</span><div class="b-v">'+v+'</div></div>';
+}
+function tmplFill(t,fmt){
+  return String(t||'').replace(/\{(\w+)\}/g,function(_,k){ return fmt[k]!=null?fmt[k]:''; });
+}
+/* S5 组合层简报：盘面→仓位→操作总览（模板来自规则卡 brief 区，与后端 s5_brief 同构） */
+function s5BriefRows(p,s1,adv){
+  var b=(D.methodology&&D.methodology.brief)||{};
+  var acts=adv.rows.filter(function(x){ return ['CLEAR','TRIM','ADD'].indexOf(x.a.action)>=0; });
+  var cnt={};
+  acts.forEach(function(x){ cnt[x.a.action]=(cnt[x.a.action]||0)+1; });
+  var actsTxt=Object.keys(cnt).map(function(k){ return esc(actText(k))+' '+cnt[k]+' 只'; }).join('、')||'无';
+  var fmt={regime:esc(s1.regime||'—'),lo:s1.lo,hi:s1.hi,pos:f2(s1.pos),
+    pos_state:esc(s1.action==='REDUCE'?'超配，先降总仓':(s1.action==='ADD'?'低于下沿，可分批补':'区间内维持')),
+    n:acts.length,acts:actsTxt};
+  var note=((D.market||{}).regime||{}).stage_note||'';
+  if(!note){
+    var tgt=(D&&D.targets)||{},st={};
+    (p.rows||[]).forEach(function(r){ st[r.category]=(st[r.category]||0)+r.weight; });
+    var dev=Object.keys(tgt).filter(function(k){ return Math.abs((st[k]||0)-tgt[k])>5; });
+    note=dev.length?('结构偏离：'+esc(dev.join('、'))):'结构无明显偏离';
+  }
+  fmt.regime_note=esc(note);
+  return bRow('现象',esc(tmplFill(b.header_phen,fmt)))+
+         bRow('判断',esc(tmplFill(b.header_judge,fmt)))+
+         bRow('动作',esc(tmplFill(b.header_act,fmt)));
+}
+/* 腿级简报数据源：池内腿 hits 带理性链；池外腿 ruleEngine 返回整条规则；再不济按 rule_id 查规则卡 */
+function briefOf(x){
+  var hs=x.a.hits||[],i,j,ids=x.a.rule_ids||[],rs=(D.methodology&&D.methodology.rules)||[];
+  for(i=0;i<hs.length;i++){
+    if(hs[i]&&hs[i].rationale&&hs[i].rationale.judge&&!/^O-/.test(String(hs[i].id))) return hs[i];
+  }
+  for(i=0;i<ids.length;i++){
+    if(/^O-/.test(ids[i])) continue;
+    for(j=0;j<rs.length;j++){ if(rs[j].id===ids[i]&&rs[j].rationale) return rs[j]; }
+  }
+  return null;
+}
+function ovTxt(x){
+  var ids=x.a.rule_ids||[],ov=(D.methodology&&D.methodology.overrides)||[],out=[],i,j;
+  for(i=0;i<ids.length;i++){
+    if(ids[i].indexOf('O-')!==0) continue;
+    for(j=0;j<ov.length;j++){ if(ov[j].id===ids[i]&&ov[j].rationale) out.push(esc(ov[j].rationale)); }
+  }
+  return out.join('；');
+}
+/* 现象行：当日数据事实（价/均线/量能/相对强度/周期位置），纯数据拼装 */
+function phenTxt(x){
+  var l=x.l; if(!l) return '日线数据待取。';
+  var s=[],last=n(l.last),ma5=n(l.ma5),ma10=n(l.ma10);
+  var below=n(l.below_ma10_2d),days=n(l.days_above_ma5);
+  if(last&&ma10){
+    if(below) s.push('现价 '+f2(last)+' 低于 MA10 '+f2(ma10)+' 连续 '+below+' 日');
+    else if(days) s.push('现价 '+f2(last)+' 站上 MA5（'+f2(ma5||last)+'）满 '+days+' 日');
+    else s.push('现价 '+f2(last)+'（MA5 '+f2(ma5||last)+' / MA10 '+f2(ma10)+'）');
+  }
+  var vr=n(l.vol_ratio);
+  if(vr) s.push('量比 '+f2(vr)+'（'+(l.expand?'放量':(l.shrink?'缩量':'平量'))+'）');
+  if(l.excess5!=null) s.push('5 日相对大盘 '+(l.excess5>0?'+':'')+f2(l.excess5)+'pct');
+  if(l.cycle) s.push('周期「'+esc(l.cycle)+'」');
+  if(l.breakout) s.push('突破「'+esc(l.breakout)+'」');
+  return s.join('；')+'。';
+}
+/* 腿级简报卡：现象 → 判断 → 动作 → 执行 → 组合层覆盖，规则出处可回查 */
+function briefHtml(x){
+  var b=briefOf(x); if(!b) return '';
+  var r=b.rationale||{},h='';
+  h+='<div class="b-t"><b>'+esc(x.code)+'</b> '+esc(x.name)+
+    ' <span class="b-src">'+esc((x.a.rule_ids||[]).join(' / ')||b.id)+' · 出处 #'+esc(b.src||'')+'</span></div>';
+  h+=bRow('现象',esc(phenTxt(x)));
+  h+=bRow('判断',esc(r.judge||'—'));
+  h+=bRow('动作',esc(r.act||x.a.action_text));
+  if(b.exec) h+=bRow('执行',esc(b.exec));
+  var o=ovTxt(x); if(o) h+=bRow('覆盖',o);
+  return '<div class="brief">'+h+'</div>';
+}
 function orderList(p,s1,adv){
   var st=stageHint();
   var h='<div class="adv">';
@@ -557,6 +635,7 @@ function orderList(p,s1,adv){
     '<span>目标仓位 '+s1.lo+'~'+s1.hi+'%</span>'+
     '<span>当前 '+f2(s1.pos)+'% · '+esc(posTxt(s1))+'</span>'+
     '<span>主线 '+esc((st.leaders||[]).join('、')||'—')+'</span></div>';
+  h+='<div class="brief brief-top">'+s5BriefRows(p,s1,adv)+'</div>';
   var rows=adv.rows.filter(function(x){ return x.a.action!=='HOLD'&&x.a.action!=='WATCH'; });
   if(rows.length){
     h+=tbl(['动作','标的','权重','参考价','规则'],
@@ -565,8 +644,13 @@ function orderList(p,s1,adv){
           '<b>'+esc(x.code)+'</b> '+esc(x.name),f2(x.w)+'%',
           esc(fmtPrice(x.a)),esc(x.a.rule_ids.join(' / ')||'—')]);
       }),['','','r','','']);
+    h+='<div class="b-cap">逐条操作逻辑链 · 现象 → 判断 → 动作 → 执行（理性链来自规则卡 rationale，蒸馏 M1 产物）</div>';
+    rows.forEach(function(x){ h+=briefHtml(x); });
   }else{
-    h+='<div class="mini-2">S4 规则求值均为 HOLD：今日无触发动作</div>';
+    var nb=(D.methodology&&D.methodology.brief)||{};
+    h+='<div class="mini-2">'+esc(nb.no_action||'S4 规则求值均为 HOLD：今日无触发动作')+'</div>';
+    h+='<div class="b-cap">持有逻辑链（持有也是操作，逐腿理由如下）</div>';
+    adv.rows.forEach(function(x){ if(x.a.action==='HOLD') h+=briefHtml(x); });
   }
   if(adv.adds.length){
     h+=bt('新增方向 · 未持有的观察池标的');
@@ -585,7 +669,7 @@ function rows5adv(p,s1){
   p.rows.forEach(function(r){
     var l=r.leg||localLeg(r.code,r);
     if(!l&&!r.leg){ pending=true; }
-    rows.push({a:legResult(l,r,s1),code:r.code,name:r.name,w:r.weight});
+    rows.push({a:legResult(l,r,s1),code:r.code,name:r.name,w:r.weight,l:l,r:r});
   });
   var st=stageHint(),held={};
   p.rows.forEach(function(r){ held[r.code]=1; });
@@ -742,6 +826,7 @@ function fillLocalLegs(){
   Object.keys(LBARS).forEach(function(c){
     if(LBARS[c]&&document.getElementById('loc_'+c)) renderLocalLeg(c);
   });
+  refreshOrderListBox();
   var codes=(HOLD.rows||[]).map(function(r){ return String(r.code); })
     .filter(function(c){ return !legOf(c)&&!LBARS[c]; });
   if(!codes.length) return;
@@ -753,8 +838,16 @@ function fillLocalLegs(){
     fetchBars(c,function(o){
       LBARS[c]=o;
       LIDX?renderLocalLeg(c):setTimeout(function(){ renderLocalLeg(c); },1200);
+      refreshOrderListBox();
     });
   });
+}
+/* 池外腿日线就绪后：重刷①今日操作简报（现象行/逻辑链会补齐） */
+function refreshOrderListBox(){
+  var el=document.getElementById('orderListBox');
+  if(!el||!(HOLD.rows||[]).length) return;
+  var p=calcPort(),s1=s1Position(p);
+  el.innerHTML=orderList(p,s1,rows5adv(p,s1));
 }
 function heldLegs(p){
   var out=[];

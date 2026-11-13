@@ -15,7 +15,10 @@
 #     stand_back_days_gte    站回MA5日数 >= N
 #     true_breakout          真突破四条全中
 #     always                 恒真（兜底）
-version: '1.0'
+#   rationale: 理性链三段（phen 现象 → judge 判断 → act 动作），来自沉关河原文逻辑；
+#             报告端与前端共用，渲染为「今日操作清单」每条操作的分析简报。
+#   exec: 执行要点（分批/时点/纪律）
+version: '1.1'
 
 meta:
   distill_doc: 沉关河方法论蒸馏.md
@@ -37,33 +40,130 @@ levels:
 
 # ---- 逐腿动作规则（按 priority 降序求值，首个命中即定级）----
 rules:
-  - {id: R-D1, level: D, priority: 100, name: 十均线止损,
-     when: {below_ma10_2d_gte: 1}, action: CLEAR,
-     text: 收盘低于MA10（回测优化为1日，蒸馏默认2日）, src: '3657'}
-  - {id: R-D2, level: D, priority: 99, name: 假突破出货,
-     when: {false_breakout: true}, action: CLEAR,
-     text: 放量下跌跌破MA20, src: '3657'}
-  - {id: R-D3, level: D, priority: 98, name: 放量破位,
-     when: {expand_down_break_ma20: true}, action: CLEAR,
-     text: 放量下跌收盘破MA20, src: '3657'}
-  - {id: R-C1, level: C, priority: 80, name: 放量滞涨,
-     when: {not_stand_back_expand: true}, action: TRIM,
-     text: 未站回MA5且放量, src: '7477/7570'}
-  - {id: R-C2, level: C, priority: 79, name: 冲高回落,
-     when: {upper_shadow_gt: 2}, action: TRIM,
-     text: 上影线超2%, src: '7477'}
-  - {id: R-C3, level: C, priority: 78, name: 溢价偏高,
-     when: {not_stand_back_premium_gt: 1.0}, action: TRIM,
-     text: 未站回MA5且溢价超1%, src: '7477'}
-  - {id: R-A1, level: A, priority: 60, name: 加仓确认,
-     when: {stand_back_days_gte: 3, true_breakout: true}, action: ADD,
-     text: 站回MA5满3日且真突破, src: '3657/7879'}
-  - {id: R-A2, level: A, priority: 50, name: 站回确认,
-     when: {stand_back_days_gte: 2}, action: HOLD,
-     text: 站回MA5满2日, src: '7879'}
-  - {id: R-B1, level: B, priority: 20, name: 缠绕等待,
-     when: {always: true}, action: HOLD,
-     text: 均线缠绕或缺确认, src: '8231'}
+  - id: R-D1
+    level: D
+    priority: 100
+    name: 十均线止损
+    when: {below_ma10_2d_gte: 1}
+    action: CLEAR
+    text: 收盘低于MA10（回测优化为1日，蒸馏默认2日）
+    src: '3657'
+    rationale:
+      phen: 收盘连续跌破 MA10 —— 十日线是主力运作成本线。
+      judge: 成本线失守即主力放弃的信号，「先证明接得住，再证明能打上去，最后证明能站住」的自证链条断裂；继续拿着等于逆势等解套，交易比的是谁活得更久，不是一夜暴富（INV-1/INV-3）。
+      act: 无条件出局，优先级最高；次日反弹分批退出，禁止加仓摊薄。
+    exec: 开盘冲高分两笔走，尾盘前清完；若直接低开破前低，市价先出一半再等反抽；当日了结，不留隔夜幻想。
+  - id: R-D2
+    level: D
+    priority: 99
+    name: 假突破出货
+    when: {false_breakout: true}
+    action: CLEAR
+    text: 放量下跌跌破MA20
+    src: '3657'
+    rationale:
+      phen: 前期放量突破后随即放量下跌、跌破重要均线。
+      judge: 真突破要四条全中（不破关键位+明显缩量+慢跌快涨+有承接），放量下跌破均线是真出货不是洗盘；突破若是假的，前一段拉升就是诱多（L3-04）。
+      act: 清仓回避，不参与后市。
+    exec: 假突破确认当日即出，不等回抽；卖出后从观察池移除，短期内不回补。
+  - id: R-D3
+    level: D
+    priority: 98
+    name: 放量破位
+    when: {expand_down_break_ma20: true}
+    action: CLEAR
+    text: 放量下跌收盘破MA20
+    src: '3657'
+    rationale:
+      phen: 放量下跌且收盘跌破 MA20。
+      judge: 缩量下杀是没钱没行情，放量下杀是资金在回来的路上反着走 —— 资金在出逃；MA20 破位则均线支撑体系失效（L1-13）。
+      act: 清仓，先离场再看。
+    exec: 放量破位当日尾盘前执行；离场后等缩量企稳三日再评估回补。
+  - id: R-C1
+    level: C
+    priority: 80
+    name: 放量滞涨
+    when: {not_stand_back_expand: true}
+    action: TRIM
+    text: 未站回MA5且放量
+    src: '7477/7570'
+    rationale:
+      phen: 未站回 MA5 且放量。
+      judge: 放量滞涨 = 高位有人持续兑现；冲高回落、上影线、放量不涨是同一族信号 —— 保利优先，落袋为安（L4-06）。
+      act: 分批减仓，先减一部分。
+    exec: 冲高分两批减，先减 1/3；剩余看回踩缩量不破关键位再决定去留。
+  - id: R-C2
+    level: C
+    priority: 79
+    name: 冲高回落
+    when: {upper_shadow_gt: 2}
+    action: TRIM
+    text: 上影线超2%
+    src: '7477'
+    rationale:
+      phen: 上影线超过 2%。
+      judge: 上影长 = 上方抛压重，冲高买盘全部被套在顶部区；连续放量滞涨大概率是借拉高出货。
+      act: 分批减仓保利润。
+    exec: 尾盘上影确认即减 1/3；次日若高开接力则继续减。
+  - id: R-C3
+    level: C
+    priority: 78
+    name: 溢价偏高
+    when: {not_stand_back_premium_gt: 1.0}
+    action: TRIM
+    text: 未站回MA5且溢价超1%
+    src: '7477'
+    rationale:
+      phen: 未站回 MA5 且溢价超过 1%。
+      judge: 溢价追高等于多付 1% 成本；未企稳阶段追买性价比极低（原方法论无此概念，为 ETF 工程护栏）。
+      act: 减仓或暂缓买入。
+    exec: 等溢价回落 0.5% 以内再执行买入动作。
+  - id: R-A1
+    level: A
+    priority: 60
+    name: 加仓确认
+    when: {stand_back_days_gte: 3, true_breakout: true}
+    action: ADD
+    text: 站回MA5满3日且真突破
+    src: '3657/7879'
+    rationale:
+      phen: 站回 MA5 满 3 日 + 真突破四条全中（不破关键位、明显缩量、慢跌快涨、有承接）。
+      judge: 四条全中 = 回踩确认成立，主力完成「接得住→打得上去」两步自证；先于大盘企稳说明相对强度占优（L3-03/L3-06）。
+      act: 回踩加仓（仓位须在阶段适配区间内，组合覆盖 O-1/O-2/O-3 优先）。
+    exec: 分批进场：回踩 MA5 附近先半仓，缩量不破再加；止损写在开仓前，设 MA10，无止损不开仓。
+  - id: R-A2
+    level: A
+    priority: 50
+    name: 站回确认
+    when: {stand_back_days_gte: 2}
+    action: HOLD
+    text: 站回MA5满2日
+    src: '7879'
+    rationale:
+      phen: 站回 MA5 满 2 日。
+      judge: 收盘站稳五均线是回暖确认信号，短线出手胜率回归；但确认未满 3 日或真突破未成立，只持有不加（L1-10）。
+      act: 持有，等待确认。
+    exec: 不加仓；跌破 MA5 当日减，收盘破 MA10 立即降级处理。
+  - id: R-B1
+    level: B
+    priority: 20
+    name: 缠绕等待
+    when: {always: true}
+    action: HOLD
+    text: 均线缠绕或缺确认
+    src: '8231'
+    rationale:
+      phen: 均线缠绕或缺确认条件。
+      judge: 5/10/20 缠成一股绳 = 大行情启动或终结前的方向选择期；做的是等主力自证，不是预测（L1-11/INV-1）。
+      act: 持有底仓等待，不动如山。
+    exec: 不动如山；放量出方向再跟，缩量继续等。
+
+# ---- S5 简报模板（组合层 → 今日操作清单头部；占位符由渲染端填充）----
+brief:
+  header_phen: '盘面「{regime}」，阶段适配仓位 {lo}~{hi}%；当前总仓位 {pos}%，{pos_state}；今日触发动作 {n} 项'
+  header_judge: '{regime_note}'
+  header_act: '按规则卡执行：{acts}；先控仓位后调结构（L4-05 减仓优先级最高）'
+  no_action: 'S4 规则求值均为 HOLD：今日无触发动作，等均线方向自证（R-B1）'
 
 # ---- 参考价位生成（动作 → 触发/止损/止盈模式）----
 pricing:
@@ -75,9 +175,15 @@ pricing:
 
 # ---- 组合层覆盖规则（优先于逐腿 ADD）----
 overrides:
-  - {id: O-1, name: 超配禁加仓, when: position_pct_gt_regime_hi, demote: ADD->HOLD, src: '3657'}
-  - {id: O-2, name: 浮亏禁加仓, when: pnl_pct_lt_-8, demote: ADD->HOLD, src: 'L4-08'}
-  - {id: O-3, name: 大浮盈不加仓, when: pnl_pct_gt_30, demote: ADD->HOLD, src: 'L4-09'}
+  - {id: O-1, name: 超配禁加仓, when: position_pct_gt_regime_hi, demote: ADD->HOLD, src: '3657',
+     text: 总仓位超阶段适配上限，ADD 一律降级 HOLD,
+     rationale: '超配时 A 级加仓先降为持有：先降总仓，后调结构（L4-05）'}
+  - {id: O-2, name: 浮亏禁加仓, when: pnl_pct_lt_-8, demote: ADD->HOLD, src: 'L4-08',
+     text: 单腿浮亏超 -8%，ADD 一律降级 HOLD,
+     rationale: '浮亏超 -8% 先控风险再谈加仓，禁止加仓摊薄（L4-08）'}
+  - {id: O-3, name: 大浮盈不加仓, when: pnl_pct_gt_30, demote: ADD->HOLD, src: 'L4-09',
+     text: 单腿浮盈超 +30%，ADD 一律降级 HOLD,
+     rationale: '浮盈超 +30% 不追高只持有，到手才是自己的（L4-09）'}
 
 # ---- 市场阶段 → 适配仓位（与 risk.position.regime_fit 同源）----
 regime_fit:

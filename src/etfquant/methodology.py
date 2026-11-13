@@ -68,18 +68,22 @@ def match_rule(feat):
 
 
 def evaluate(feat):
-    """逐腿规则求值：等级 + 动作 + 命中规则。输出与前端 ruleEngine() 同构。"""
+    """逐腿规则求值：等级 + 动作 + 命中规则（含理性链 rationale/exec）。
+
+    输出与前端 ruleEngine() 同构（前端 hit = 整条规则对象，含 rationale/exec）。
+    """
     r = match_rule(feat)
     if r is None:
         return dict(level='B', action='HOLD', hits=[], rule_ids=[])
     hit = dict(id=r['id'], text=r['text'], src=r['src'], level=r['level'],
-               action=r['action'], name=r['name'])
+               action=r['action'], name=r['name'],
+               rationale=r.get('rationale'), exec=r.get('exec'))
     return dict(level=r['level'], action=r['action'],
                 hits=[hit], rule_ids=[r['id']])
 
 
 def compact():
-    """给前端 D.methodology 的精简结构（规则卡 + 动作表 + 阶段仓位 + 覆盖规则）。"""
+    """给前端 D.methodology 的精简结构（规则卡 + 动作表 + 阶段仓位 + 覆盖规则 + 简报模板）。"""
     m = load()
     return dict(
         version=m['version'],
@@ -91,4 +95,5 @@ def compact():
         regime_fit=m['regime_fit'],
         pipeline=m['pipeline'],
         sentiment_cycle=m['sentiment_cycle'],
+        brief=m.get('brief', {}),
     )
