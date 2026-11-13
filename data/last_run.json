@@ -1,21 +1,25 @@
 {
   "ok": true,
-  "ran_at": "2026-11-13 10:58:36",
-  "mode": "live",
-  "data_date": "2026-11-13",
-  "degraded": false,
+  "ran_at": "2026-11-13 11:22:07",
+  "mode": "snapshot",
+  "data_date": "2026-11-11",
+  "degraded": true,
   "levels": 4,
   "level_count": {
-    "A": 1,
+    "A": 0,
     "B": 2,
     "C": 0,
-    "D": 1
+    "D": 2
   },
   "orders": 4,
   "orders_valid": 4,
   "skipped": [],
   "fallback": [
-    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与打分）"
+    "实时行情降级离线快照",
+    "510300 日线降级离线快照",
+    "510500 日线降级离线快照",
+    "588000 日线降级离线快照",
+    "159915 日线降级离线快照"
   ],
-  "html": "/home/runner/work/lemonon/lemonon/web/index.html"
+  "html": "/tmp/opt/repo-lemonon/web/index.html"
 }

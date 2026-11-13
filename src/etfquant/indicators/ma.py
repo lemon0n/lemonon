@@ -19,7 +19,12 @@ def compute(bars, st=None):
         else:
             break
 
-    below10 = sum(1 for i in (-2, -1) if float(c.iloc[i]) < float(m10.iloc[i]))
+    below10 = 0
+    for i in range(len(c) - 1, -1, -1):
+        if not pd.isna(m10.iloc[i]) and float(c.iloc[i]) < float(m10.iloc[i]):
+            below10 += 1
+        else:
+            break
     spread = (max(last['ma5'], last['ma10'], last['ma20']) -
               min(last['ma5'], last['ma10'], last['ma20'])) / last['ma20']
     thresh = st['ma']['tangle_atr_pct']

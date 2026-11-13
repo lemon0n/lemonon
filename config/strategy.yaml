@@ -1,10 +1,11 @@
 # 策略阈值参数（五均线 / 量能 / 结构 / 分诊 / 打分）
+# 规则文本与出处统一维护在 config/methodology.yaml（蒸馏规则卡）。
 ma:
   periods: [5, 10, 20, 60, 120]
   stand_back: 收盘价 > MA5                    # 短期回暖确认
   add_requires_days_above_ma5: 3            # 五均线上三日才可考虑加仓 (7879/7681)
   stop_ma: 10                               # 买点一止损十均线（主力成本）
-  stop_consecutive_days: 2                  # 连两日收盘下方无条件执行 (3657)
+  stop_consecutive_days: 1                  # 连续收盘低于MA10即执行（回测优化：2→1，R3 样本内夏普 0.88 / 样本外 1.01）
   stop_buy2_ma: 5                           # 买点二止损五均线
   tangle_atr_pct: 0.012                     # 5/10/20 聚集缠绕阈值
   cross_signal: MA5 上穿 MA20                # 趋势扭转信号 (8231)
@@ -51,3 +52,22 @@ triage:
 score:
   weights: {momentum: 0.30, fund: 0.25, trend: 0.30, premium: 0.15}
   premium_penalty_threshold_pct: 1.0
+
+# 回测优选参数（3 轮优化 + 双随机样本验证，详见 回测报告.md；引擎 DEFAULT_PARAMS 同源）
+# 最终选定 R3 = 更严止损（MA10 止损 1 日）+ 更早进场（站回 MA5 满 2 日）+ 仓位上限 6腿×15%
+# 样本内（seed=7，8 只）：年化 6.01% / 回撤 -5.79% / 夏普 0.88 / 超额 +17.04%（基准 3.29%）
+# 样本外（seed=42，另 8 只）：年化 6.04% / 回撤 -4.29% / 夏普 1.01 / 卡玛 1.41 / 超额 +17.15% / 胜率 74.7%
+# 说明：回测用固定仓位上限近似阶段适配仓位；实盘层仓位仍按 regime_fit（30~90%）随阶段调整。
+backtest:
+  entry_days_above_ma5: 2
+  stop_days_below_ma10: 1
+  entry_need_ma10: true
+  entry_need_bull: false
+  stop_break_ma20: true
+  trim_shadow_pct: 2.0
+  tp_pos_pct: 0.93
+  shrink_ratio: 0.80
+  expand_ratio: 1.30
+  leg_weight_pct: 15.0
+  max_legs: 6
+  fee_bps: 0.5

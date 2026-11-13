@@ -7,6 +7,7 @@
 import os
 import json
 from . import config
+from . import methodology as M
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_assets')
 
@@ -127,6 +128,10 @@ def build_data(market, sectors, regime, legs, orders, cfg, meta):
             five=f['five_state'], ma5=_r(f['ma5']), ma10=_r(f['ma10']),
             ma20=_r(f['ma20']), ma60=_r(f['ma60']), ma120=_r(f['ma120']),
             ma_state=f['ma_state'], vol=f['vol_desc'], vol_ratio=f['vol_ratio'],
+            expand=f['expand'], shrink=f['shrink'],
+            stand_back=f['stand_back'], days_above_ma5=f['days_above_ma5'],
+            below_ma10_2d=f['below_ma10_2d'],
+            false_breakout=f['false_breakout'], true_breakout=f['true_breakout'],
             premium=f['premium_state'], premium_pct=_r(f['premium_pct'], 2),
             premium_available=f.get('premium_available', False),
             breakout=f['breakout_label'], true_cnt=f['true_breakout_count'],
@@ -163,6 +168,7 @@ def build_data(market, sectors, regime, legs, orders, cfg, meta):
                                 leaders=regime['leaders'], laggards=regime['laggards'])),
         legs=legcards, orders=order_rows,
         trading=cfg['universe'],
+        methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target', {}),
     )
 

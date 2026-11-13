@@ -1,0 +1,99 @@
+# 沉关河方法论 · 机器可执行规则卡（v1.0）
+# 蒸馏来源：41 篇原文，规则条目与《沉关河方法论蒸馏.md》第三部分一一对应。
+# 用途：signals/triage（分诊依据）、portfolio/analysis（持仓动作）、前端 p5 渲染（D.methodology）。
+# 约定：
+#   level: D 破位止损 > C 降仓保利 > A 持有可加 > B 等待确认（优先级降序）
+#   action: CLEAR 清仓 | TRIM 分批减仓 | ADD 回踩加仓 | HOLD 持有 | WATCH 观察
+#   when 为有限谓词键（Python 与 JS 两端各有一份求值映射，键集合一致）：
+#     below_ma10_2d_gte      连续收盘低于MA10日数 >= N
+#     false_breakout         假突破（放量下跌+破MA20）
+#     expand_down_break_ma20 放量下跌且收盘 < MA20
+#     fall_below_ma10        收盘 < MA10*0.995
+#     not_stand_back_expand  未站回MA5 且 放量
+#     upper_shadow_gt        上影线% > N
+#     not_stand_back_premium_gt  未站回MA5 且 溢价% > N
+#     stand_back_days_gte    站回MA5日数 >= N
+#     true_breakout          真突破四条全中
+#     always                 恒真（兜底）
+version: '1.0'
+
+meta:
+  distill_doc: 沉关河方法论蒸馏.md
+  corpus_articles: 41
+  rules_total: 10
+
+actions:
+  CLEAR: 清仓
+  TRIM: 分批减仓
+  ADD: 回踩加仓
+  HOLD: 持有
+  WATCH: 观察
+
+levels:
+  D: {label: 破位止损, rank: 4}
+  C: {label: 降仓保利, rank: 3}
+  A: {label: 持有可加, rank: 2}
+  B: {label: 等待确认, rank: 1}
+
+# ---- 逐腿动作规则（按 priority 降序求值，首个命中即定级）----
+rules:
+  - {id: R-D1, level: D, priority: 100, name: 十均线止损,
+     when: {below_ma10_2d_gte: 1}, action: CLEAR,
+     text: 收盘低于MA10（回测优化为1日，蒸馏默认2日）, src: '3657'}
+  - {id: R-D2, level: D, priority: 99, name: 假突破出货,
+     when: {false_breakout: true}, action: CLEAR,
+     text: 放量下跌跌破MA20, src: '3657'}
+  - {id: R-D3, level: D, priority: 98, name: 放量破位,
+     when: {expand_down_break_ma20: true}, action: CLEAR,
+     text: 放量下跌收盘破MA20, src: '3657'}
+  - {id: R-C1, level: C, priority: 80, name: 放量滞涨,
+     when: {not_stand_back_expand: true}, action: TRIM,
+     text: 未站回MA5且放量, src: '7477/7570'}
+  - {id: R-C2, level: C, priority: 79, name: 冲高回落,
+     when: {upper_shadow_gt: 2}, action: TRIM,
+     text: 上影线超2%, src: '7477'}
+  - {id: R-C3, level: C, priority: 78, name: 溢价偏高,
+     when: {not_stand_back_premium_gt: 1.0}, action: TRIM,
+     text: 未站回MA5且溢价超1%, src: '7477'}
+  - {id: R-A1, level: A, priority: 60, name: 加仓确认,
+     when: {stand_back_days_gte: 3, true_breakout: true}, action: ADD,
+     text: 站回MA5满3日且真突破, src: '3657/7879'}
+  - {id: R-A2, level: A, priority: 50, name: 站回确认,
+     when: {stand_back_days_gte: 2}, action: HOLD,
+     text: 站回MA5满2日, src: '7879'}
+  - {id: R-B1, level: B, priority: 20, name: 缠绕等待,
+     when: {always: true}, action: HOLD,
+     text: 均线缠绕或缺确认, src: '8231'}
+
+# ---- 参考价位生成（动作 → 触发/止损/止盈模式）----
+pricing:
+  CLEAR: {entry: last_x0.995, stop: ma10, tp: ma10}
+  TRIM:  {entry: high20_x0.995, stop: ma10, tp: high20}
+  ADD:   {entry: ma5_x1.002, stop: ma10, tp: high20}
+  HOLD:  {entry: ma5, stop: ma10, tp: high20}
+  WATCH: {entry: ma5, stop: ma10, tp: high20}
+
+# ---- 组合层覆盖规则（优先于逐腿 ADD）----
+overrides:
+  - {id: O-1, name: 超配禁加仓, when: position_pct_gt_regime_hi, demote: ADD->HOLD, src: '3657'}
+  - {id: O-2, name: 浮亏禁加仓, when: pnl_pct_lt_-8, demote: ADD->HOLD, src: 'L4-08'}
+  - {id: O-3, name: 大浮盈不加仓, when: pnl_pct_gt_30, demote: ADD->HOLD, src: 'L4-09'}
+
+# ---- 市场阶段 → 适配仓位（与 risk.position.regime_fit 同源）----
+regime_fit:
+  'C杀':            {lo: 30, hi: 40}
+  A杀:              {lo: 30, hi: 40}
+  B反:              {lo: 40, hi: 50}
+  缩量横盘整理:      {lo: 60, hi: 70}
+  主升浪:           {lo: 80, hi: 90}
+
+# ---- 五步固化流程（S1-S5，输出结构契约）----
+pipeline:
+  - {step: S1, name: 大盘定仓, output: [regime, fit_lo, fit_hi, position_pct, position_action]}
+  - {step: S2, name: 结构核对, output: [category, current_pct, target_pct, deviation_pct]}
+  - {step: S3, name: 逐腿分诊, output: [code, name, level, action, hits]}
+  - {step: S4, name: 动作生成, output: [code, action, entry, stop, tp, rule_ids]}
+  - {step: S5, name: 组合输出, output: [orders, risk_flags, health_score]}
+
+# 情绪周期参考（横切维度，指数级使用）
+sentiment_cycle: [亢奋, 分歧, 退潮, 冰点, 回暖, 再亢奋]
