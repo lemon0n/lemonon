@@ -87,7 +87,7 @@
             <tr><td>决策横截面</td><td>50.5% 的 ADD 信号日有 ≥2 只同时触发（最多 10 只），引擎按字典序拾取</td><td>「买哪只」实际上是随机的</td><td>P0</td></tr>
             <tr><td>组合闭环</td><td>每日链路 <code>portfolio_after</code> 全为 null；结构目标 5 类但池里只有宽基</td><td>每日推荐没有仓位与结构概念</td><td>P0</td></tr>
             <tr><td>规则有效性</td><td>train 年化 −2.52%、PF 0.845；test 年化 −9.47%、PF 0.136</td><td>策略本身尚未被证明有效</td><td>P1</td></tr>
-            <tr><td>报告与复盘</td><td>无晨报、无催化和日历、无论点跟踪；异动只写现象不写归因</td><td>无法回答「为什么」与「上次对不对」</td><td>P1</td></tr>
+            <tr><td>报告与复盘</td><td>无晨报、无催化和日历、无论点跟踪；异动只写现象不写归因；同一事实重复 3–5 处、每 144 字一处内部术语</td><td>无法回答「为什么」与「上次对不对」，且要反复核对同一个数字</td><td>P1</td></tr>
             <tr><td>工程可复现</td><td><code>quality.field()</code> 血缘函数 0 处调用；回测无 walk-forward</td><td>血缘是文档级不是字段级；参数过拟合不可测</td><td>P2</td></tr>
           </tbody>
         </table>
@@ -369,8 +369,155 @@
     </div>
   </section>
 
+  <section id="layer-copy" class="doc-block">
+    <h2>九、第二阶段专项：持仓报告先做「减法」</h2>
+
+    <p>
+      六层讲完「补什么」，这一节讲<strong>「先删什么」</strong>。因为持仓分析现在有两个问题，
+      不改的话，往上面加任何新内容都会被一起稀释：<strong>同一件事说了四五遍</strong>，以及<strong>通篇是系统内部的术语</strong>。
+    </p>
+
+    <p>
+      这两条都不是主观感受，是数得出来的。下面用当前代码实际生成的持仓报告与持仓页面做了逐块统计。
+    </p>
+
+    <h3 style="font-size:19px;margin:32px 0 10px;font-weight:620">问题一：同一个事实，在 3–5 个地方重复</h3>
+
+    <p>
+      最典型的就是你点到的<strong>「组合结论与执行后视角」与「逐只分析」</strong>。
+      页面第 ① 块给出动作、目标份额、限价、执行后仓位；第 ④ 块「持仓明细」又有一列「今日动作」和「价位」；
+      第 ⑥ 块逐只展开时，动作徽标、限价、规则编号、价格口径说明<strong>再各出现一次</strong>。
+      报告端同理：单腿权重在「组合前视图」「逐只标题」「S4 目标份额表」三章各出现一次。
+    </p>
+
+    <div class="doc-table" id="tab-dup">
+      <h2>同一事实的独立出现位置数</h2>
+      <div class="table-frame table-scroll">
+        <table class="doc-data-table">
+          <thead><tr><th>事实</th><th>持仓报告（MD）</th><th>持仓页面（Web）</th><th>应保留</th></tr></thead>
+          <tbody>
+            <tr><td>动作 + 价位</td><td>3 处：结论 / 逐只 / 执行表</td><td>5 处：订单表 / 订单明细块 / 持仓明细两列 / 逐只标签 / 价格口径表</td><td>1</td></tr>
+            <tr><td>单腿权重</td><td>3 章：组合前视图 / 逐只标题 / S4 表</td><td>4 处：订单明细 / 持仓明细 / 逐只头部 / 逐只「组合含义」</td><td>1</td></tr>
+            <tr><td>目标份额</td><td>2 章</td><td>3 处</td><td>1</td></tr>
+            <tr><td>规则编号</td><td>2 章</td><td>4 处：订单表 / 明细块标题 / 逐只命中 / 逐只「规则」行</td><td>1</td></tr>
+            <tr><td>数据状态</td><td>1 章</td><td>4 处：数据质量仪表 / 持仓明细列 / 逐只头部 / 逐只指标区</td><td>1</td></tr>
+            <tr><td>执行后仓位与现金</td><td>2 处：执行后表 / 总结句</td><td>2 处</td><td>1</td></tr>
+            <tr><td>反证 / 失效条件</td><td>1 章</td><td>1 处</td><td>1（唯一本来就对的）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="figure-caption">统计方式：用当前 <code>analyze_positions.py</code> 生成真实报告、用真实持仓数据渲染 <code>page5()</code>，再按章节/区块标记逐项计数。样本为 2 只持仓（510300、510500）。</p>
+    </div>
+
+    <div class="doc-chart" id="fig-dup">
+      <h2>重复密度：越高的项越该先删</h2>
+      <div class="chart-frame">
+        <div class="chart-canvas" data-echart="dup"></div>
+      </div>
+      <p class="figure-caption">
+        单位：同一事实的独立出现位置数。<strong>除「反证 / 失效条件」外，所有事实都该收敛到 1 处。</strong>
+      </p>
+    </div>
+
+    <div class="doc-callout">
+      <p><strong>重构原则：一个事实只讲一次，其余位置只引用不重复。</strong>
+      判断标准很朴素——读者读到第 ⑥ 块时，不需要回头核对第 ① 块的数字是否一致。
+      如果必须回头核对，说明这处就是多余的。</p>
+    </div>
+
+    <p>
+      具体怎么删，报告与页面各有一套改法。
+    </p>
+
+    <p>
+      <strong>报告端：从五章压到四段。</strong>
+      第一段<strong>今日结论</strong>，一页读完：市场状态、该做什么（含价位与目标份额）、执行后仓位与现金、一条约束提示。
+      第二段<strong>组合现状</strong>：快照表、集中度与相关性、结构偏离，各只出现一次。
+      第三段<strong>逐只为什么</strong>：只回答「为什么是这个动作」——规则命中、3–5 条决定性事实、反证、失效条件；
+      权重和价位<strong>不再重复</strong>，因为它们在第一段已有。
+      第四段<strong>附注</strong>：数据状态、模型边界、术语说明。
+    </p>
+
+    <p>
+      <strong>页面端：三处动刀。</strong>
+      其一，第 ① 块把「订单表 + 每笔明细块」合并成一张表，删掉明细块里的目标/约束/价格口径（这些挪进第 ⑥ 块）。
+      其二，第 ④ 块删掉「今日动作 / 价位 / 等级」三列——它们属于逐只分析，不属于持仓事实。
+      其三，第 ⑥ 块保留动作、价位、规则、反证、失效条件，删掉与第 ④ 块重复的权重与浮亏。
+      顺带把第 ③ 块数据质量仪表里的逐只代码清单去掉，因为第 ④ 块已有一列「数据」。
+    </p>
+
+    <h3 style="font-size:19px;margin:40px 0 10px;font-weight:620">问题二：每 144 字就有一个内部术语</h3>
+
+    <p>
+      第二个问题是文案。持仓报告正文 3,739 字，出现「可观测」「证据卡」「反证」「未知项」「失效条件」
+      「求值」「执行政策」「分母」这类内部术语<strong>共 26 处</strong>——平均每 144 字一处。
+      页面稍好（11,775 字符 / 20 处，约每 589 字符一处），但同样密集。
+    </p>
+
+    <p>
+      更麻烦的是有三类「不是术语，但更不该出现」的内容：
+    </p>
+
+    <p>
+      <strong>第一类，规范倾倒。</strong> 报告开头直接印着
+      「OK=可给研究性方案；DEGRADED=有缺失但可用；ABSTAIN=关键数据不足不出单；DEMO=合成数据仅演示；ERROR=校验失败」。
+      这是写给人看的报告，不是给开发者看的接口文档。同样的图例在页面上又出现一次。
+    </p>
+
+    <p>
+      <strong>第二类，实现细节泄漏。</strong>
+      「决策来源：<code>config/methodology.yaml</code>（规则卡 v2.0）」「每条结论可回查规则编号」——
+      用户不需要知道配置文件叫什么，也不需要知道规则卡是第几版。
+    </p>
+
+    <p>
+      <strong>第三类，元话语与免责堆叠。</strong>
+      「规则只陈述『收盘低于 MA10』这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。」——
+      这句话是写规则卡的人对自己说的话，读者要的是「跌破 MA10 两天，所以清仓」。
+      另外「不保证成交」在报告与页面里各自出现多次，「缺失不视为满足」出现两次，都属于同一件事反复声明。
+    </p>
+
+    <div class="doc-table" id="tab-copy">
+      <h2>文案对照：术语换成正常话</h2>
+      <div class="table-frame table-scroll">
+        <table class="doc-data-table">
+          <thead><tr><th>现在的写法</th><th>问题</th><th>改成</th></tr></thead>
+          <tbody>
+            <tr><td>可观测事实</td><td>内部术语</td><td>现在的情况</td></tr>
+            <tr><td>证据卡</td><td>内部叫法</td><td>逐只分析</td></tr>
+            <tr><td>反证</td><td>论文腔</td><td>不支持这个判断的证据</td></tr>
+            <tr><td>未知项 / 失效条件</td><td>术语</td><td>还看不到的 / 什么情况下这个判断作废</td></tr>
+            <tr><td>规则求值</td><td>工程词</td><td>规则判断</td></tr>
+            <tr><td>执行政策（不保证成交）</td><td>内部词 + 免责堆叠</td><td>下单方式：限价，可能不成交</td></tr>
+            <tr><td>缺失不视为满足</td><td>规范式表达</td><td>没有折溢价数据，这条规则没参与判断</td></tr>
+            <tr><td>分母 = 已投资市值</td><td>公式腔</td><td>占已投资部分（不含现金）</td></tr>
+            <tr><td>底层穿透数据未接入</td><td>行话</td><td>看不到基金实际持有什么</td></tr>
+            <tr><td>状态图例（OK=…；DEGRADED=…）</td><td>规范倾倒</td><td>删除，页面顶部只留一个状态徽标</td></tr>
+            <tr><td>决策来源：config/methodology.yaml（规则卡 v2.0）</td><td>实现细节泄漏</td><td>删除，或压成附注一行</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="figure-caption">原则：正文只写读者要判断的内容；术语统一收进末尾附注的一张对照表。</p>
+    </div>
+
+    <div class="doc-metrics">
+      <div class="doc-metric"><span>术语密度（报告）</span><strong>1 / 144 字</strong><small>目标 ≤ 1 / 1500 字</small></div>
+      <div class="doc-metric"><span>单事实重复位置</span><strong>最多 5 处</strong><small>目标 1 处</small></div>
+      <div class="doc-metric"><span>报告篇幅</span><strong>3,739 字</strong><small>去重与删元话语后目标 ≤ 2,600 字</small></div>
+      <div class="doc-metric"><span>正确保留</span><strong>反证 / 失效条件</strong><small>唯一本来就该单处出现的</small></div>
+    </div>
+
+    <div class="doc-callout">
+      <p><strong>加一条 lint 护栏，防止改完又长回来。</strong>
+      新增 <code>tests/test_report_copy.py</code>：把术语黑名单（可观测 / 证据卡 / 求值 / 不视为满足 / 穿透 / 分母 / 回查规则编号 / 状态图例）
+      在生成的报告与渲染后的页面里断言 0 命中；再对「同一事实的独立出现位置」做断言，超过 1 处即失败。
+      <strong>没有护栏的文案治理，三个月后一定反弹。</strong></p>
+    </div>
+  </section>
+
+
   <section id="roadmap" class="doc-block">
-    <h2>九、路线图：按「影响正确性」排序，不按难度</h2>
+    <h2>十、路线图：按「影响正确性」排序，不按难度</h2>
 
     <p>
       下面三期划分的原则是：<strong>P0 修的是「结论可能错」，P1 修的是「结论不够用」，P2 修的是「结论不好维护」</strong>。
@@ -426,6 +573,18 @@
               <td>每日产物含盘面/组合/复盘三段，论点可对比</td>
             </tr>
             <tr>
+              <td>P1</td>
+              <td>持仓报告信息架构去重</td>
+              <td>同一事实在 3–5 处重复，读者要反复核对数字（详见第九节）</td>
+              <td>每个事实仅 1 处；报告篇幅下降 ≥30%</td>
+            </tr>
+            <tr>
+              <td>P1</td>
+              <td>文案去术语 + lint 护栏</td>
+              <td>报告每 144 字一处内部术语，并含状态图例与实现路径</td>
+              <td>黑名单 0 命中；<code>test_report_copy.py</code> 通过</td>
+            </tr>
+            <tr>
               <td>P2</td>
               <td>字段级血缘落地</td>
               <td><code>quality.field()</code> 从未被调用</td>
@@ -455,7 +614,7 @@
   </section>
 
   <section id="boundaries" class="doc-block">
-    <h2>十、不建议做的事</h2>
+    <h2>十一、不建议做的事</h2>
 
     <p>
       这份方案里我刻意排除了几件事，理由值得写明白，免得后续反复讨论。
@@ -488,7 +647,7 @@
   </section>
 
   <section id="sources" class="doc-block">
-    <h2>十一、数据来源与核查口径</h2>
+    <h2>十二、数据来源与核查口径</h2>
     <div class="doc-sources">
       <ul>
         <li>规则命中分布：<code>src/etfquant/features.py</code> + <code>methodology.decide()</code>，16 只固定池、18,896 个有效样本，行情经腾讯 / 东财 / 新浪通道取得，数据日 2026-11-13。</li>
@@ -498,6 +657,7 @@
         <li>组合闭环现状：<code>src/etfquant/pipeline.py</code> 第 199 行 <code>portfolio_after</code> 构造；<code>web/analysis_packet.json</code> 实测值。</li>
         <li>数据可用性：<code>src/etfquant/datasource/loader.py</code> 的 <code>source_report()</code> 实测 <code>premium_ok=false</code>、<code>spot_vendor=tencent</code>。</li>
         <li>方法论参考：项目内 <code>docs/沉关河方法论蒸馏.md</code>；分析框架参考全链路个股研究方法论（盯盘、技术面、事件归因、催化日历、论点跟踪、横截面选股）。</li>
+        <li>持仓报告重复度与术语密度：用 <code>scripts/analyze_positions.py</code> 对 2 只样本持仓（510300 / 510500）生成真实报告，并用真实持仓渲染 <code>app.js</code> 的 <code>page5()</code>，按章节/区块标记计数；报告 3,739 字、术语 26 处，页面 11,775 字符、术语 20 处。</li>
       </ul>
     </div>
     <p style="margin-top:28px;color:var(--muted);font-size:14px">
@@ -637,6 +797,8 @@
         [3.6, 1.8, 1, "规则精简+置信度", "P1"],
         [4.4, 3.8, 1, "walk-forward 回测", "P1"],
         [4.0, 3.2, 1, "简报三段式+记分卡", "P1"],
+        [3.9, 2.2, 1, "报告去重", "P1"],
+        [3.3, 1.7, 1, "文案去术语", "P1"],
         [2.6, 2.0, 1, "字段级血缘", "P2"],
         [2.0, 1.2, 1, "精度统一/分区", "P2"]
       ],
@@ -648,6 +810,41 @@
       }
     }]
   });
+  /* 图 4：同一事实的重复位置数（分组条形） */
+  initChart("dup", {
+    animation: false,
+    color: [palette.blue, palette.rose],
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      valueFormatter: function (v) { return v + " 处"; }
+    },
+    legend: { top: 4, textStyle: { color: palette.axis } },
+    grid: { left: 96, right: 56, top: 48, bottom: 36, containLabel: true },
+    xAxis: {
+      type: "value",
+      name: "独立出现位置数",
+      max: 6,
+      minInterval: 1,
+      splitLine: { lineStyle: { color: palette.line } }
+    },
+    yAxis: {
+      type: "category",
+      inverse: true,
+      data: ["动作 + 价位", "单腿权重", "规则编号", "数据状态", "目标份额", "执行后仓位", "反证/失效条件"],
+      axisLine: { lineStyle: { color: palette.line } },
+      axisLabel: { color: palette.axis, fontSize: 12 }
+    },
+    series: [
+      { name: "持仓报告", type: "bar", barWidth: "28%",
+        data: [3, 3, 2, 1, 2, 2, 1],
+        label: { show: true, position: "right", color: palette.axis, fontSize: 11 } },
+      { name: "持仓页面", type: "bar", barWidth: "28%",
+        data: [5, 4, 4, 4, 3, 2, 1],
+        label: { show: true, position: "right", color: palette.axis, fontSize: 11 } }
+    ]
+  });
+
 })();
 </script>
 </body>
