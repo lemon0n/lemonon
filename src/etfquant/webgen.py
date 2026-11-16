@@ -138,6 +138,10 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None):
             below_ma10=f.get('below_ma10_2d'),
             true_cnt=f.get('true_breakout_count'),
             true_items=f.get('true_breakout_items'),
+            # 规则谓词原文：R-A1 用 true_breakout、R-D4 用 is_20d_low。
+            # 只给 true_cnt 时前端只能猜「4/4 才算」，缺字段会让页面重算出与后端不同的动作。
+            true_breakout=bool(f.get('true_breakout')),
+            is_20d_low=bool(f.get('is_20d_low')),
             false_breakout=bool(f.get('false_breakout')),
             cycle=f.get('cycle_phase'), breakout=f.get('breakout_label'),
             premium_available=bool(f.get('premium_available')),

@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "OK",
-  "ran_at": "2026-11-16 11:35:03",
+  "ran_at": "2026-11-16 12:44:07",
   "mode": "live",
   "data_date": "2026-11-13",
   "degraded": false,
@@ -30,6 +30,6 @@
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261116T113458-c7e7acae24aabc75",
+  "run_id": "20261116T124405-c7e7acae24aabc75",
   "html": "/workspace/web/index.html"
 }

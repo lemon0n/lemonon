@@ -210,6 +210,67 @@ def test_execution_incomplete_snapshot_blocks_orders():
     assert plan['violations']
 
 
+def test_execution_hold_keeps_odd_lot_shares():
+    """HOLD 不是「按目标权重重下整手单」：零股不得被凭空卖出。"""
+    port = dict(rows=[dict(code='510300', name='沪深300ETF', category='宽基',
+                           shares=150, cost=4.0, settle='T+1')], cash=1000.0)
+    snap = positions.market_value(port, {'510300': dict(last=5.0, change_pct=0.0)})
+    plan = execution.plan([dict(_leg(action='HOLD'), last=5.0)], snap, CFG)
+    d = plan['decisions'][0]
+    assert d['target_shares'] == 150
+    assert d['delta_shares'] == 0
+    assert not d['fee']
+    after = plan['portfolio_after']
+    assert after['market_value'] == pytest.approx(750.0)
+    assert after['cash'] == pytest.approx(snap['cash'])
+
+
+def test_execution_abstain_leg_still_counted_after_trade():
+    """ABSTAIN 腿不交易，但现有持仓必须计入执行后组合，不能当作已清仓。"""
+    port = dict(rows=[dict(code='510300', name='A', category='宽基',
+                           shares=1000, cost=4.0, settle='T+1'),
+                      dict(code='510500', name='B', category='宽基',
+                           shares=1000, cost=6.0, settle='T+1')], cash=10000.0)
+    snap = positions.market_value(port, {'510300': dict(last=5.0, change_pct=0.0),
+                                         '510500': dict(last=6.0, change_pct=0.0)})
+    legs = [dict(_leg('510300', 'CLEAR'), last=5.0),
+            dict(code='510500', name='B', category='宽基', action='ABSTAIN',
+                 last=6.0, rule_ids=[], level='—')]
+    plan = execution.plan(legs, snap, CFG)
+    after = plan['portfolio_after']
+    assert after['market_value'] == pytest.approx(6000.0)
+    assert after['legs'] == 1
+    assert after['position_pct'] == pytest.approx(6000 / 20994.5 * 100, abs=0.01)
+    assert plan['ok'] is True
+
+
+def test_execution_preexisting_overweight_is_warning_not_violation():
+    """既有超配 + 本次只是持有：只能提示，不能让整份报告永久 ERROR。"""
+    port = dict(rows=[dict(code='510300', name='沪深300ETF', category='宽基',
+                           shares=1000, cost=4.0, settle='T+1')], cash=1000.0)
+    snap = positions.market_value(port, {'510300': dict(last=5.0, change_pct=0.0)})
+    assert snap['position_pct'] > CFG['risk']['constraints']['max_single_weight_pct']
+    plan = execution.plan([dict(_leg(action='HOLD'), last=5.0)], snap, CFG)
+    assert plan['ok'] is True, plan['violations']
+    assert not plan['violations']
+    assert any('单只上限' in w for w in plan['warnings'])
+
+
+def test_execution_add_never_turns_into_sell():
+    """超配时 ADD 被上限截断，绝不能变成大额卖出。"""
+    port = dict(rows=[dict(code='510300', name='沪深300ETF', category='宽基',
+                           shares=10000, cost=4.0, settle='T+1')], cash=20000.0)
+    snap = positions.market_value(port, {'510300': dict(last=5.0, change_pct=0.0)})
+    assert snap['position_pct'] > CFG['risk']['constraints']['max_single_weight_pct']
+    plan = execution.plan([dict(_leg(action='ADD'), last=5.0)], snap, CFG)
+    d = plan['decisions'][0]
+    assert d['target_shares'] == 10000
+    assert d['delta_shares'] == 0
+    assert plan['portfolio_after']['market_value'] == pytest.approx(50000.0)
+    # 没有份额变化就不算订单：否则「今日待执行 N 笔」会虚报
+    assert plan['orders'] == []
+
+
 # ---------------- 五步流程 ----------------
 def _snap_one(action_below=2):
     port = dict(rows=[dict(code='510300', name='沪深300ETF', category='宽基',
