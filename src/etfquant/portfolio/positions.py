@@ -22,6 +22,78 @@ ENV_KEY = 'POSITIONS_PASSPHRASE'
 
 UNCLASSIFIED = '未分类'
 
+# 资产风险桶：与「类别」分开，类别描述产品，桶描述风险属性。
+BUCKETS = ('现金', '货币', '债券', '商品', '境内权益', '海外权益', '未分类')
+
+_BUCKET_OF_CATEGORY = {
+    '货币': '货币',
+    '债券': '债券',
+    '黄金': '商品',
+    '商品': '商品',
+    '海外': '海外权益',
+    '宽基': '境内权益',
+    '行业': '境内权益',
+}
+
+
+_BUCKET_MAP = None
+
+
+def _bucket_map():
+    global _BUCKET_MAP
+    if _BUCKET_MAP is None:
+        try:
+            _BUCKET_MAP = (config.cfg().get('risk') or {}).get('asset_buckets') or {}
+        except Exception:
+            _BUCKET_MAP = {}
+    return _BUCKET_MAP
+
+
+def asset_bucket(category):
+    """类别 → 风险桶；无法确定的保持「未分类」，不并入境内权益。
+
+    映射以 config/risk.yaml 的 asset_buckets 为准，代码里的字典只是兜底。
+    """
+    cat = str(category or '').strip()
+    return _bucket_map().get(cat) or _BUCKET_OF_CATEGORY.get(cat, UNCLASSIFIED)
+
+
+def validate(port):
+    """持仓输入校验：重复代码、负份额、非法成本、负现金、NaN/Inf。"""
+    errors = []
+    if not isinstance(port, dict):
+        return ['持仓结构非法']
+    seen = set()
+    for r in port.get('rows') or []:
+        code = str(r.get('code') or '').strip()
+        if not code:
+            errors.append('存在空代码的持仓行')
+            continue
+        if code in seen:
+            errors.append('%s 重复出现（持仓代码必须唯一）' % code)
+        seen.add(code)
+        for key in ('shares', 'cost'):
+            try:
+                v = float(r.get(key) or 0)
+            except (TypeError, ValueError):
+                errors.append('%s 的 %s 不是合法数值' % (code, key))
+                continue
+            if v != v or v in (float('inf'), float('-inf')):
+                errors.append('%s 的 %s 不是有限数值' % (code, key))
+            elif key == 'shares' and v < 0:
+                errors.append('%s 的份额为负数' % code)
+            elif key == 'cost' and v < 0:
+                errors.append('%s 的成本为负数' % code)
+    try:
+        cash = float(port.get('cash') or 0)
+        if cash != cash or cash in (float('inf'), float('-inf')):
+            errors.append('现金不是有限数值')
+        elif cash < 0:
+            errors.append('现金为负数')
+    except (TypeError, ValueError):
+        errors.append('现金不是合法数值')
+    return errors
+
 
 def _decrypt(blob, passwd):
     """PBKDF2-SHA256 + AES-256-GCM（与 scripts/positions_crypto.py / 网页端一致）。"""
@@ -129,6 +201,7 @@ def market_value(port, last_of):
         pnl = (last - cost) * shares if (last is not None and cost > 0) else None
         rows.append(dict(
             code=code, name=r.get('name', code), category=cat,
+            bucket=asset_bucket(cat),
             category_confidence=conf, category_basis=basis,
             shares=shares, cost=cost, last=last, mv=mv, pnl=pnl,
             pnl_pct=(last / cost - 1) * 100 if (last is not None and cost > 0) else None,
@@ -141,12 +214,16 @@ def market_value(port, last_of):
         r['weight'] = (r['mv'] / total_asset * 100) if (r['mv'] is not None and total_asset > 0) else None
 
     by_cat = {}
+    by_bucket = {}
     for r in rows:
         if r['mv'] is None:
             continue
         by_cat[r['category']] = by_cat.get(r['category'], 0.0) + r['mv']
+        by_bucket[r['bucket']] = by_bucket.get(r['bucket'], 0.0) + r['mv']
     cat_of_assets = {k: round(v / total_asset * 100, 2) for k, v in by_cat.items()} if total_asset > 0 else {}
     cat_of_invested = {k: round(v / total_pos * 100, 2) for k, v in by_cat.items()} if total_pos > 0 else {}
+    bucket_of_assets = {k: round(v / total_asset * 100, 2) for k, v in by_bucket.items()} if total_asset > 0 else {}
+    equity = by_bucket.get('境内权益', 0.0) + by_bucket.get('海外权益', 0.0)
 
     pnl_vals = [x['pnl'] for x in rows if x['pnl'] is not None]
     pnl_pct = None
@@ -159,6 +236,9 @@ def market_value(port, last_of):
         position_pct=(total_pos / total_asset * 100) if (complete and total_asset > 0) else None,
         cash_pct=(cash / total_asset * 100) if (complete and total_asset > 0) else None,
         category_of_assets=cat_of_assets, category_of_invested=cat_of_invested,
+        bucket_of_assets=bucket_of_assets,
+        risk_position_pct=(equity / total_asset * 100)
+        if (complete and total_asset > 0) else None,
         pnl=sum(pnl_vals) if pnl_vals else None, pnl_pct=pnl_pct,
         unclassified=[x['code'] for x in rows if x['category'] == UNCLASSIFIED],
         as_of=None,

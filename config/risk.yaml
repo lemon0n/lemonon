@@ -32,16 +32,34 @@ constraints:
   max_single_weight_pct: 25          # 单只占含现金总资产上限
   max_category_weight_pct: 60        # 单一类别占含现金总资产上限
   min_cash_pct: 5                    # 最低现金缓冲（占总资产）
-  max_legs: 8
+  max_legs: 8                        # 生产组合腿数上限（回测另有 strategy.backtest.max_legs，作用域不同）
   lot_size: 100
   commission_bps: 0.5                # 单边佣金（万 0.5）
   min_commission_cny: 5.0            # 券商最低佣金；小资金组合影响显著
   slippage_bps: 1.0                  # 一跳滑点假设（情景，不保证成交）
   t_plus: 1
 
+# 资产风险桶：类别 → 风险桶。无法映射的保持「未分类」，绝不默认并入境内权益。
+asset_buckets:
+  现金: 现金
+  货币: 货币
+  债券: 债券
+  黄金: 商品
+  商品: 商品
+  宽基: 境内权益
+  行业: 境内权益
+  海外: 海外权益
+  未分类: 未分类
+
+# 相关性估计（原硬编码 40 / 0.7 迁入配置，取值不变）
+correlation:
+  min_obs: 40
+  high_threshold: 0.7
+
 # 目标权重政策（先把动作翻译成目标权重，再算目标份额）
 execution:
   trim_ratio: 0.5                    # TRIM：减到当前权重的一半
   add_step_pct: 5                    # ADD：单次加仓步长（占总资产）
+  initiate_target_pct: 5             # INITIATE：首次建仓目标权重（占总资产）
   rebalance_band_pct: 2              # 不换仓带：偏离小于该值不交易
   clear_target: 0                    # CLEAR：目标权重 0（不是「反弹再卖」的价差博弈）

@@ -102,9 +102,15 @@ def main():
     snap = positions.market_value(port, last_of)
     snap['as_of'] = max([q['last_date'] for q in qmap.values() if q['last_date']] or [''])
 
+    run_id = now.strftime('%Y%m%dT%H%M%S') + '-pos'
     res = analysis.analyze(port, snap, features, regime, cfg,
                            meta=dict(bars_ok=bars_ok, rs=rs_map, returns=returns,
-                                     universe=uni))
+                                     universe=uni, quality=qmap,
+                                     run_id=run_id, mode='python',
+                                     data_date=snap.get('as_of'),
+                                     generated_at=now.strftime('%Y-%m-%d %H:%M:%S'),
+                                     config_hash=packet.config_hash(cfg),
+                                     code_version='local'))
 
     lines = []
     lines.append('# 当前持仓分析报告\n\n')
@@ -279,7 +285,7 @@ def main():
     # ---- 数据包（与网页同一份权威结果）----
     pkt = packet.build(
         status=res['status'],
-        run_id=now.strftime('%Y%m%dT%H%M%S') + '-pos',
+        run_id=run_id,
         generated_at=now.strftime('%Y-%m-%d %H:%M:%S'),
         data_date=snap.get('as_of'), code_version='local',
         cfg_hash=packet.config_hash(cfg),
@@ -303,8 +309,9 @@ def main():
                         decision_consistency_ok=True,
                         post_trade_ok=not res['constraint_violations']),
         orders=res['orders'],
+        extras=dict(decision=res['decision']),
     )
-    chk = packet.validate_packet(pkt)
+    chk = packet.validate_packet(pkt, cfg=cfg)
     pkt['validation'].update(ok=chk['ok'], errors=chk['errors'], warnings=chk['warnings'])
     ppath = a.packet or os.path.join(config.ROOT, 'data', 'packets', 'positions_packet.json')
     packet.write(pkt, path=ppath)

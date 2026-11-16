@@ -13,7 +13,8 @@ import math
 
 from .. import methodology as M
 from .. import pricing as P
-from ..portfolio import execution, risk as prisk
+from ..portfolio import decision as pdecision
+from ..portfolio import execution, risk as prisk, snapshot as snapshots
 from ..quality import merge_status
 
 
@@ -28,14 +29,27 @@ def _round(x, d=3):
         return None
 
 
-def s1_position(snap, regime):
-    """S1 市场定仓：可观测市场状态 → 仓位区间 vs 当前仓位。"""
+def s1_position(snap, regime, cfg=None):
+    """S1 市场定仓：可观测市场状态 → 仓位区间 vs 当前仓位。
+
+    仓位区间由四类输入共同决定（缺任一项都要显式说明，不能只看沪深300）：
+    市场状态、风险预算、现金需求、集中度约束。
+    """
     lo, hi = regime.get('fit_lo'), regime.get('fit_hi')
     pos = snap.get('position_pct')
+    c = ((cfg or {}).get('risk') or {}).get('constraints') or {}
+    basis = [
+        '市场状态：%s（基准 000300，仅代表境内权益风险）' % (regime.get('regime') or '未知'),
+        '风险预算：regime_fit，不按个人持仓调参',
+        '现金需求：最低现金 %.1f%%' % float(c.get('min_cash_pct', 0) or 0),
+        '集中度约束：单只 %.1f%% / 类别 %.1f%%'
+        % (float(c.get('max_single_weight_pct', 0) or 0),
+           float(c.get('max_category_weight_pct', 0) or 0)),
+    ]
     if lo is None or hi is None or pos is None:
         return dict(step='S1', name='市场定仓', regime=regime.get('regime', '未知'),
                     fit_lo=lo, fit_hi=hi, position_pct=_round(pos, 2),
-                    position_action='ABSTAIN', gap_pct=None,
+                    position_action='ABSTAIN', gap_pct=None, basis=basis,
                     observations=regime.get('observations') or [])
     if pos > hi:
         action, gap = 'REDUCE', pos - hi
@@ -45,7 +59,7 @@ def s1_position(snap, regime):
         action, gap = 'HOLD', 0.0
     return dict(step='S1', name='市场定仓', regime=regime.get('regime'),
                 fit_lo=lo, fit_hi=hi, position_pct=_round(pos, 2),
-                position_action=action, gap_pct=_round(gap, 2),
+                position_action=action, gap_pct=_round(gap, 2), basis=basis,
                 observations=regime.get('observations') or [])
 
 
@@ -62,9 +76,13 @@ def s2_structure(snap, targets):
                          if (c0 is not None and t0 is not None) else None))
     flags = [r['category'] for r in rows
              if r['deviation_pct'] is not None and abs(r['deviation_pct']) > 5]
+    unclassified = snap.get('unclassified') or []
     return dict(step='S2', name='结构核对', rows=rows, deviation_flags=flags,
                 denominator='已投资市值（不含现金）',
-                unclassified=snap.get('unclassified') or [])
+                available=not unclassified,
+                note=None if not unclassified
+                else '存在未分类标的：结构偏离结论不可用，先补齐分类与跟踪指数映射',
+                unclassified=unclassified)
 
 
 def evidence_card(f, rs, dec, snap_row, regime):
@@ -138,12 +156,21 @@ def evidence_card(f, rs, dec, snap_row, regime):
                 unknowns=unknowns, invalidation=invalid)
 
 
-def _instrument_status(f, bars_ok, rs):
+def _instrument_status(f, bars_ok, rs, quality=None):
+    """逐腿数据状态：优先采用上游 quality.check_bars 的结论，再补充技术面判断。
+
+    上游已经判定的 ABSTAIN / DEMO 不得被本函数降级为 OK；
+    否则合成或残缺数据会绕过质量门禁继续驱动动作。
+    """
+    q = quality or {}
+    qs = q.get('status')
+    if qs in ('ABSTAIN', 'DEMO'):
+        return qs
     if not bars_ok or not f:
         return 'ABSTAIN'
     if f.get('ma20') is None or f.get('last') is None:
         return 'ABSTAIN'
-    if rs and rs.get('is_known') is False:
+    if qs == 'DEGRADED' or (rs and rs.get('is_known') is False):
         return 'DEGRADED'
     return 'OK'
 
@@ -162,8 +189,9 @@ def analyze(port, snap, features, regime, cfg, meta=None):
     m = M.load()
     bars_ok = set(meta.get('bars_ok') or features.keys())
     rs_map = meta.get('rs') or {}
+    quality_map = meta.get('quality') or {}
 
-    s1 = s1_position(snap, regime)
+    s1 = s1_position(snap, regime, cfg)
     targets = (cfg.get('risk') or {}).get('structure_target_of_invested', {})
     s2 = s2_structure(snap, targets)
 
@@ -172,7 +200,8 @@ def analyze(port, snap, features, regime, cfg, meta=None):
         code = str(r['code'])
         f = features.get(code)
         rs = rs_map.get(code) or {}
-        inst_status = _instrument_status(f, code in bars_ok, rs)
+        inst_status = _instrument_status(f, code in bars_ok, rs,
+                                         quality_map.get(code))
 
         dec = M.decide(f or {}, data_status=inst_status,
                        overrides=dict(position_pct=snap.get('position_pct'),
@@ -187,6 +216,7 @@ def analyze(port, snap, features, regime, cfg, meta=None):
 
         leg = dict(
             code=code, name=r['name'], category=r.get('category', '未分类'),
+            bucket=r.get('bucket') or '未分类',
             data_status=inst_status, status=dec['status'],
             level=dec['level'], action=dec['action'],
             action_text=m['actions'].get(dec['action'], dec['action']),
@@ -212,11 +242,19 @@ def analyze(port, snap, features, regime, cfg, meta=None):
     for d in plan['decisions']:
         leg = next((x for x in legs if x['code'] == d['code']), None)
         if leg:
-            leg.update(target_weight=d['target_weight'],
-                       target_shares=d['target_shares'],
-                       delta_shares=d.get('delta_shares'),
-                       notional=d.get('notional'), fee=d.get('fee'),
-                       constraints_applied=d.get('constraints_applied') or [])
+            leg['constraints_applied'] = d.get('constraints_applied') or []
+            leg['blocked_by'] = d.get('blocked_by') or []
+            leg['funding_source'] = d.get('funding_source')
+            leg['notional'], leg['fee'] = d.get('notional'), d.get('fee')
+            if plan['ok']:
+                leg.update(target_weight=d['target_weight'],
+                           target_shares=d['target_shares'],
+                           delta_shares=d.get('delta_shares'))
+            else:
+                # 约束未通过：不向页面/报告发布目标份额，只保留诊断草案
+                leg.update(target_weight=None, target_shares=None, delta_shares=None,
+                           draft_target_weight=d.get('draft_target_weight'),
+                           draft_target_shares=d.get('draft_target_shares'))
     if plan['violations']:
         risk_flags.extend(plan['violations'])
 
@@ -243,38 +281,54 @@ def analyze(port, snap, features, regime, cfg, meta=None):
         status = 'ERROR'
 
     brief = s5_brief(snap, s1, s2, legs, regime, m, plan, status)
-    return dict(
+    out = dict(
         status=status, s1=s1, s2=s2, legs=legs, cards=cards,
         orders=plan['orders'], decisions=plan['decisions'],
         portfolio_before=dict(
             as_of=snap.get('as_of'), complete=bool(snap.get('complete')),
             cash=_round(snap.get('cash'), 2), market_value=_round(snap.get('total_pos'), 2),
+            total_asset=_round(snap.get('total_asset'), 2),
             position_pct=_round(snap.get('position_pct'), 2),
+            cash_pct=_round(snap.get('cash_pct'), 2),
+            risk_position_pct=_round(snap.get('risk_position_pct'), 2),
+            bucket_of_assets=snap.get('bucket_of_assets') or {},
+            pnl=_round(snap.get('pnl'), 2), pnl_pct=_round(snap.get('pnl_pct'), 2),
+            pnl_basis='持仓浮动盈亏（成本口径）；当日盈亏为估算，均非账户真实累计收益',
             missing=snap.get('missing') or [],
             category_of_invested=snap.get('category_of_invested') or {}),
         portfolio_after=plan['portfolio_after'],
         constraint_violations=plan['violations'], warnings=plan['warnings'],
         risk=dict(nominal=nominal, lookthrough=lookthrough,
                   correlation=corr, risk_contribution=contrib),
-        dashboard=dashboard(snap, legs, plan, corr),
+        dashboard=dashboard(snap, legs, plan, corr, regime),
         brief=brief, risk_flags=risk_flags or ['无'], pipeline=m['pipeline'],
     )
+    out['decision'] = pdecision.build(out, snap, regime, cfg, meta)
+    return out
 
 
-def dashboard(snap, legs, plan, corr):
-    """把旧的单一「健康分」拆成四项可解释仪表（指导书 P1-06）。"""
+def dashboard(snap, legs, plan, corr, regime=None):
+    """把旧的单一「健康分」拆成四项可解释仪表（指导书 P1-06）。
+
+    集中度按「执行后实际份额」复核，不再只取执行前快照。
+    """
+    layers = snapshots.layers(snap, legs, regime)
     data_quality = dict(complete=bool(snap.get('complete')),
                         missing=snap.get('missing') or [],
                         abstain=[l['code'] for l in legs if l['data_status'] == 'ABSTAIN'],
                         degraded=[l['code'] for l in legs if l['data_status'] == 'DEGRADED'],
-                        unclassified=snap.get('unclassified') or [])
-    nominal = prisk.nominal(snap['rows'])
-    concentration = dict(max_single_pct=nominal['max_single'],
-                         hhi=nominal['hhi'], effective_n=nominal['effective_n'],
-                         category_of_invested=snap.get('category_of_invested') or {},
-                         high_corr_pairs=(corr.get('high_pairs') or []) if corr.get('available') else [],
-                         corr_available=bool(corr.get('available')),
-                         corr_note=corr.get('reason'))
+                        unclassified=snap.get('unclassified') or [],
+                        layers=layers)
+    after = plan.get('portfolio_after') or {}
+    concentration = dict(
+        max_single_pct=after.get('max_single_pct'),
+        hhi=after.get('hhi'), effective_n=after.get('effective_n'),
+        category_of_assets=after.get('category_pct') or {},
+        bucket_of_assets=after.get('bucket_pct') or {},
+        high_corr_pairs=(corr.get('high_pairs') or []) if corr.get('available') else [],
+        corr_available=bool(corr.get('available')),
+        corr_note=corr.get('reason'),
+        denominator='执行后实际份额 / 含现金总资产')
     trend = dict(by_level={k: sum(1 for l in legs if l['level'] == k) for k in 'ABCD'},
                  below_ma10=[l['code'] for l in legs
                              if (l.get('below_ma10_days') or 0) >= 1],

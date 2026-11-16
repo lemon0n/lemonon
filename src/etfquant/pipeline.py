@@ -205,12 +205,18 @@ def run(use_live=True, strict=False, write_packet=True):
                     benchmark=dict(code='000300', as_of=regime.get('as_of'),
                                    observations=regime.get('observations'))),
     )
-    chk = packet.validate_packet(pkt)
-    pkt['validation'].update(schema_ok=not [e for e in chk['errors'] if '字段' in e],
-                             accounting_ok=True,
-                             decision_consistency_ok=not [e for e in chk['errors'] if '动作' in e],
-                             post_trade_ok=True,
-                             ok=chk['ok'], errors=chk['errors'], warnings=chk['warnings'])
+    chk = packet.validate_packet(pkt, cfg=cfg)
+    pkt['validation'].update(
+        schema_ok=not [e for e in chk['errors'] if '字段' in e],
+        accounting_ok=not [e for e in chk['errors'] if '账务' in e],
+        decision_consistency_ok=not [e for e in chk['errors']
+                                     if ('动作' in e or '订单' in e or '份额' in e)],
+        post_trade_ok=not [e for e in chk['errors'] if '执行后' in e],
+        ok=chk['ok'], errors=chk['errors'], warnings=chk['warnings'])
+    if not chk['ok']:
+        status = 'ERROR'
+        pkt['status'] = 'ERROR'
+        pkt['validation']['blocked'] = True
 
     data = webgen.build_data(market, sectors, regime, legs, cfg, meta, packet=pkt)
     out = webgen.render(data, cfg)

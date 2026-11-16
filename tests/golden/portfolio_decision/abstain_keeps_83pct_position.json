@@ -1,0 +1,29 @@
+{
+  "name": "abstain_keeps_83pct_position",
+  "input": {
+    "legs": [
+      {"code": "510300", "name": "沪深300ETF", "category": "宽基", "action": "ABSTAIN", "last": 10.0, "rule_ids": ["R-D1"]}
+    ],
+    "snap": {
+      "complete": true,
+      "cash": 1000.0,
+      "total_asset": 6000.0,
+      "total_pos": 5000.0,
+      "position_pct": 83.33333333333333,
+      "cash_pct": 16.666666666666664,
+      "missing": [],
+      "rows": [
+        {"code": "510300", "name": "沪深300ETF", "category": "宽基", "bucket": "境内权益", "shares": 500, "cost": 9.0, "last": 10.0, "weight": 83.33333333333333}
+      ]
+    },
+    "config_overrides": {}
+  },
+  "expect": {
+    "decisions": [
+      {"code": "510300", "action": "ABSTAIN", "target_shares": null, "target_weight": null, "delta_shares": 0.0, "fee": 0.0, "published": false}
+    ],
+    "orders": [],
+    "violations": [],
+    "after": {"total_asset": 6000.0, "cash": 1000.0, "market_value": 5000.0, "position_pct": 83.33, "cash_pct": 16.67, "legs": 1}
+  }
+}

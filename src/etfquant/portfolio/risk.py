@@ -13,7 +13,19 @@ import math
 import numpy as np
 import pandas as pd
 
+from .. import config
+
 MIN_CORR_OBS = 40
+HIGH_CORR = 0.7
+
+
+def _corr_conf():
+    try:
+        c = (config.cfg().get('risk') or {}).get('correlation') or {}
+    except Exception:
+        c = {}
+    return (int(c.get('min_obs', MIN_CORR_OBS)),
+            float(c.get('high_threshold', HIGH_CORR)))
 
 
 def nominal(rows):
@@ -58,8 +70,10 @@ def lookthrough(rows, entry_by_code=None):
     return out
 
 
-def correlation(returns_by_code, min_obs=MIN_CORR_OBS):
+def correlation(returns_by_code, min_obs=None):
     """收益相关性矩阵。样本不足返回 {'available': False, 'reason': ...}。"""
+    conf_obs, high_thr = _corr_conf()
+    min_obs = conf_obs if min_obs is None else min_obs
     series = {c: s for c, s in (returns_by_code or {}).items()
               if s is not None and len(s) >= min_obs}
     if len(series) < 2:
@@ -73,9 +87,10 @@ def correlation(returns_by_code, min_obs=MIN_CORR_OBS):
     for i in range(len(cols)):
         for j in range(i + 1, len(cols)):
             pairs.append(dict(a=cols[i], b=cols[j], corr=round(float(corr.iloc[i, j]), 3)))
-    high = [p for p in pairs if p['corr'] >= 0.7]
+    high = [p for p in pairs if p['corr'] >= high_thr]
     return dict(available=True, n_obs=len(df), pairs=pairs, high_pairs=high,
-                reason=None if not high else '存在相关性 >= 0.7 的持仓对（伪分散风险）')
+                reason=None if not high else
+                '存在相关性 >= %.1f 的持仓对（伪分散风险）' % high_thr)
 
 
 def risk_contribution(rows, corr, vols):

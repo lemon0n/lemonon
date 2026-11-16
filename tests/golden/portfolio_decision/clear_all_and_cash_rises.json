@@ -1,0 +1,31 @@
+{
+  "name": "clear_all_and_cash_rises",
+  "input": {
+    "legs": [
+      {"code": "510300", "name": "沪深300ETF", "category": "宽基", "action": "CLEAR", "last": 10.0, "rule_ids": ["R-D1"]}
+    ],
+    "snap": {
+      "complete": true,
+      "cash": 1000.0,
+      "total_asset": 11000.0,
+      "total_pos": 10000.0,
+      "position_pct": 90.9090909090909,
+      "cash_pct": 9.090909090909092,
+      "missing": [],
+      "rows": [
+        {"code": "510300", "name": "沪深300ETF", "category": "宽基", "bucket": "境内权益", "shares": 1000, "cost": 9.0, "last": 10.0, "weight": 90.9090909090909}
+      ]
+    },
+    "config_overrides": {}
+  },
+  "expect": {
+    "decisions": [
+      {"code": "510300", "action": "CLEAR", "target_shares": 0, "target_weight": 0.0, "delta_shares": -1000.0, "fee": 5.0, "published": true}
+    ],
+    "orders": [
+      {"code": "510300", "action": "CLEAR", "delta_shares": -1000.0, "target_shares": 0, "fee": 5.0}
+    ],
+    "violations": [],
+    "after": {"total_asset": 10994.0, "cash": 10994.0, "market_value": 0.0, "position_pct": 0.0, "cash_pct": 100.0, "legs": 0}
+  }
+}

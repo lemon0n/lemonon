@@ -98,8 +98,8 @@ def _r(x, d=3):
         return None
 
 
-def build_data(market, sectors, regime, legs, cfg, meta, packet=None):
-    """组装前端数据：公开行情 + 逐腿证据卡 + 权威数据包摘要。"""
+def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=None):
+    """组装前端数据：公开行情 + 逐腿证据卡 + 权威数据包摘要 + 决策契约参数。"""
     def _col(row, key, default=0.0):
         try:
             v = row[key]

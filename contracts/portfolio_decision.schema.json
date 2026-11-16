@@ -1,0 +1,205 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "portfolio_decision",
+  "description": "持仓分析的唯一决策契约：Python 与浏览器运行时必须产出同一形状。仅描述结构，不描述投资阈值。",
+  "type": "object",
+  "required": [
+    "meta",
+    "portfolio_before",
+    "market_context",
+    "holding_decisions",
+    "opportunities",
+    "orders",
+    "portfolio_after",
+    "validation",
+    "audit"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["contract_version", "run_id", "mode", "data_date"],
+      "properties": {
+        "contract_version": {"type": "string"},
+        "run_id": {"type": "string"},
+        "mode": {"enum": ["python", "browser"]},
+        "data_date": {"type": ["string", "null"]},
+        "input_hash": {"type": ["string", "null"]},
+        "config_hash": {"type": ["string", "null"]},
+        "code_version": {"type": ["string", "null"]},
+        "generated_at": {"type": ["string", "null"]}
+      }
+    },
+    "portfolio_before": {
+      "type": "object",
+      "required": ["complete", "total_asset", "cash", "market_value"],
+      "properties": {
+        "as_of": {"type": ["string", "null"]},
+        "complete": {"type": "boolean"},
+        "total_asset": {"type": ["number", "null"]},
+        "cash": {"type": ["number", "null"]},
+        "market_value": {"type": ["number", "null"]},
+        "position_pct": {"type": ["number", "null"]},
+        "cash_pct": {"type": ["number", "null"]},
+        "risk_position_pct": {"type": ["number", "null"]},
+        "bucket_of_assets": {"type": "object"},
+        "missing": {"type": "array", "items": {"type": "string"}},
+        "pnl": {"type": ["number", "null"]},
+        "pnl_pct": {"type": ["number", "null"]},
+        "pnl_basis": {"type": "string"}
+      }
+    },
+    "market_context": {
+      "type": "object",
+      "required": ["regime", "position_band", "benchmark"],
+      "properties": {
+        "regime": {"type": "string"},
+        "fit_lo": {"type": ["number", "null"]},
+        "fit_hi": {"type": ["number", "null"]},
+        "position_band": {
+          "type": "object",
+          "required": ["lo", "hi", "basis"],
+          "properties": {
+            "lo": {"type": ["number", "null"]},
+            "hi": {"type": ["number", "null"]},
+            "basis": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "benchmark": {
+          "type": "object",
+          "required": ["code", "scope"],
+          "properties": {
+            "code": {"type": "string"},
+            "scope": {"type": "string"},
+            "as_of": {"type": ["string", "null"]}
+          }
+        },
+        "evidence": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "holding_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "action",
+          "current_weight",
+          "target_weight",
+          "current_shares",
+          "target_shares",
+          "delta_shares",
+          "reason_ids",
+          "evidence_ids",
+          "counter_evidence",
+          "trigger",
+          "invalidation",
+          "data_date",
+          "constraints_after"
+        ],
+        "properties": {
+          "code": {"type": "string"},
+          "name": {"type": "string"},
+          "category": {"type": "string"},
+          "action": {
+            "enum": ["INITIATE", "ADD", "TRIM", "EXIT", "CLEAR", "HOLD", "WATCH", "ABSTAIN"]
+          },
+          "candidate_state": {
+            "enum": ["READY", "WAIT_CONFIRMATION", "WATCH", "AVOID", "ABSTAIN", null]
+          },
+          "current_weight": {"type": ["number", "null"]},
+          "target_weight": {"type": ["number", "null"]},
+          "current_shares": {"type": ["number", "null"]},
+          "target_shares": {"type": ["number", "null"]},
+          "delta_shares": {"type": ["number", "null"]},
+          "price": {"type": ["number", "null"]},
+          "notional": {"type": ["number", "null"]},
+          "fee": {"type": ["number", "null"]},
+          "reason_ids": {"type": "array", "items": {"type": "string"}},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}},
+          "counter_evidence": {"type": "array", "items": {"type": "string"}},
+          "trigger": {"type": "array", "items": {"type": "string"}},
+          "invalidation": {"type": "array", "items": {"type": "string"}},
+          "data_date": {"type": ["string", "null"]},
+          "data_status": {"enum": ["OK", "DEGRADED", "ABSTAIN", "DEMO"]},
+          "constraints_after": {"type": "object"},
+          "funding_source": {"type": ["string", "null"]},
+          "published": {"type": "boolean"},
+          "blocked_by": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "opportunities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "state", "reasons", "trigger", "invalidation"],
+        "properties": {
+          "code": {"type": "string"},
+          "name": {"type": "string"},
+          "state": {"enum": ["READY", "WAIT_CONFIRMATION", "WATCH", "AVOID", "ABSTAIN"]},
+          "target_weight": {"type": ["number", "null"]},
+          "target_shares": {"type": ["number", "null"]},
+          "reasons": {"type": "array", "items": {"type": "string"}},
+          "counter_evidence": {"type": "array", "items": {"type": "string"}},
+          "trigger": {"type": "array", "items": {"type": "string"}},
+          "invalidation": {"type": "array", "items": {"type": "string"}},
+          "data_date": {"type": ["string", "null"]},
+          "data_status": {"enum": ["OK", "DEGRADED", "ABSTAIN", "DEMO"]},
+          "constraints_after": {"type": "object"}
+        }
+      }
+    },
+    "orders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "action", "delta_shares", "price", "fee"],
+        "properties": {
+          "code": {"type": "string"},
+          "action": {"enum": ["INITIATE", "ADD", "TRIM", "EXIT", "CLEAR"]},
+          "delta_shares": {"type": "number"},
+          "target_shares": {"type": ["number", "null"]},
+          "price": {"type": ["number", "null"]},
+          "notional": {"type": ["number", "null"]},
+          "fee": {"type": ["number", "null"]},
+          "funding_source": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "portfolio_after": {
+      "type": ["object", "null"],
+      "properties": {
+        "total_asset": {"type": ["number", "null"]},
+        "cash": {"type": ["number", "null"]},
+        "market_value": {"type": ["number", "null"]},
+        "position_pct": {"type": ["number", "null"]},
+        "cash_pct": {"type": ["number", "null"]},
+        "risk_position_pct": {"type": ["number", "null"]},
+        "bucket_pct": {"type": "object"},
+        "legs": {"type": ["integer", "null"]},
+        "filled": {"type": "boolean"}
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["ok", "checks", "violations"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "checks": {"type": "array", "items": {"type": "object"}},
+        "violations": {"type": "array", "items": {"type": "string"}},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "audit": {
+      "type": "object",
+      "required": ["sources", "skipped", "signal_fingerprint"],
+      "properties": {
+        "sources": {"type": "array", "items": {"type": "object"}},
+        "skipped": {"type": "array", "items": {"type": "string"}},
+        "signal_fingerprint": {"type": "string"},
+        "prev_run": {"type": ["string", "null"]},
+        "stale_signal": {"type": "boolean"}
+      }
+    }
+  }
+}
