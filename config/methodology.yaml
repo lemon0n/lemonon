@@ -37,7 +37,7 @@ predicates:
   not_stand_back_premium_gt: 未站上 MA5 且折溢价 % > N（IOPV 缺失时不命中）
   stand_back_days_gte: 收盘站上 MA5 且连续日数 >= N
   true_breakout: 突破四条全部满足
-  is_20d_low: 收盘为 20 日新低
+  is_20d_low: 收盘低于前 20 个交易日的最低收盘（不含当日）
   always: 恒真（仅允许用于最低优先级的兜底规则）
 
 rules:
@@ -86,10 +86,10 @@ rules:
     name: 20日新低
     when: {is_20d_low: true, below_ma10_days_gte: 1}
     action: CLEAR
-    text: 收盘创 20 日新低且低于 MA10
+    text: 收盘跌破前 20 个交易日最低收盘且低于 MA10
     src: '3657'
     rationale:
-      phen: 收盘价等于或低于近 20 日最低收盘，且低于 MA10。
+      phen: 收盘价低于前 20 个交易日的最低收盘（不含当日），且低于 MA10。
       judge: 这是趋势与位置的客观描述（新低 + 均线下方），不含对交易对手意图的推断。
       act: 目标份额降至 0。
     exec: 次日执行；若次日跳空低开，限价保护可能无法成交，按未成交政策处理。

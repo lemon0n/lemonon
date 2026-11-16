@@ -62,6 +62,31 @@ def test_features_allow_missing_long_periods():
     assert d['ma120'] is None
 
 
+def test_20d_low_compares_against_previous_20_closes():
+    """R-D4 的 is_20d_low：收盘必须严格低于「前 20 个交易日」的最低收盘。
+
+    旧实现 c <= low.rolling(20).min() 把当日 low 也算进窗口，
+    等价于「当天最低价同时创 20 日最低」，实测 4480 根 K 线只命中 14 次，
+    R-D4 近乎永不触发。这里锁死正确口径。
+    """
+    from etfquant import config, features
+    # 前 20 根收盘 10.0，第 21 根 9.0 → 跌破前 20 日最低收盘
+    closes = [10.0] * 20 + [9.0] + [10.0] * 20
+    rows = [dict(date=pd.Timestamp('2026-01-01') + pd.Timedelta(days=i),
+                 open=v, high=v * 1.01, low=v * 0.99, close=v,
+                 volume=100, amount=100) for i, v in enumerate(closes)]
+    fr = features.frame(pd.DataFrame(rows), config.cfg())
+    assert bool(fr['is_20d_low'].iloc[20]) is True
+    assert bool(fr['is_20d_low'].iloc[-1]) is False
+    # 等于前 20 日最低收盘不算新低（严格小于）
+    eq = [10.0] * 20 + [9.0, 9.0] + [10.0] * 19 + [9.0]
+    rows2 = [dict(date=pd.Timestamp('2026-01-01') + pd.Timedelta(days=i),
+                  open=v, high=v * 1.01, low=v * 0.99, close=v,
+                  volume=100, amount=100) for i, v in enumerate(eq)]
+    fr2 = features.frame(pd.DataFrame(rows2), config.cfg())
+    assert bool(fr2['is_20d_low'].iloc[-1]) is False
+
+
 def test_upper_shadow_uses_third_last_bar():
     """生产与回测必须用同一根 K 线的上影线（倒数第三根）。"""
     from etfquant import config, features

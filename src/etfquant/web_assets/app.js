@@ -852,7 +852,9 @@ function calcBars(b){
     (h[n-3]-Math.max(o[n-3],c[n-3]))/c[n-3]*100:0;
   var falseOut=!!expand&&last<prev&&ma20!=null&&last<ma20;
   var pos20=(h20>l20)?(last-l20)/(h20-l20):null;
-  var isLow=l20!=null&&last<=l20;
+  /* 20 日新低：收盘严格低于「前 20 个交易日」的最低收盘（不含当日），与 features.frame 同口径 */
+  var prev20=c.slice(-21,-1);
+  var isLow=prev20.length===20&&last<Math.min.apply(null,prev20);
   return {last:last,change:chg,
     ma5:ma5,ma10:ma10,ma20:ma20,ma60:ma60,ma120:ma120,
     days_above_ma5:days,below_ma10:below10,
@@ -864,7 +866,7 @@ function calcBars(b){
     false_breakout:falseOut,
     true_breakout:tCnt===4,true_cnt:tCnt,
     is_20d_low:isLow,
-    breakout:isLow?'20日新低':(pos20!=null&&pos20>0.8?'接近20日高':
+    breakout:isLow?'20日新低（收盘破前20日最低）':(pos20!=null&&pos20>0.8?'接近20日高':
              (pos20!=null&&pos20<0.2?'接近20日低':'区间中部')),
     support:{ma5:ma5,ma10:ma10,ma20:ma20,low20:l20,prev_low:Math.min.apply(null,l.slice(-6,-1))},
     reduce_think:{high20:h20,upper_shadow_pct:isFinite(upper)?upper:0},
