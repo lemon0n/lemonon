@@ -305,11 +305,16 @@ def main():
         orders=res['orders'],
     )
     chk = packet.validate_packet(pkt)
-    pkt['validation'].update(ok=chk['ok'], errors=chk['errors'], warnings=chk['warnings'])
+    # 执行后约束不通过时，数据包不得声明 ok=true：
+    # 运维手册约定「约束不通过 → 退出码 3，且不发布目标份额」。
+    ok = bool(chk['ok']) and not res['constraint_violations']
+    errors = list(chk['errors']) + list(res['constraint_violations'])
+    warns = list(chk['warnings']) + list(res.get('warnings') or [])
+    pkt['validation'].update(ok=ok, errors=errors, warnings=warns)
     ppath = a.packet or os.path.join(config.ROOT, 'data', 'packets', 'positions_packet.json')
     packet.write(pkt, path=ppath)
-    if not chk['ok']:
-        print('数据包校验未通过（不发布可执行建议）：%s' % '；'.join(chk['errors']))
+    if not ok:
+        print('数据包校验未通过（不发布可执行建议）：%s' % '；'.join(errors))
         return 3
     print('数据包 → %s' % ppath)
     return 0

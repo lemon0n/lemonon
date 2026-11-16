@@ -454,7 +454,9 @@ function targetWeight(action,curW){
   if(curW==null) return null;
   if(action==='CLEAR') return 0;
   if(action==='TRIM') return Math.round(curW*EXEC.trimRatio*10000)/10000;
-  if(action==='ADD') return Math.round(Math.min(curW+EXEC.addStep,EXEC.maxSingle)*10000)/10000;
+  /* 已在上限之上不能再「加」：min() 会把加仓翻译成大额卖出 */
+  if(action==='ADD') return curW>=EXEC.maxSingle?Math.round(curW*10000)/10000
+    :Math.round(Math.min(curW+EXEC.addStep,EXEC.maxSingle)*10000)/10000;
   return Math.round(curW*10000)/10000;
 }
 function simulate(p,results){
@@ -466,13 +468,32 @@ function simulate(p,results){
   var cash=n(p.cash),total=n(p.totalAsset),pos=0,cat={},legs=0,byCode={};
   results.forEach(function(x,i){
     var r=p.rows[i],a=x.a,curW=(r.weight==null)?null:n(r.weight);
-    var tw=targetWeight(a.action,curW),price=(r.last!=null)?n(r.last):null;
+    var price=(r.last!=null)?n(r.last):null;
+    var curShares=n(r.shares);
     var ts=null,delta=null,notional=null,fee=null,applied=[];
+    if(a.action==='ABSTAIN'){
+      /* 数据不足不交易，但现有持仓仍计入执行后组合（不能当作已清仓） */
+      applied.push('O-4 数据不足：不交易，维持当前份额');
+      byCode[r.code]={price:price,shares:curShares,category:r.category};
+      out.rows.push({code:r.code,name:r.name,action:a.action,curW:curW,targetW:null,
+        curShares:curShares,targetShares:null,delta:null,price:price,notional:null,
+        fee:null,applied:applied,rule_ids:a.rule_ids});
+      return;
+    }
+    var tw=targetWeight(a.action,curW);
+    if(a.action!=='ADD'&&a.action!=='TRIM'&&a.action!=='CLEAR'){
+      /* HOLD / WATCH：目标份额 = 当前份额，零股不得被整手取整卖掉 */
+      applied.push('不交易：动作为 '+actText(a.action)+'，维持当前份额');
+      byCode[r.code]={price:price,shares:curShares,category:r.category};
+      out.rows.push({code:r.code,name:r.name,action:a.action,curW:curW,targetW:tw,
+        curShares:curShares,targetShares:curShares,delta:0,price:price,notional:0,
+        fee:null,applied:applied,rule_ids:a.rule_ids});
+      return;
+    }
     if(tw!=null&&price>0){
       ts=Math.floor(total*tw/100/price/EXEC.lot)*EXEC.lot;
-      var curShares=n(r.shares);
       if((a.action==='ADD'||a.action==='TRIM')&&Math.abs(tw-(curW||0))<EXEC.band){
-        ts=Math.floor(curShares/EXEC.lot)*EXEC.lot; delta=0;
+        ts=curShares; delta=0;
         applied.push('不换仓带：偏离 '+f2(Math.abs(tw-(curW||0)))+'pct < '+EXEC.band+'pct');
       }else{ delta=ts-curShares; }
       notional=delta*price;
@@ -487,9 +508,9 @@ function simulate(p,results){
         if(cash<0) out.violations.push(r.code+' 买入现金不足');
       }
     }else{ applied.push('缺少价格或权重，未生成份额'); }
-    byCode[r.code]={price:price,shares:(ts!=null?ts:n(r.shares)),category:r.category};
+    byCode[r.code]={price:price,shares:(ts!=null?ts:curShares),category:r.category};
     var row={code:r.code,name:r.name,action:a.action,curW:curW,targetW:tw,
-      curShares:n(r.shares),targetShares:ts,delta:delta,price:price,
+      curShares:curShares,targetShares:ts,delta:delta,price:price,
       notional:notional,fee:fee,applied:applied,rule_ids:a.rule_ids};
     out.rows.push(row);
   });
@@ -675,7 +696,9 @@ function tmplFill(t,fmt){ return String(t||'').replace(/\{(\w+)\}/g,function(_,k
 
 function s5BriefRows(p,s1,adv,sim){
   var b=(D.methodology&&D.methodology.brief)||{};
-  var acts=sim.rows.filter(function(r){ return ['CLEAR','TRIM','ADD'].indexOf(r.action)>=0; });
+  /* 只有真正产生份额变化的腿才算「待执行」：被上限或整手取整挡住的 ADD/TRIM 不算 */
+  var acts=sim.rows.filter(function(r){
+    return ['CLEAR','TRIM','ADD'].indexOf(r.action)>=0 && !!r.delta; });
   var cnt={};
   acts.forEach(function(r){ cnt[r.action]=(cnt[r.action]||0)+1; });
   var actsTxt=Object.keys(cnt).map(function(k){ return actText(k)+' '+cnt[k]+' 只'; }).join('、')||'无';
@@ -719,7 +742,8 @@ function orderList(p,s1,adv,sim){
     '<span>当前 '+(s1.pos==null?'—':f2(s1.pos)+'%')+' · '+esc(posTxt(s1))+'</span>'+
     '<span>基准 '+(st.as_of?esc(st.as_of):'—')+'</span></div>';
   h+='<div class="brief brief-top">'+s5BriefRows(p,s1,adv,sim)+'</div>';
-  var rows=sim.rows.filter(function(r){ return ['CLEAR','TRIM','ADD'].indexOf(r.action)>=0; });
+  var rows=sim.rows.filter(function(r){
+    return ['CLEAR','TRIM','ADD'].indexOf(r.action)>=0 && !!r.delta; });
   if(rows.length){
     h+=tbl(['动作','ETF','当前份额','目标份额','增减','限价（不保证成交）','预计费用','规则'],
       rows.map(function(r){
@@ -828,7 +852,9 @@ function calcBars(b){
     (h[n-3]-Math.max(o[n-3],c[n-3]))/c[n-3]*100:0;
   var falseOut=!!expand&&last<prev&&ma20!=null&&last<ma20;
   var pos20=(h20>l20)?(last-l20)/(h20-l20):null;
-  var isLow=l20!=null&&last<=l20;
+  /* 20 日新低：收盘严格低于「前 20 个交易日」的最低收盘（不含当日），与 features.frame 同口径 */
+  var prev20=c.slice(-21,-1);
+  var isLow=prev20.length===20&&last<Math.min.apply(null,prev20);
   return {last:last,change:chg,
     ma5:ma5,ma10:ma10,ma20:ma20,ma60:ma60,ma120:ma120,
     days_above_ma5:days,below_ma10:below10,
@@ -840,7 +866,7 @@ function calcBars(b){
     false_breakout:falseOut,
     true_breakout:tCnt===4,true_cnt:tCnt,
     is_20d_low:isLow,
-    breakout:isLow?'20日新低':(pos20!=null&&pos20>0.8?'接近20日高':
+    breakout:isLow?'20日新低（收盘破前20日最低）':(pos20!=null&&pos20>0.8?'接近20日高':
              (pos20!=null&&pos20<0.2?'接近20日低':'区间中部')),
     support:{ma5:ma5,ma10:ma10,ma20:ma20,low20:l20,prev_low:Math.min.apply(null,l.slice(-6,-1))},
     reduce_think:{high20:h20,upper_shadow_pct:isFinite(upper)?upper:0},

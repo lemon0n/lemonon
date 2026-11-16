@@ -103,7 +103,10 @@ def frame(bars, cfg=None):
 
     out['ret5'] = ((c / c.shift(5) - 1) * 100).round(2)
     out['ret20'] = ((c / c.shift(20) - 1) * 100).round(2)
-    out['is_20d_low'] = (c <= l.rolling(20).min()).fillna(False)
+    # 20 日新低：收盘严格低于「前 20 个交易日」的最低收盘（不含当日）。
+    # 不能用 c <= low.rolling(20).min()：那样当日 low 已含在窗口里，
+    # 只有当天最低价同时创 20 日最低时才会命中，R-D4 几乎永不触发。
+    out['is_20d_low'] = (c < c.rolling(20).min().shift(1)).fillna(False)
 
     # 风险：20/60 日实现波动（年化，%）
     r = c.pct_change()

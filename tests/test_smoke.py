@@ -177,6 +177,21 @@ def test_dashboard_contract(demo_page):
         assert 'qty' not in l and 'trigger' not in l
 
 
+def test_leg_payload_carries_every_rule_predicate(demo_page):
+    """页面要能重算规则：每个谓词的关键字段都必须在腿数据里。
+
+    漏字段不会报错，只会让前端「静默」算出另一个动作 —— 这正是 P0-03
+    「两套决策」回归的入口，所以单独锁死。
+    """
+    d, _ = demo_page
+    for l in d['legs']:
+        for k in ('true_breakout', 'is_20d_low', 'false_breakout', 'expand', 'shrink',
+                  'stand_back', 'days_above_ma5', 'below_ma10',
+                  'premium_available', 'premium_pct',
+                  'support', 'reduce', 'last', 'ma5', 'ma10', 'ma20'):
+            assert k in l, (l['code'], k)
+
+
 def test_no_account_data_in_page(demo_page):
     d, s = demo_page
     assert 'positions' not in d and 'cash' not in d and 'health' not in d
