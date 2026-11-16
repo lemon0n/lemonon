@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
-"""持仓分析引擎：五步固化流程（S1 大盘定仓 → S2 结构核对 → S3 逐腿分诊
-→ S4 动作生成 → S5 组合输出）。
+"""持仓分析引擎：S1–S5 + 执行后复核（单一决策契约的唯一实现）。
 
-设计原则（对应《沉关河方法论蒸馏.md》第四部分 CO-STAR 规格）：
-  · 纯函数：输入持仓快照 + 逐腿技术特征 + 规则卡，输出结构化 JSON；
-  · 无叙述性文案：每条结论只带 规则编号 / 条件文本 / 出处，可回查；
-  · 前端（浏览器解密持仓）用同一规则卡渲染，两端输出同构。
+与旧版的差异（指导书 P0-03/P0-07、第 9 章）：
+  · 动作只有一个来源：methodology.decide()；本模块不再另写等级判断；
+  · 每个标的输出「证据卡」：事实 / 比较 / 规则 / 组合含义 / 反证 / 未知项 / 失效条件；
+  · 组合建议必须经过 post-trade simulation（portfolio.execution.plan），
+    执行后仓位、现金、结构、集中度、费用全部重新计算；
+  · 健康分拆成「数据质量 / 集中度 / 趋势 / 风险」四项仪表，不再输出单一伪精确分数；
+  · 整体状态 OK / DEGRADED / ABSTAIN / DEMO / ERROR，对应能否给出交易动作。
 """
+import math
+
 from .. import methodology as M
 from .. import pricing as P
-from .. import universe
+from ..portfolio import execution, risk as prisk
+from ..quality import merge_status
 
 
 def _round(x, d=3):
@@ -23,203 +28,311 @@ def _round(x, d=3):
         return None
 
 
-def _price(mode, f, prec=0.001):
-    """按 pricing 规则卡生成 买入/卖出价、止损、目标价（与前端 rulePrice 同构）。"""
-    return P.prices(mode, f, prec)
-
-
 def s1_position(snap, regime):
-    """S1 大盘定仓：阶段适配区间 vs 当前总仓位 → 仓位动作码。"""
-    lo, hi = regime['fit_lo'], regime['fit_hi']
-    pos = snap['position_pct']
+    """S1 市场定仓：可观测市场状态 → 仓位区间 vs 当前仓位。"""
+    lo, hi = regime.get('fit_lo'), regime.get('fit_hi')
+    pos = snap.get('position_pct')
+    if lo is None or hi is None or pos is None:
+        return dict(step='S1', name='市场定仓', regime=regime.get('regime', '未知'),
+                    fit_lo=lo, fit_hi=hi, position_pct=_round(pos, 2),
+                    position_action='ABSTAIN', gap_pct=None,
+                    observations=regime.get('observations') or [])
     if pos > hi:
         action, gap = 'REDUCE', pos - hi
     elif pos < lo:
         action, gap = 'ADD', lo - pos
     else:
         action, gap = 'HOLD', 0.0
-    return dict(step='S1', name='大盘定仓', regime=regime['regime'],
+    return dict(step='S1', name='市场定仓', regime=regime.get('regime'),
                 fit_lo=lo, fit_hi=hi, position_pct=_round(pos, 2),
-                position_action=action, gap_pct=_round(gap, 2))
+                position_action=action, gap_pct=_round(gap, 2),
+                observations=regime.get('observations') or [])
 
 
 def s2_structure(snap, targets):
-    """S2 结构核对：类别占比 vs 目标结构。"""
-    st = {}
-    for r in snap['rows']:
-        st[r['category']] = st.get(r['category'], 0.0) + r['weight']
+    """S2 结构核对：类别权重（占已投资市值）vs 参考结构。"""
+    cur = snap.get('category_of_invested') or {}
     rows = []
-    keys = list(dict.fromkeys(list(st.keys()) + list(targets.keys())))
+    keys = list(dict.fromkeys(list(cur.keys()) + list((targets or {}).keys())))
     for k in keys:
-        cur, tgt = st.get(k, 0.0), targets.get(k)
-        rows.append(dict(category=k, current_pct=_round(cur, 2),
-                         target_pct=tgt, deviation_pct=_round(cur - tgt, 2) if tgt is not None else None))
+        c0, t0 = cur.get(k), (targets or {}).get(k)
+        rows.append(dict(category=k, current_pct_of_invested=_round(c0, 2),
+                         target_pct_of_invested=t0,
+                         deviation_pct=_round(c0 - t0, 2)
+                         if (c0 is not None and t0 is not None) else None))
     flags = [r['category'] for r in rows
              if r['deviation_pct'] is not None and abs(r['deviation_pct']) > 5]
-    return dict(step='S2', name='结构核对', rows=rows, deviation_flags=flags)
+    return dict(step='S2', name='结构核对', rows=rows, deviation_flags=flags,
+                denominator='已投资市值（不含现金）',
+                unclassified=snap.get('unclassified') or [])
 
 
-def _ov_hit(oid, why, level, action):
-    """组合覆盖命中项：从 overrides 卡补齐出处与理性链。"""
-    m = M.load()
-    ov = next((o for o in m.get('overrides', []) if o['id'] == oid), {})
-    return dict(id=oid, text=why, src=ov.get('src', 'methodology'),
-                level=level, action=action, name=ov.get('name', '组合覆盖'),
-                rationale={'judge': ov.get('rationale', why)}, exec=None)
+def evidence_card(f, rs, dec, snap_row, regime):
+    """证据卡：可观测事实 + 比较 + 组合含义 + 反证 + 未知项 + 失效条件。
+
+    snap_row 为空时用于公开观察池（无持仓权重），组合含义会给出口径说明。
+    """
+    facts = []
+    if f.get('last') is not None:
+        facts.append('收盘 %.3f（%+.2f%%），数据日 %s'
+                     % (f['last'], f.get('change_pct') or 0.0, f.get('signal_date') or '—'))
+    if f.get('ma5') and f.get('ma10'):
+        facts.append('MA5 %.3f / MA10 %.3f / MA20 %s，站上 MA5 %d 日，连续低于 MA10 %d 日'
+                     % (f['ma5'], f['ma10'],
+                        ('%.3f' % f['ma20']) if f.get('ma20') else '—',
+                        f.get('days_above_ma5', 0), f.get('below_ma10_2d', 0)))
+    if f.get('vol_ratio') is not None:
+        facts.append('量比 %.2f（%s）' % (f['vol_ratio'], f.get('vol_state') or '—'))
+    if f.get('vol20') is not None:
+        facts.append('20 日年化波动 %.2f%%' % f['vol20'])
+
+    comparisons = []
+    if rs and rs.get('is_known'):
+        comparisons.append('5 日超额 %+.2fpct、20 日超额 %s（基准 %s，基准日 %s）'
+                           % (rs['excess5'],
+                              ('%+.2fpct' % rs['excess20']) if rs.get('excess20') is not None else '—',
+                              rs.get('benchmark'), rs.get('benchmark_date')))
+    elif rs:
+        comparisons.append(rs.get('rs_label') or '基准数据缺失，无法比较')
+    if f.get('ma20') and f.get('last') is not None:
+        comparisons.append('距 MA20 %+.2f%%' % ((f['last'] / f['ma20'] - 1) * 100))
+
+    rule_txt = []
+    for h in dec.get('hits') or []:
+        rule_txt.append('%s %s（%s）' % (h.get('id'), h.get('text'), h.get('src')))
+
+    portfolio_imp = []
+    if snap_row:
+        portfolio_imp.append('当前权重 %s%%（类别「%s」）'
+                             % (_round(snap_row.get('weight'), 2) if snap_row.get('weight') is not None else '—',
+                                snap_row.get('category', '未分类')))
+        if snap_row.get('pnl_pct') is not None:
+            portfolio_imp.append('浮动盈亏 %+.2f%%' % snap_row['pnl_pct'])
+    else:
+        portfolio_imp.append('公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实')
+    if regime.get('fit_lo') is not None:
+        portfolio_imp.append('市场状态「%s」对应仓位区间 %s~%s%%'
+                             % (regime.get('regime'), regime['fit_lo'], regime['fit_hi']))
+
+    counter = []
+    if f.get('true_breakout_count') is not None and 0 < f['true_breakout_count'] < 4:
+        counter.append('突破四条仅满足 %d/4，结构条件不完整' % f['true_breakout_count'])
+    if rs and rs.get('is_known') and rs.get('excess5') is not None and rs['excess5'] < 0:
+        counter.append('5 日跑输基准 %.2fpct，不支持「相对强势」的假设' % rs['excess5'])
+    if f.get('premium_available') is False:
+        counter.append('IOPV 缺失，折溢价条件无法验证（缺失不视为满足）')
+    if not counter:
+        counter.append('未发现与当前信号方向冲突的可观测证据（不等于信号有效）')
+
+    unknowns = list(dec.get('unknowns') or [])
+    if f.get('premium_available') is False:
+        unknowns.append('折溢价/估值位置未知')
+    unknowns.append('资金流向、机构持仓与持仓集中度的底层穿透数据未接入')
+
+    invalid = ['收盘重新站上 MA10 且连续满足站上 MA5 阈值', '量比回落到平量且结构条件改善',
+               '下一次运行出现与当前等级相反的规则命中']
+    if dec.get('action') in ('CLEAR', 'TRIM'):
+        invalid.insert(0, '收盘重新站稳 MA10（当前退出条件失效）')
+    return dict(facts=facts, comparisons=comparisons, rules=rule_txt,
+                portfolio_impact=portfolio_imp, counter_evidence=counter,
+                unknowns=unknowns, invalidation=invalid)
 
 
-def _brief(hits):
-    """首个技术性命中的理性链 → 腿级简报（phen/judge/act/exec + 规则出处）。"""
-    for h in hits or []:
-        if not str(h.get('id', '')).startswith('O-'):
-            r = h.get('rationale') or {}
-            if r.get('judge'):
-                return dict(phen=r.get('phen'), judge=r.get('judge'), act=r.get('act'),
-                            exec=h.get('exec'), rule=h.get('id'), name=h.get('name'),
-                            src=h.get('src'))
-    return None
+def _instrument_status(f, bars_ok, rs):
+    if not bars_ok or not f:
+        return 'ABSTAIN'
+    if f.get('ma20') is None or f.get('last') is None:
+        return 'ABSTAIN'
+    if rs and rs.get('is_known') is False:
+        return 'DEGRADED'
+    return 'OK'
 
 
-def _ov_brief(hits):
-    """组合覆盖命中（O-1/O-2/O-3）的降级理由，追加在腿级简报之后。"""
-    ovs = [h for h in hits or [] if str(h.get('id', '')).startswith('O-')]
-    if not ovs:
-        return None
-    return '；'.join('%s（%s）' % (h.get('text', h.get('id')),
-                                   (h.get('rationale') or {}).get('judge', ''))
-                     for h in ovs)
+def analyze(port, snap, features, regime, cfg, meta=None):
+    """五步 + 执行后模拟入口。
 
-
-def _leg_action(f, snap_row, s1, uni=None):
-    """S3+S4 单腿：规则求值 → 动作 + 参考价位 + 组合层覆盖。"""
-    ev = M.evaluate(f)
-    m = M.load()
-    action, level = ev['action'], ev['level']
-    hits = list(ev['hits'])
-    rule_ids = list(ev['rule_ids'])
-    ov = []
-
-    # 组合层覆盖（O-1/O-2/O-3）：ADD 一律降级 HOLD
-    if action == 'ADD':
-        pnl = snap_row.get('pnl_pct')
-        if s1['position_action'] == 'REDUCE':
-            action, why = 'HOLD', '超配禁加仓'
-            ov.append('O-1')
-        elif pnl is not None and pnl < -8:
-            action, why = 'HOLD', '浮亏禁加仓'
-            ov.append('O-2')
-        elif pnl is not None and pnl > 30:
-            action, why = 'HOLD', '大浮盈不加仓'
-            ov.append('O-3')
-        else:
-            why = None
-        if why:
-            hits.append(_ov_hit(ov[-1], why, level, action))
-            rule_ids.append(ov[-1])
-
-    prices = P.prices(action, f)
-    return dict(code=snap_row['code'], name=snap_row['name'], level=level, action=action,
-                side=prices['side'], entry=prices['entry'], stop=prices['stop'],
-                take_profit=prices['tp'],
-                rule_ids=rule_ids, hits=hits,
-                weight=_round(snap_row.get('weight'), 2),
-                pnl_pct=_round(snap_row.get('pnl_pct'), 2),
-                action_text=m['actions'].get(action, action),
-                brief=_brief(hits), override_brief=_ov_brief(hits))
-
-
-def health(snap, leg_results):
-    """组合健康分：六维（趋势适配 / 仓位适配 / 分散度 / 止损纪律 / 五均线确认 / 折溢价）。"""
-    lv = {'A': 85, 'B': 70, 'C': 45, 'D': 20}
-    held = [l for l in leg_results if l['level'] in lv]
-    cnt = len(held) or 1
-    trend = sum(lv.get(l['level'], 55) for l in held) / cnt if held else 55
-    s1 = leg_results[0]['s1'] if leg_results and 's1' in leg_results[0] else None
-    pos = snap['position_pct']
-    fit_lo, fit_hi = 40, 70
-    if leg_results:
-        fit_lo = leg_results[0].get('fit_lo', 40) or 40
-        fit_hi = leg_results[0].get('fit_hi', 70) or 70
-    pos_fit = 100 if (fit_lo <= pos <= fit_hi) else max(20, 100 - abs(pos - fit_hi) * 3.2)
-
-    cat, leg_max = {}, 0.0
-    for r in snap['rows']:
-        cat[r['category']] = cat.get(r['category'], 0.0) + r['weight']
-        leg_max = max(leg_max, r['weight'])
-    cat_max = max(cat.values()) if cat else 0.0
-    div = max(20, 100 - max(0, cat_max - 35) * 2 - max(0, leg_max - 22) * 2)
-
-    disc = 100 * sum(1 for l in held if l['level'] != 'D') / cnt if held else 70
-    ma5 = 100 * sum(1 for l in leg_results if l.get('stand_back')) / len(leg_results) \
-        if leg_results else 60
-    prem = max(0, 100 - 14 * sum(1 for l in leg_results if l.get('premium_available') is False))
-    parts = dict(趋势适配=round(trend, 1), 仓位适配=round(pos_fit, 1), 分散度=round(div, 1),
-                 止损纪律=round(disc, 1), 五均线确认=round(ma5, 1), 折溢价=round(prem, 1))
-    w = dict(趋势适配=.22, 仓位适配=.22, 分散度=.14, 止损纪律=.14, 五均线确认=.14, 折溢价=.14)
-    score = round(sum(parts[k] * w[k] for k in parts) / sum(w.values()))
-    return dict(score=score, label='良好' if score >= 75 else '需优化', parts=parts,
-                cat_max=_round(cat_max, 2), leg_max=_round(leg_max, 2))
-
-
-def s5_brief(snap, s1, s2, orders, regime, m):
-    """S5 组合层简报（盘面→仓位→操作总览），模板来自规则卡 brief 区，占位符填充数据。"""
-    b = m.get('brief') or {}
-    acts_cnt = {}
-    for l in orders:
-        acts_cnt[l['action']] = acts_cnt.get(l['action'], 0) + 1
-    acts_txt = '、'.join('%s %d 只' % (m['actions'].get(a, a), c) for a, c in acts_cnt.items()) or '无'
-    pos_state = {'REDUCE': '超配，先降总仓', 'ADD': '低于下沿，可分批补',
-                 'HOLD': '区间内维持'}[s1['position_action']]
-    phen = (b.get('header_phen') or '').format(
-        regime=s1['regime'], lo=s1['fit_lo'], hi=s1['fit_hi'],
-        pos=s1['position_pct'], pos_state=pos_state, n=len(orders))
-    note = (regime or {}).get('stage_note') or ''
-    if not note:
-        note = ('结构偏离：' + '、'.join(s2['deviation_flags'])) if s2['deviation_flags'] else '结构无明显偏离'
-    judge = (b.get('header_judge') or '').format(regime_note=note)
-    act = (b.get('header_act') or '').format(acts=acts_txt)
-    return dict(phen=phen, judge=judge, act=act,
-                no_action=b.get('no_action', 'S4 规则求值均为 HOLD：今日无触发动作。'))
-
-
-def analyze(port, snap, features, regime, cfg=None):
-    """五步固化流程入口。
-
-    port     {'rows': [...], 'cash': float}（positions.load 的输出）
-    snap     positions.market_value 的输出（每腿含 last/mv/weight/pnl_pct）
-    features {code: 特征 dict}（indicators.analyze 的输出；池外腿由调用方补齐）
-    regime   market_regime.compute 的输出（含 regime/fit_lo/fit_hi）
+    port      positions.load 输出
+    snap      positions.market_value 输出（含 complete / missing）
+    features  {code: indicators.analyze 输出}；缺该 code 视为数据不足
+    regime    signals.market_regime.compute 输出
+    meta      {'bars_ok': set(codes), 'rs': {code: rs}, 'returns': {code: Series}}
     """
     cfg = cfg or {}
+    meta = meta or {}
     m = M.load()
+    bars_ok = set(meta.get('bars_ok') or features.keys())
+    rs_map = meta.get('rs') or {}
+
     s1 = s1_position(snap, regime)
-    targets = (cfg.get('risk') or {}).get('structure_target', {})
+    targets = (cfg.get('risk') or {}).get('structure_target_of_invested', {})
     s2 = s2_structure(snap, targets)
 
-    legs, risk_flags = [], []
+    legs, risk_flags, cards = [], [], {}
     for r in snap['rows']:
-        f = features.get(r['code'])
-        if not f:
-            legs.append(dict(code=r['code'], name=r['name'], level='—', action='WATCH',
-                             entry=None, stop=None, take_profit=None, rule_ids=[],
-                             hits=[], weight=_round(r['weight'], 2),
-                             pnl_pct=_round(r.get('pnl_pct'), 2),
-                             action_text=m['actions']['WATCH'],
-                             brief=None, override_brief=None,
-                             s1=s1, fit_lo=regime['fit_lo'], fit_hi=regime['fit_hi']))
-            risk_flags.append('%s 数据缺失' % r['code'])
-            continue
-        la = _leg_action(f, r, s1)
-        la.update(stand_back=bool(f.get('stand_back')),
-                  premium_available=bool(f.get('premium_available', True)),
-                  s1=s1, fit_lo=regime['fit_lo'], fit_hi=regime['fit_hi'])
-        legs.append(la)
-        if la['level'] == 'D':
-            risk_flags.append('%s %s' % (r['code'], la['hits'][0]['text'] if la['hits'] else 'D级'))
+        code = str(r['code'])
+        f = features.get(code)
+        rs = rs_map.get(code) or {}
+        inst_status = _instrument_status(f, code in bars_ok, rs)
 
-    orders = [l for l in legs if l['action'] in ('CLEAR', 'TRIM', 'ADD')]
-    h = health(snap, legs)
-    brief = s5_brief(snap, s1, s2, orders, regime, m)
-    return dict(step='S5', s1=s1, s2=s2, legs=legs, orders=orders, brief=brief,
-                risk_flags=risk_flags or ['无'], health=h,
-                pipeline=m['pipeline'])
+        dec = M.decide(f or {}, data_status=inst_status,
+                       overrides=dict(position_pct=snap.get('position_pct'),
+                                      regime_hi=regime.get('fit_hi'),
+                                      pnl_pct=r.get('pnl_pct')))
+        if inst_status == 'ABSTAIN':
+            dec = dict(dec, action='ABSTAIN', status='ABSTAIN',
+                       unknowns=(dec.get('unknowns') or []) + ['该标的行情不可用或关键字段缺失'])
+
+        px = P.prices(dec['action'], f or {}, cfg.get('universe', {}).get('quote_precision', 0.001))
+        cards[code] = evidence_card(f or {}, rs, dec, r, regime)
+
+        leg = dict(
+            code=code, name=r['name'], category=r.get('category', '未分类'),
+            data_status=inst_status, status=dec['status'],
+            level=dec['level'], action=dec['action'],
+            action_text=m['actions'].get(dec['action'], dec['action']),
+            side=px['side'], entry=px['entry'], stop=px['stop'], take_profit=px['tp'],
+            price_types=px.get('price_types'), price_note=px.get('note'),
+            rule_ids=dec['rule_ids'], hits=dec['hits'], blocked_by=dec['blocked_by'],
+            unknowns=dec['unknowns'],
+            last=(f or {}).get('last'), weight=_round(r.get('weight'), 2),
+            pnl_pct=_round(r.get('pnl_pct'), 2),
+            below_ma10_days=(f or {}).get('below_ma10_2d'),
+            vol20=(f or {}).get('vol20'), vol60=(f or {}).get('vol60'),
+            signal_date=(f or {}).get('signal_date'),
+            evidence=cards[code],
+        )
+        legs.append(leg)
+        if leg['level'] == 'D':
+            risk_flags.append('%s 触发 %s' % (code, '、'.join(leg['rule_ids']) or 'D 级'))
+        if leg['data_status'] != 'OK':
+            risk_flags.append('%s 数据状态 %s' % (code, leg['data_status']))
+
+    # ---- 组合执行闭环 ----
+    plan = execution.plan(legs, snap, cfg)
+    for d in plan['decisions']:
+        leg = next((x for x in legs if x['code'] == d['code']), None)
+        if leg:
+            leg.update(target_weight=d['target_weight'],
+                       target_shares=d['target_shares'],
+                       delta_shares=d.get('delta_shares'),
+                       notional=d.get('notional'), fee=d.get('fee'),
+                       constraints_applied=d.get('constraints_applied') or [])
+    if plan['violations']:
+        risk_flags.extend(plan['violations'])
+
+    # ---- 组合风险（名义 / 底层 / 相关性）----
+    entry_by_code = meta.get('universe') or {}
+    nominal = prisk.nominal(snap['rows'])
+    lookthrough = prisk.lookthrough(snap['rows'], entry_by_code)
+    corr = prisk.correlation(meta.get('returns') or {})
+    vols = {c: float(f['vol60'] or f['vol20'] or 0) / 100.0
+            for c, f in features.items()
+            if f and (f.get('vol60') or f.get('vol20'))}
+    contrib = prisk.risk_contribution(snap['rows'], corr, vols) if vols else None
+
+    # ---- 状态聚合 ----
+    status = merge_status(
+        snap.get('complete') and 'OK' or 'ABSTAIN',
+        'ABSTAIN' if s1['position_action'] == 'ABSTAIN' else 'OK',
+        *[l['data_status'] for l in legs],
+        'ERROR' if plan['violations'] else 'OK',
+    )
+    if (meta.get('source') or {}).get('synthetic'):
+        status = 'DEMO'
+    if not plan['ok'] and status == 'OK':
+        status = 'ERROR'
+
+    brief = s5_brief(snap, s1, s2, legs, regime, m, plan, status)
+    return dict(
+        status=status, s1=s1, s2=s2, legs=legs, cards=cards,
+        orders=plan['orders'], decisions=plan['decisions'],
+        portfolio_before=dict(
+            as_of=snap.get('as_of'), complete=bool(snap.get('complete')),
+            cash=_round(snap.get('cash'), 2), market_value=_round(snap.get('total_pos'), 2),
+            position_pct=_round(snap.get('position_pct'), 2),
+            missing=snap.get('missing') or [],
+            category_of_invested=snap.get('category_of_invested') or {}),
+        portfolio_after=plan['portfolio_after'],
+        constraint_violations=plan['violations'], warnings=plan['warnings'],
+        risk=dict(nominal=nominal, lookthrough=lookthrough,
+                  correlation=corr, risk_contribution=contrib),
+        dashboard=dashboard(snap, legs, plan, corr),
+        brief=brief, risk_flags=risk_flags or ['无'], pipeline=m['pipeline'],
+    )
+
+
+def dashboard(snap, legs, plan, corr):
+    """把旧的单一「健康分」拆成四项可解释仪表（指导书 P1-06）。"""
+    data_quality = dict(complete=bool(snap.get('complete')),
+                        missing=snap.get('missing') or [],
+                        abstain=[l['code'] for l in legs if l['data_status'] == 'ABSTAIN'],
+                        degraded=[l['code'] for l in legs if l['data_status'] == 'DEGRADED'],
+                        unclassified=snap.get('unclassified') or [])
+    nominal = prisk.nominal(snap['rows'])
+    concentration = dict(max_single_pct=nominal['max_single'],
+                         hhi=nominal['hhi'], effective_n=nominal['effective_n'],
+                         category_of_invested=snap.get('category_of_invested') or {},
+                         high_corr_pairs=(corr.get('high_pairs') or []) if corr.get('available') else [],
+                         corr_available=bool(corr.get('available')),
+                         corr_note=corr.get('reason'))
+    trend = dict(by_level={k: sum(1 for l in legs if l['level'] == k) for k in 'ABCD'},
+                 below_ma10=[l['code'] for l in legs
+                             if (l.get('below_ma10_days') or 0) >= 1],
+                 actions={a: sum(1 for l in legs if l['action'] == a)
+                          for a in ('CLEAR', 'TRIM', 'ADD', 'HOLD', 'ABSTAIN')})
+    after = plan.get('portfolio_after') or {}
+    risk_box = dict(
+        post_trade_position_pct=after.get('position_pct'),
+        post_trade_cash_pct=after.get('cash_pct'),
+        est_cost=round(sum(d.get('fee') or 0 for d in plan['decisions']), 2),
+        violations=plan['violations'],
+        filled=False,
+    )
+    return dict(data_quality=data_quality, concentration=concentration,
+                trend=trend, risk=risk_box,
+                note='四项分开列示，不合成单一分数；权重与仓位以含现金总资产为分母')
+
+
+def s5_brief(snap, s1, s2, legs, regime, m, plan, status):
+    b = m.get('brief') or {}
+    acts_cnt = {}
+    for l in legs:
+        if l['action'] in ('CLEAR', 'TRIM', 'ADD'):
+            acts_cnt[l['action']] = acts_cnt.get(l['action'], 0) + 1
+    acts_txt = '、'.join('%s %d 只' % (m['actions'].get(a, a), c)
+                        for a, c in acts_cnt.items()) or '无'
+    pos_state = {'REDUCE': '高于区间上沿，先降总仓',
+                 'ADD': '低于区间下沿，可分批补',
+                 'HOLD': '区间内维持',
+                 'ABSTAIN': '仓位无法计算（数据不足）'}.get(s1['position_action'], '—')
+    try:
+        phen = (b.get('header_phen') or '').format(
+            regime=s1['regime'], lo=s1['fit_lo'], hi=s1['fit_hi'],
+            pos=s1['position_pct'], pos_state=pos_state, n=len(plan['orders']))
+    except Exception:
+        phen = '市场状态「%s」；当前仓位 %s%%' % (s1['regime'], s1['position_pct'])
+    note = regime.get('stage_note') or ''
+    if not note:
+        note = ('结构偏离：' + '、'.join(s2['deviation_flags'])) if s2['deviation_flags'] \
+            else '结构无明显偏离'
+    obs = '；'.join(regime.get('observations') or [])
+    after = plan.get('portfolio_after') or {}
+    act = (b.get('header_act') or '').format(acts=acts_txt)
+    if after.get('position_pct') is not None:
+        act += ('；按当前价格静态估算，执行后权益仓位约 %.2f%%、现金 %.2f%%'
+                '（未成交/跳空会使实际值偏离）'
+                % (after['position_pct'], after.get('cash_pct') or 0))
+        lo, hi = s1.get('fit_lo'), s1.get('fit_hi')
+        if lo is not None and after['position_pct'] < lo:
+            act += ('。硬性风险退出优先于原仓位区间：执行后低于区间下沿 %s%%，'
+                    '系统不会为回到区间而买入未通过筛选的替代标的' % lo)
+        elif hi is not None and after['position_pct'] > hi:
+            act += ('。执行后仍高于区间上沿 %s%%：剩余仓位需在下一次运行重新求值' % hi)
+    if plan['violations']:
+        act += '；执行后校验未通过：%s' % '；'.join(plan['violations'])
+    return dict(status=status, phen=phen,
+                judge=(obs or (b.get('header_judge') or '').format(regime_note=note)),
+                observations=regime.get('observations') or [],
+                structure_note=note,
+                act=act,
+                no_action=b.get('no_action', '今日无触发动作'))

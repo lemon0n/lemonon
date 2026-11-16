@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
-from . import watchlist, positions, analysis
+from . import watchlist, positions, risk, execution, analysis
 
-__all__ = ['watchlist', 'positions', 'analysis']
+__all__ = ['watchlist', 'positions', 'risk', 'execution', 'analysis']

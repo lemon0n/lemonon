@@ -1,208 +1,224 @@
-# 沉关河方法论 · 机器可执行规则卡（v1.0）
-# 蒸馏来源：41 篇原文，规则条目与《沉关河方法论蒸馏.md》第三部分一一对应。
-# 用途：signals/triage（分诊依据）、portfolio/analysis（持仓动作）、前端 p5 渲染（D.methodology）。
-# 约定：
-#   level: D 破位止损 > C 降仓保利 > A 持有可加 > B 等待确认（优先级降序）
-#   action: CLEAR 清仓 | TRIM 分批减仓 | ADD 回踩加仓 | HOLD 持有 | WATCH 观察
-#   when 为有限谓词键（Python 与 JS 两端各有一份求值映射，键集合一致）：
-#     below_ma10_2d_gte      连续收盘低于MA10日数 >= N
-#     false_breakout         假突破（放量下跌+破MA20）
-#     expand_down_break_ma20 放量下跌且收盘 < MA20
-#     fall_below_ma10        收盘 < MA10*0.995
-#     not_stand_back_expand  未站回MA5 且 放量
-#     upper_shadow_gt        上影线% > N
-#     not_stand_back_premium_gt  未站回MA5 且 溢价% > N
-#     stand_back_days_gte    站回MA5日数 >= N
-#     true_breakout          真突破四条全中
-#     always                 恒真（兜底）
-#   rationale: 理性链三段（phen 现象 → judge 判断 → act 动作），来自沉关河原文逻辑；
-#             报告端与前端共用，渲染为「今日操作清单」每条操作的分析简报。
-#   exec: 执行要点（分批/时点/纪律）
-version: '1.1'
+# 规则卡 v2.0 —— 唯一决策事实源（生产持仓 / 观察池 / 网页 / 报告 / 回测共用）
+#
+# 与 v1.x 的差异（对应《准确性与分析深度重构指导书》P0-3/P0-5）：
+#   1. 只有一套动作求值：methodology.decide()。不再有 triage.py 的第二套 A/B/C/D；
+#   2. 谓词必须在 WHITELIST 内，未知谓词 / 重复 ID / 非法动作 → 启动即失败，
+#      不允许用 always→HOLD 掩盖配置拼写错误；
+#   3. 名称改为可观测定义：不再使用「主力放弃 / 真出货 / 诱多」等不可观测因果断言；
+#   4. CLEAR 的语义是「目标份额为 0」，价格只是执行政策（限价保护），不保证成交，
+#      不再为清仓单附加普通做多止盈腿。
+version: '2.0'
 
 meta:
   distill_doc: 沉关河方法论蒸馏.md
   corpus_articles: 41
-  rules_total: 10
+  rules_total: 11
 
 actions:
   CLEAR: 清仓
   TRIM: 分批减仓
-  ADD: 回踩加仓
+  ADD: 加仓
   HOLD: 持有
   WATCH: 观察
 
 levels:
-  D: {label: 破位止损, rank: 4}
-  C: {label: 降仓保利, rank: 3}
-  A: {label: 持有可加, rank: 2}
+  D: {label: 风险退出, rank: 4}
+  C: {label: 减仓保利, rank: 3}
+  A: {label: 可加仓, rank: 2}
   B: {label: 等待确认, rank: 1}
 
-# ---- 逐腿动作规则（按 priority 降序求值，首个命中即定级）----
+# 谓词白名单：methodology.py / app.js 都必须实现这同一组键。
+predicates:
+  below_ma10_days_gte: 连续收盘低于 MA10 的日数 >= N
+  false_breakout: 放量下跌且收盘低于 MA20（可观测事件）
+  expand_down_break_ma20: 放量、当日跌幅 < -2%、收盘低于 MA20
+  not_stand_back_expand: 未站上 MA5 且放量
+  upper_shadow_gt: 倒数第三根 K 线上影线 % > N（生产/回测同一根）
+  not_stand_back_premium_gt: 未站上 MA5 且折溢价 % > N（IOPV 缺失时不命中）
+  stand_back_days_gte: 收盘站上 MA5 且连续日数 >= N
+  true_breakout: 突破四条全部满足
+  is_20d_low: 收盘为 20 日新低
+  always: 恒真（仅允许用于最低优先级的兜底规则）
+
 rules:
   - id: R-D1
     level: D
     priority: 100
-    name: 十均线止损
-    when: {below_ma10_2d_gte: 1}
+    name: 收盘跌破MA10
+    when: {below_ma10_days_gte: 2}
     action: CLEAR
-    text: 收盘低于MA10（回测优化为1日，蒸馏默认2日）
+    text: 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）
     src: '3657'
     rationale:
-      phen: 收盘连续跌破 MA10 —— 十日线是主力运作成本线。
-      judge: 成本线失守即主力放弃的信号，「先证明接得住，再证明能打上去，最后证明能站住」的自证链条断裂；继续拿着等于逆势等解套，交易比的是谁活得更久，不是一夜暴富（INV-1/INV-3）。
-      act: 无条件出局，优先级最高；次日反弹分批退出，禁止加仓摊薄。
-    exec: 开盘冲高分两笔走，尾盘前清完；若直接低开破前低，市价先出一半再等反抽；当日了结，不留隔夜幻想。
+      phen: 收盘价连续低于 MA10。
+      judge: 规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。
+      act: 目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。
+    exec: 次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。
   - id: R-D2
     level: D
     priority: 99
-    name: 假突破出货
+    name: 放量下跌破MA20
     when: {false_breakout: true}
     action: CLEAR
-    text: 放量下跌跌破MA20
+    text: 放量 + 收盘下跌 + 收盘低于 MA20（可观测组合）
     src: '3657'
     rationale:
-      phen: 前期放量突破后随即放量下跌、跌破重要均线。
-      judge: 真突破要四条全中（不破关键位+明显缩量+慢跌快涨+有承接），放量下跌破均线是真出货不是洗盘；突破若是假的，前一段拉升就是诱多（L3-04）。
-      act: 清仓回避，不参与后市。
-    exec: 假突破确认当日即出，不等回抽；卖出后从自选里划掉，短期内不回补。
+      phen: 当日量比放大、收盘下跌且收盘低于 MA20。
+      judge: 这是三个可观测条件的组合，不是对资金意图的判断；是否有效需时间外验证。
+      act: 目标份额降至 0。
+    exec: 确认当日收盘后生成卖出政策，次日执行。
   - id: R-D3
     level: D
     priority: 98
     name: 放量破位
     when: {expand_down_break_ma20: true}
     action: CLEAR
-    text: 放量下跌收盘破MA20
+    text: 放量且跌幅超 2% 且收盘低于 MA20
     src: '3657'
     rationale:
-      phen: 放量下跌且收盘跌破 MA20。
-      judge: 缩量下杀是没钱没行情，放量下杀是资金在回来的路上反着走 —— 资金在出逃；MA20 破位则均线支撑体系失效（L1-13）。
-      act: 清仓，先离场再看。
-    exec: 放量破位当日尾盘前执行；离场后等缩量企稳三日再评估回补。
+      phen: 放量、当日跌幅超过 2%、收盘低于 MA20。
+      judge: 放量下跌叠加均线破位属高波动事件，规则在此选择退出而不是预测反弹。
+      act: 目标份额降至 0。
+    exec: 次日限价卖出；未成交部分保留到下一可交易日。
+  - id: R-D4
+    level: D
+    priority: 97
+    name: 20日新低
+    when: {is_20d_low: true, below_ma10_days_gte: 1}
+    action: CLEAR
+    text: 收盘创 20 日新低且低于 MA10
+    src: '3657'
+    rationale:
+      phen: 收盘价等于或低于近 20 日最低收盘，且低于 MA10。
+      judge: 这是趋势与位置的客观描述（新低 + 均线下方），不含对交易对手意图的推断。
+      act: 目标份额降至 0。
+    exec: 次日执行；若次日跳空低开，限价保护可能无法成交，按未成交政策处理。
   - id: R-C1
     level: C
     priority: 80
-    name: 放量滞涨
+    name: 未站上MA5且放量
     when: {not_stand_back_expand: true}
     action: TRIM
-    text: 未站回MA5且放量
+    text: 收盘未站上 MA5 且量比放大
     src: '7477/7570'
     rationale:
-      phen: 未站回 MA5 且放量。
-      judge: 放量滞涨 = 高位有人持续兑现；冲高回落、上影线、放量不涨是同一族信号 —— 保利优先，落袋为安（L4-06）。
-      act: 分批减仓，先减一部分。
-    exec: 冲高分两批减，先减 1/3；剩余看回踩缩量不破关键位再决定去留。
+      phen: 收盘价低于 MA5，且当日量比高于放量阈值。
+      judge: 该组合描述「价格未回到短期均线上方、成交放大」，属于风险提示而非因果断言。
+      act: 目标权重减半（TRIM），保留剩余仓位。
+    exec: 次日限价减仓一半；剩余仓位按下一交易日重新求值。
   - id: R-C2
     level: C
     priority: 79
-    name: 冲高回落
+    name: 上影线超阈值
     when: {upper_shadow_gt: 2}
     action: TRIM
-    text: 上影线超2%
+    text: 倒数第三根 K 线上影线超过 2%
     src: '7477'
     rationale:
-      phen: 上影线超过 2%。
-      judge: 上影长 = 上方抛压重，冲高买盘全部被套在顶部区；连续放量滞涨大概率是借拉高出货。
-      act: 分批减仓保利润。
-    exec: 尾盘上影确认即减 1/3；次日若高开接力则继续减。
+      phen: 指定 K 线的上影线占收盘价比例超过 2%。
+      judge: 上影线长度是价格拒绝的几何描述，不推断买卖方身份。
+      act: 目标权重减半。
+    exec: 次日执行；若当日已触发 D 级规则，D 级优先。
   - id: R-C3
     level: C
     priority: 78
-    name: 溢价偏高
+    name: 折溢价偏高
     when: {not_stand_back_premium_gt: 1.0}
     action: TRIM
-    text: 未站回MA5且溢价超1%
+    text: 收盘未站上 MA5 且折溢价高于 1%（IOPV 缺失时不命中）
     src: '7477'
     rationale:
-      phen: 未站回 MA5 且溢价超过 1%。
-      judge: 溢价追高等于多付 1% 成本；未企稳阶段追买性价比极低（原方法论无此概念，为 ETF 工程护栏）。
-      act: 减仓或暂缓买入。
-    exec: 等溢价回落 0.5% 以内再执行买入动作。
+      phen: 未站上 MA5 且 IOPV 折溢价高于 1%。
+      judge: 溢价表示价格高于实时估值，买入成本更高；这是可观测的定价偏差。
+      act: 目标权重减半；IOPV 缺失时该规则不参与判定（缺失不等于满足）。
+    exec: 等溢价回落到 0.5% 以内再考虑加仓。
   - id: R-A1
     level: A
     priority: 60
-    name: 加仓确认
+    name: 站上MA5且突破四条
     when: {stand_back_days_gte: 3, true_breakout: true}
     action: ADD
-    text: 站回MA5满3日且真突破
+    text: 收盘站上 MA5 满 3 日且突破四条全中
     src: '3657/7879'
     rationale:
-      phen: 站回 MA5 满 3 日 + 真突破四条全中（不破关键位、明显缩量、慢跌快涨、有承接）。
-      judge: 四条全中 = 回踩确认成立，主力完成「接得住→打得上去」两步自证；先于大盘企稳说明相对强度占优（L3-03/L3-06）。
-      act: 回踩加仓（仓位须在阶段适配区间内，组合覆盖 O-1/O-2/O-3 优先）。
-    exec: 分批进场：回踩 MA5 附近先半仓，缩量不破再加；止损写在开仓前，设 MA10，无止损不开仓。
+      phen: 连续 3 日收盘高于 MA5；突破四条（不破关键位、明显缩量、慢跌快涨、有承接）全部满足。
+      judge: 规则把「站上均线 + 四条结构条件」作为候选加仓条件；其有效性必须由时间外回测证明，不能默认成立。
+      act: 在组合约束允许时加仓；超配 / 浮亏超阈值时由覆盖规则降级为持有。
+    exec: 分批进场，回踩 MA5 附近先半仓；止损条件在开仓前确定。
   - id: R-A2
     level: A
     priority: 50
-    name: 站回确认
+    name: 站上MA5确认
     when: {stand_back_days_gte: 2}
     action: HOLD
-    text: 站回MA5满2日
+    text: 收盘站上 MA5 满 2 日（未满 3 日不加仓）
     src: '7879'
     rationale:
-      phen: 站回 MA5 满 2 日。
-      judge: 收盘站稳五均线是回暖确认信号，短线出手胜率回归；但确认未满 3 日或真突破未成立，只持有不加（L1-10）。
-      act: 持有，等待确认。
-    exec: 不加仓；跌破 MA5 当日减，收盘破 MA10 立即降级处理。
+      phen: 连续 2 日收盘高于 MA5。
+      judge: 仅表示短期价格回到 MA5 上方，尚不满足加仓条件。
+      act: 持有，不加仓。
+    exec: 跌破 MA10 当日重新求值并降级。
   - id: R-B1
     level: B
     priority: 20
-    name: 缠绕等待
+    name: 缺确认等待
     when: {always: true}
     action: HOLD
-    text: 均线缠绕或缺确认
+    text: 未命中任何明确条件（兜底：持有等待）
     src: '8231'
     rationale:
-      phen: 均线缠绕或缺确认条件。
-      judge: 5/10/20 缠成一股绳 = 大行情启动或终结前的方向选择期；做的是等主力自证，不是预测（L1-11/INV-1）。
-      act: 持有底仓等待，不动如山。
-    exec: 不动如山；放量出方向再跟，缩量继续等。
+      phen: 未满足任何具有明确阈值的规则。
+      judge: 兜底规则只表示「没有可执行信号」，不代表趋势判断。
+      act: 持有，等待下一交易日重新求值。
+    exec: 不加仓、不减仓。
 
-# ---- S5 简报模板（组合层 → 今日操作清单头部；占位符由渲染端填充）----
+# S5 组合层简报模板
 brief:
-  header_phen: '盘面「{regime}」，建议仓位 {lo}~{hi}%；现在总仓位 {pos}%，{pos_state}；今日要做 {n} 笔'
+  header_phen: '市场状态「{regime}」，仓位区间 {lo}~{hi}%；当前总仓位 {pos}%，{pos_state}；今日待执行 {n} 笔'
   header_judge: '{regime_note}'
-  header_act: '今日推荐：{acts}；先降仓位再调结构（减仓优先）'
-  no_action: '今天没有要动的：全部持有，等均线方向自己走出来（R-B1）'
+  header_act: '今日动作：{acts}；先降风险敞口，再调结构'
+  no_action: '今日无触发动作：全部规则求值为持有，下一交易日重新求值'
 
-# ---- 参考价位生成（动作 → 买入价 / 止损 / 目标价）----
-# 语义铁律（前后端同构，analysis.prices / app.js rulePrice 共同保证）：
-#   buy  买入方向：买入价 < 现价（回踩支撑，不是现价）；止损 < 买入价；目标价 > 现价
-#   sell 卖出方向：卖出价 > 现价（反弹出货，不按现价砸）；硬止损 < 现价；目标价 ≠ 止损
+# 参考价位语义（与 pricing.py 一致）
+#   buy  : entry < 现价（回踩支撑），stop < entry，tp > 现价
+#   sell : entry > 现价（反弹限价），stop < 现价，tp = 现价上方参考阻力
+#   CLEAR: 目标份额 0；只给限价保护与观察阻力，不附普通做多止盈腿
 pricing:
-  ADD:   {side: buy,  entry: pullback_ma5, stop: support_below, tp: target_up}
-  HOLD:  {side: buy,  entry: pullback_ma5, stop: support_below, tp: target_up}
-  WATCH: {side: buy,  entry: pullback_ma5, stop: support_below, tp: target_up}
-  TRIM:  {side: sell, entry: bounce_up,    stop: support_below, tp: target_up}
-  CLEAR: {side: sell, entry: bounce_up,    stop: support_below, tp: target_up}
+  ADD:   {side: buy,  entry: pullback_ma5, stop: support_below, tp: reference_resistance}
+  HOLD:  {side: buy,  entry: pullback_ma5, stop: support_below, tp: reference_resistance}
+  WATCH: {side: buy,  entry: pullback_ma5, stop: support_below, tp: reference_resistance}
+  TRIM:  {side: sell, entry: bounce_up,    stop: support_below, tp: reference_resistance}
+  CLEAR: {side: sell, entry: bounce_up,    stop: null,          tp: null, target_shares: 0}
 
-# ---- 组合层覆盖规则（优先于逐腿 ADD）----
+# 组合层覆盖规则（只作用于 ADD）
 overrides:
   - {id: O-1, name: 超配禁加仓, when: position_pct_gt_regime_hi, demote: ADD->HOLD, src: '3657',
-     text: 总仓位超阶段适配上限，ADD 一律降级 HOLD,
-     rationale: '超配时 A 级加仓先降为持有：先降总仓，后调结构（L4-05）'}
+     text: 总仓位高于阶段区间上限，ADD 降级为 HOLD,
+     rationale: '超配时先降总仓，不新增敞口'}
   - {id: O-2, name: 浮亏禁加仓, when: pnl_pct_lt_-8, demote: ADD->HOLD, src: 'L4-08',
-     text: 单腿浮亏超 -8%，ADD 一律降级 HOLD,
-     rationale: '浮亏超 -8% 先控风险再谈加仓，禁止加仓摊薄（L4-08）'}
+     text: 单腿浮亏超过 -8%，ADD 降级为 HOLD,
+     rationale: '成本价锚定不应驱动加仓；先核对风险预算再决定'}
   - {id: O-3, name: 大浮盈不加仓, when: pnl_pct_gt_30, demote: ADD->HOLD, src: 'L4-09',
-     text: 单腿浮盈超 +30%，ADD 一律降级 HOLD,
-     rationale: '浮盈超 +30% 不追高只持有，到手才是自己的（L4-09）'}
+     text: 单腿浮盈超过 +30%，ADD 降级为 HOLD,
+     rationale: '大额浮盈时不追高，先检查集中度'}
+  - {id: O-4, name: 数据不足不出单, when: data_status_not_ok, demote: any->ABSTAIN, src: 'P0',
+     text: 关键数据缺失 / 陈旧 / 冲突，禁止输出交易动作,
+     rationale: '数据不足不等于持有；状态必须为 ABSTAIN'}
 
-# ---- 市场阶段 → 适配仓位（与 risk.position.regime_fit 同源）----
+# 市场状态 → 适配仓位（由可观测指数序列计算，不使用叙事标签）
 regime_fit:
-  'C杀':            {lo: 30, hi: 40}
-  A杀:              {lo: 30, hi: 40}
-  B反:              {lo: 40, hi: 50}
-  缩量横盘整理:      {lo: 60, hi: 70}
-  主升浪:           {lo: 80, hi: 90}
+  上行趋势:            {lo: 80, hi: 90}
+  震荡区间:            {lo: 60, hi: 70}
+  下行趋势:            {lo: 30, hi: 40}
+  下行趋势 · 波动抬升:  {lo: 20, hi: 30}
+  上行趋势 · 波动抬升:  {lo: 60, hi: 70}
+  未知:                {lo: null, hi: null}
 
-# ---- 五步固化流程（S1-S5，输出结构契约）----
 pipeline:
-  - {step: S1, name: 大盘定仓, output: [regime, fit_lo, fit_hi, position_pct, position_action]}
-  - {step: S2, name: 结构核对, output: [category, current_pct, target_pct, deviation_pct]}
+  - {step: S1, name: 市场定仓, output: [regime, fit_lo, fit_hi, position_pct, position_action]}
+  - {step: S2, name: 结构核对, output: [category, current_pct_of_invested, target_pct_of_invested, deviation_pct]}
   - {step: S3, name: 逐只评级, output: [code, name, level, action, hits]}
-  - {step: S4, name: 动作生成, output: [code, action, entry, stop, tp, rule_ids]}
-  - {step: S5, name: 组合输出, output: [orders, risk_flags, health_score]}
+  - {step: S4, name: 动作生成, output: [code, action, entry, stop, tp, rule_ids, target_weight_pct]}
+  - {step: S5, name: 组合输出, output: [orders, target_shares, portfolio_after, risk_flags]}
 
-# 情绪周期参考（横切维度，指数级使用）
 sentiment_cycle: [亢奋, 分歧, 退潮, 冰点, 回暖, 再亢奋]

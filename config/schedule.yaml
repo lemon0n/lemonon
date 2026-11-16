@@ -13,11 +13,18 @@ channels:
   agent:
     enabled: true
     command: 'python3 scripts/run_update.py'
+    verify: 'python3 scripts/run_update.py --verify'
   github_actions:
     enabled: true
     workflow: '.github/workflows/daily.yml'
     cron: '50 22 * * 0-4'         # UTC 22:50 = 北京 06:50（每个交易日盘前）
-    artifacts: [web/index.html, data/last_run.json]
+    artifacts: [web/index.html, web/analysis_packet.json, data/last_run.json]
+
+# 运行状态：只有 OK 才能发布研究性方案；ABSTAIN / DEMO 不得输出交易动作。
+# 详细判定见 docs/每日运行说明.md。
+status_policy:
+  publishable: [OK, DEGRADED]
+  no_trade: [ABSTAIN, DEMO, ERROR]
 
 # 页面「刷新行情」按钮只更新价格（免费 JSONP），不重算指标。
 # 指标（均线/分诊/条件单）必须由脚本重跑，两者语义不同，不要混淆。

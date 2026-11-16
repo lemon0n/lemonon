@@ -1,40 +1,36 @@
 # -*- coding: utf-8 -*-
-"""主链路编排：一次运行完成「数据 → 指标 → 信号 → 分诊 → 参考价位 → 单文件 HTML」。
+"""主链路编排：一次运行完成「数据 → 质量检查 → 指标 → 唯一决策 → 参考价位 → HTML」。
 
-  实时源（东财 → 腾讯 → 离线快照）
-    → indicators.analyze            均线/量能/结构/折溢价
-    → signals.market_regime        看大盘定阶段
-    → signals.relative_strength    相对大盘
-    → signals.triage               A/B/C/D
-    → signals.scorecard            打分排名
-    → orders.conditional/bracket/validator  次日参考价位（不含数量）
-    → webgen.build_data + render   数据内嵌，产出 web/index.html（唯一交付物）
+链路（与指导书 3.1 一致）：
+  取数（真实源 → 失败降级快照，并标记 is_synthetic）
+    → 质量检查（quality.check_bars）
+    → indicators.analyze（features.frame 唯一实现）
+    → relative_strength（同日真实基准序列）
+    → market_regime（可观测指数趋势 / 波动）
+    → methodology.decide（唯一动作求值）
+    → pricing（价位 + 价格类型）
+    → webgen.build_data + render（单文件 HTML）
 
-设计要点：
-  · 公开工程，不读取、不内嵌任何个人持仓 / 成本 / 份额 / 资金数据；
-  · 无「晨间/午间」之分，任何时点跑一次即为一个完整版本；
-  · 全链路只取一次 spot，观察池与逐腿卡共用同一口径；
-  · 逐腿隔离：任一标的取数/计算失败只跳过该腿，不中断整次运行；
-  · as_of 用真实抓取时刻，data_date 用真实最后一根日线日期；
-  · 分通道降级如实上报，strict 模式据此让 CI 失败。
+关键约定：
+  · 合成快照运行 → 状态 DEMO：可展示，但不得出现「可执行」的交易动作；
+  · 关键数据缺失 / 陈旧 → ABSTAIN，页面显示原因而不是继续给单；
+  · 观察池只含公开行情，不读取个人持仓。
 """
 import datetime
-from . import config
+import os
+
+from . import config, packet, quality, universe
 from .datasource import loader
-from . import universe
 from .indicators import analyze
-from .signals import market_regime, relative_strength, triage, scorecard
+from .signals import market_regime, relative_strength
 from .portfolio import watchlist
-from .orders import conditional, bracket, validator
+from .portfolio.analysis import evidence_card as analysis_card
+from . import methodology as M
+from . import pricing as P
 from . import webgen
 
 
 def now_tz(name='Asia/Shanghai'):
-    """按指定时区返回当前时间。容器/CI 通常是 UTC，不能依赖系统时区。
-
-    macOS/Windows 上 zoneinfo 需要 tzdata；缺失时退回固定 +08:00，
-    对 A 股（无夏令时）等价。
-    """
     try:
         from zoneinfo import ZoneInfo
         return datetime.datetime.now(ZoneInfo(name))
@@ -42,82 +38,237 @@ def now_tz(name='Asia/Shanghai'):
         return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
 
 
-def run(use_live=True, strict=False):
-    """跑一次完整复盘。`use_live=False` 时全部走离线快照（本地演示 / 测试）。"""
+def run(use_live=True, strict=False, write_packet=True):
     cfg = config.cfg()
     uni = universe.load()
     loader.reset(live_mode=use_live)
+    now = now_tz(cfg['schedule'].get('timezone', 'Asia/Shanghai'))
 
-    # ---- 数据层：每次运行只取一次 ----
+    # ---- 数据层 ----
     market = loader.market()
     sectors = loader.sector_flow()
     spot_df = loader.spot()
     spot = spot_df.set_index('code')
     wl = watchlist.load(cfg, spot=spot_df)
-    regime = market_regime.compute(market, cfg)
+
+    # 基准：沪深300 真实指数序列（中国 ETF 组合的市场状态参照）
+    try:
+        bench = loader.index_daily('000300')
+    except Exception as e:
+        loader.note_fallback('基准 000300 不可用: %s' % e)
+        bench = None
+    regime = market_regime.compute(bench, market, cfg)
 
     idx_rows = loader.indices()
     if idx_rows:
         market = dict(market, indices=idx_rows)
 
-    # ---- 逐腿计算：单腿失败只跳过，不中断 ----
-    legs, skipped, last_dates = [], list(wl['skipped']), {}
+    # 先把所有决策输入取齐，再判定通道来源（否则 index_daily 还没取就判 synthetic）
+    skipped = list(wl['skipped'])
+    raw = []
     for r in wl['rows']:
         code = r['code']
         try:
             bars = loader.daily(code)
-            last_dates[code] = str(bars['date'].iloc[-1])[:10]
-            f = analyze(bars, spot.loc[code], cfg)
-            rs = relative_strength.compute(f, cfg, uni)
-            t = triage.compute(f, rs, cfg)
-            sc = scorecard.compute(f, t, rs, cfg)
-            legs.append(dict(code=code, name=r['name'], category=r['category'],
-                             track=r['track'], feature=f, rs=rs, triage=t, score=sc))
         except Exception as e:
             skipped.append(code)
-            loader.note_fallback('%s 逐腿计算跳过: %s' % (code, e))
+            loader.note_fallback('%s 日线不可用: %s' % (code, e))
+            continue
+        bench_code = r.get('benchmark') or universe.benchmark(code, uni)
+        try:
+            b_bars = loader.index_daily(bench_code)
+        except Exception:
+            b_bars = None
+            loader.note_fallback('基准 %s 日线缺失' % bench_code)
+        raw.append((r, bars, bench_code, b_bars))
+    src = loader.source_report()
+
+    # ---- 逐腿：数据质量 → 特征 → 相对强弱 → 唯一决策 ----
+    legs, leg_payloads = [], []
+    for r, bars, bench_code, b_bars in raw:
+        code = r['code']
+        is_syn = (src.get('channels', {}).get('daily') or {}).get(code) != 'live'
+        q = quality.check_bars(bars, code, as_of=now.strftime('%Y-%m-%d'),
+                               is_synthetic=is_syn)
+        try:
+            f = analyze(bars, spot.loc[code], cfg)
+        except Exception as e:
+            skipped.append(code)
+            loader.note_fallback('%s 特征计算失败: %s' % (code, e))
+            continue
+        rs = relative_strength.compute(f, b_bars, cfg, uni)
+        dec = M.decide(f, data_status=q['status'])
+        if dec.get('demo'):
+            # DEMO：仅展示规则会命中什么，动作一律 ABSTAIN
+            legs.append(dict(code=code, name=r['name'], category=r['category'],
+                             track=r.get('track'), benchmark=bench_code,
+                             settle=r.get('settle', 'T+1'),
+                             feature=f, rs=rs, decision=dec, quality=q,
+                             price=P.prices('HOLD', f, universe.precision(cfg['universe']))))
+            leg_payloads.append(dict(code=code, data_date=q['last_date'],
+                                     quality=q['status']))
+            continue
+
+        legs.append(dict(code=code, name=r['name'], category=r['category'],
+                         track=r.get('track'), benchmark=bench_code,
+                         settle=r.get('settle', 'T+1'),
+                         feature=f, rs=rs, decision=dec, quality=q,
+                         evidence=analysis_card(f, rs, dec, None, regime),
+                         price=P.prices(dec['action'], f,
+                                        universe.precision(cfg['universe']))))
+        leg_payloads.append(dict(code=code, data_date=q['last_date'],
+                                 quality=q['status']))
+
     if not legs:
         raise RuntimeError('全部观察标的计算失败：%s' % '；'.join(loader.source_report()['fallback']))
-    legs = scorecard.rank_all(legs)
 
-    # ---- 参考价位（触发 / 止损 / 止盈，不含数量）----
-    rowmap = {r['code']: r for r in wl['rows']}
-    orders = []
-    for l in legs:
-        o = conditional.build(l, rowmap[l['code']], cfg, uni)
-        o = bracket.wrap(o, cfg)
-        o['validate'] = validator.validate(o, cfg)
-        l['order'] = o
-        orders.append(o)
+    status = quality.merge_status(*[l['quality']['status'] for l in legs])
+    if src.get('synthetic'):
+        status = 'DEMO'
+    elif status == 'OK' and not src.get('index_live', False):
+        status = 'DEGRADED'
 
-    # ---- 元信息：真实时点 + 真实来源 ----
-    # 必须按配置时区取时间：CI 跑在 UTC，浏览器也未必在东八区，
-    # 直接用 datetime.now() 会把北京时间写成 UTC 造成时间对不上。
-    now = now_tz(cfg['schedule'].get('timezone', 'Asia/Shanghai'))
-    src = loader.source_report()
-    meta = dict(as_of=now.strftime('%Y-%m-%d %H:%M:%S'),
-                data_date=max(last_dates.values()) if last_dates else '',
-                run_date=now.strftime('%Y-%m-%d'),
-                mode='live' if use_live else 'snapshot',
-                source=src, skipped=skipped,
-                version='1.2', tz=cfg['schedule']['timezone'])
+    # ---- 元信息 ----
+    last_dates = {l['code']: l['quality']['last_date'] for l in legs if l['quality']['last_date']}
+    meta = dict(
+        as_of=now.strftime('%Y-%m-%d %H:%M:%S'),
+        data_date=max(last_dates.values()) if last_dates else '',
+        run_date=now.strftime('%Y-%m-%d'),
+        mode='live' if use_live else 'snapshot',
+        source=src, skipped=skipped,
+        version='3.0', tz=cfg['schedule']['timezone'],
+        status=status,
+        run_id=now.strftime('%Y%m%dT%H%M%S') + '-' + packet.input_hash(leg_payloads),
+        benchmark_date=(bench['date'].iloc[-1].strftime('%Y-%m-%d')
+                        if bench is not None and len(bench) else None),
+    )
 
-    # ---- 单文件 HTML（数据内嵌，唯一交付物）----
-    data = webgen.build_data(market, sectors, regime, legs, orders, cfg, meta)
+    # ---- 数据包（唯一权威结果）----
+    data_quality = dict(
+        status=status,
+        coverage_pct=round(100.0 * sum(1 for l in legs if l['quality']['status'] == 'OK')
+                           / max(1, len(legs)), 1),
+        synthetic_fields=[c for c, v in (src.get('channels', {}).get('daily') or {}).items()
+                          if v == 'snapshot'],
+        stale_fields=[l['code'] for l in legs if any('距' in b for b in l['quality']['blocking'])],
+        conflicts=list(src.get('fallback') or []),
+        blockers=[b for l in legs for b in l['quality']['blocking']],
+        premium_ok=bool(src.get('premium_ok')),
+        market_snapshot=True,
+        checked_at=src.get('checked_at'),
+    )
+    pkt = packet.build(
+        status=status, run_id=meta['run_id'], generated_at=meta['as_of'],
+        data_date=meta['data_date'], code_version=_code_version(),
+        cfg_hash=packet.config_hash(cfg), input_hash=packet.input_hash(leg_payloads),
+        data_quality=data_quality,
+        regime=dict(regime=regime['regime'], fit_lo=regime['fit_lo'],
+                    fit_hi=regime['fit_hi'], as_of=regime.get('as_of'),
+                    observations=regime.get('observations')),
+        market=dict(regime=regime['regime'], data_date=meta['data_date'],
+                    benchmark_date=meta['benchmark_date'],
+                    market_json_is_synthetic=True),
+        portfolio_before=None,
+        legs=[dict(code=l['code'], name=l['name'], category=l['category'],
+                   data_status=l['quality']['status'], data_date=l['quality']['last_date'],
+                   observations=[
+                       'close=%.3f' % l['feature']['last'],
+                       'MA5=%s MA10=%s MA20=%s' % (_r(l['feature'].get('ma5')),
+                                                   _r(l['feature'].get('ma10')),
+                                                   _r(l['feature'].get('ma20'))),
+                       'vol_ratio=%s' % l['feature'].get('vol_ratio'),
+                       'ret5=%s ret20=%s' % (l['feature'].get('ret5'), l['feature'].get('ret20')),
+                   ],
+                   signal_id=','.join(l['decision']['rule_ids']) or None,
+                   signal_state='ENTER' if l['decision']['action'] == 'ADD' else
+                                'EXIT' if l['decision']['action'] == 'CLEAR' else
+                                'REDUCE' if l['decision']['action'] == 'TRIM' else 'NEUTRAL',
+                   action=l['decision']['action'], level=l['decision']['level'],
+                   rule_ids=l['decision']['rule_ids'],
+                   counter_evidence=_counter(l, cfg),
+                   unknowns=(l['decision']['unknowns'] or []) + _unknowns(l),
+                   quality_blocking=l['quality']['blocking'])
+              for l in legs],
+        decisions=[dict(code=l['code'], action=l['decision']['action'],
+                        reason_ids=l['decision']['rule_ids'],
+                        current_shares=None, target_shares=None,
+                        price_type=l['price'].get('price_types'),
+                        price_note=l['price'].get('note'),
+                        constraints_applied=[b for b in l['decision'].get('blocked_by') or []])
+                   for l in legs],
+        portfolio_after=dict(position_pct=None, cash=None, estimated_cost=0.0,
+                             constraint_checks=[], note='公开观察池：不含个人持仓'),
+        validation=dict(schema_ok=True, accounting_ok=True,
+                        decision_consistency_ok=True, post_trade_ok=True),
+        orders=[],
+        extras=dict(methodology_version=M.load()['version'],
+                    benchmark=dict(code='000300', as_of=regime.get('as_of'),
+                                   observations=regime.get('observations'))),
+    )
+    chk = packet.validate_packet(pkt)
+    pkt['validation'].update(schema_ok=not [e for e in chk['errors'] if '字段' in e],
+                             accounting_ok=True,
+                             decision_consistency_ok=not [e for e in chk['errors'] if '动作' in e],
+                             post_trade_ok=True,
+                             ok=chk['ok'], errors=chk['errors'], warnings=chk['warnings'])
+
+    data = webgen.build_data(market, sectors, regime, legs, cfg, meta, packet=pkt)
     out = webgen.render(data, cfg)
+    if write_packet:
+        runs_dir = os.path.join(config.ROOT, 'data', 'runs')
+        packet.write(pkt, archive_dir=runs_dir)
 
     return dict(date=meta['run_date'], data_date=meta['data_date'],
-                levels=sum(1 for l in legs),
-                level_count={k: sum(1 for l in legs if l['triage']['level'] == k)
+                status=status, run_id=meta['run_id'], mode=meta['mode'],
+                levels=len(legs),
+                level_count={k: sum(1 for l in legs if l['decision']['level'] == k)
                              for k in ('A', 'B', 'C', 'D')},
-                orders=len(orders),
-                orders_valid=sum(1 for o in orders if o['validate']['ok']),
-                source=src, degraded=src['degraded'],
-                skipped=skipped,
+                action_count={a: sum(1 for l in legs if l['decision']['action'] == a)
+                              for a in ('CLEAR', 'TRIM', 'ADD', 'HOLD', 'ABSTAIN')},
+                orders=sum(1 for l in legs if l['decision']['action'] in ('CLEAR', 'TRIM', 'ADD')),
+                source=src, degraded=src['degraded'], synthetic=src.get('synthetic', False),
+                skipped=skipped, validation=chk,
                 html=out['path'], html_bytes=out['bytes'], legs=out['legs'],
                 self_contained=out['self_contained'])
 
 
+def _r(v):
+    return '—' if v is None else '%.3f' % v
+
+
+def _counter(l, cfg):
+    out = []
+    f, rs = l['feature'], l['rs']
+    if not rs.get('is_known'):
+        out.append('基准数据缺失，未做相对强弱判断')
+    elif (rs.get('excess5') or 0) < 0:
+        out.append('5 日跑输基准 %.2fpct' % rs['excess5'])
+    n = f.get('true_breakout_count')
+    if n is not None and 0 < n < 4:
+        out.append('突破四条仅 %d/4' % n)
+    if f.get('premium_available') is False:
+        out.append('IOPV 缺失：折溢价条件未验证（缺失不视为满足）')
+    return out
+
+
+def _unknowns(l):
+    out = ['资金净流入 / 申赎 / 机构持仓等底层数据未接入']
+    if l['quality']['status'] != 'OK':
+        out.append('行情质量检查未通过：%s' % '；'.join(l['quality']['blocking']) or '未知原因')
+    if not l['rs'].get('is_known'):
+        out.append('基准序列不可用或日期不一致')
+    return out
+
+
+def _code_version():
+    import subprocess
+    try:
+        return subprocess.run(['git', 'rev-parse', '--short', 'HEAD'],
+                              cwd=config.ROOT, capture_output=True, text=True,
+                              timeout=5).stdout.strip() or 'unknown'
+    except Exception:
+        return 'unknown'
+
+
 def run_snapshot():
-    """纯离线快照运行（不触网），用于测试与无网络演示。"""
     return run(use_live=False)

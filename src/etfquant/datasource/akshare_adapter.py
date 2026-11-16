@@ -18,6 +18,7 @@
 免费性说明：以上端点均为公开 HTTP 接口，零 token、零费用；但属非官方授权接口，
 无 SLA、字段可能随源站改版变化，仅供学习研究使用，实盘以交易所/券商数据为准。
 """
+import datetime
 import time
 import requests
 import pandas as pd
@@ -89,24 +90,44 @@ def _tencent_symbol(code):
 
 
 # ---------------------------------------------------------------- 日线
-def fetch_daily(code):
+def _drop_unclosed_today(df):
+    """剔除当日未收盘 K 线（指导书 4.4：未收盘 K 线不进入日频收盘信号）。
+
+    东财 / 腾讯 / 新浪三个通道都会在盘中返回「今日」这根尚未走完的 K 线，
+    若直接参与计算，量比会变成 0.13 这种明显失真的值。规则：
+    北京时间 15:05 之前，丢弃日期等于今天的行。
+    """
+    if df is None or len(df) == 0:
+        return df
+    now = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+    if now.hour > 15 or (now.hour == 15 and now.minute >= 5):
+        return df
+    today = now.strftime('%Y-%m-%d')
+    out = df[df['date'].astype(str).str[:10] != today]
+    return out.reset_index(drop=True)
+
+
+def fetch_daily(code, n=1200):
     """日线（东财 → 腾讯 → 新浪）。返回 BAR_COLS；全部失败返回 None。
 
+    n 为期望根数：回测需要覆盖训练/验证/测试三段历史，默认取 1200 根
+    （约 5 年交易日），生产链路也多这几百根、代价很低。
     注意：volume 统一为「份」（ETF 交易单位），amount 无法统一时置 0。
     """
     global LAST_DAILY_SOURCE
     df = _daily_akshare(code)
     if df is not None:
         LAST_DAILY_SOURCE = 'akshare'
-        return df
-    df = fetch_daily_tencent(code)
+        return _drop_unclosed_today(df)
+    df = fetch_daily_tencent(code, n=n)
     if df is not None:
         LAST_DAILY_SOURCE = 'tencent'
-        return df
-    df = fetch_daily_sina(code)
+        return _drop_unclosed_today(df)
+    df = fetch_daily_sina(code, n=n)
     if df is not None:
         LAST_DAILY_SOURCE = 'sina'
-    return df
+        return _drop_unclosed_today(df)
+    return None
 
 
 def _daily_akshare(code):
@@ -115,7 +136,7 @@ def _daily_akshare(code):
         return None
     # 滚动窗口而非写死起始日：保证任何时点都有 >=120 根，且不随年份推移失效
     end = pd.Timestamp.today()
-    start = end - pd.Timedelta(days=500)
+    start = end - pd.Timedelta(days=1900)     # 约 5 年，覆盖回测三段区间
     def call():
         df = ak.fund_etf_hist_em(symbol=str(code).zfill(6), period='daily',
                                  start_date=start.strftime('%Y%m%d'),
@@ -135,7 +156,7 @@ def _daily_akshare(code):
     return _retry(call)
 
 
-def fetch_daily_tencent(code, n=400):
+def fetch_daily_tencent(code, n=1200):
     """腾讯前复权日线兜底。返回 BAR_COLS；失败返回 None。
 
     返回行格式 [日期, 开, 收, 高, 低, 成交量(手)]，无成交额 →
@@ -163,7 +184,7 @@ def fetch_daily_tencent(code, n=400):
     return df[['date', 'open', 'high', 'low', 'close', 'volume', 'amount']]
 
 
-def fetch_daily_sina(code, n=400):
+def fetch_daily_sina(code, n=1200):
     """新浪日线兜底（腾讯被 WAF 拦截时的第三通道）。
 
     返回行形如 {'day','open','high','low','close','volume'}；volume 已是「份」，
@@ -186,6 +207,53 @@ def fetch_daily_sina(code, n=400):
         return None
     df = pd.DataFrame(rec)
     return df[['date', 'open', 'high', 'low', 'close', 'volume', 'amount']]
+
+
+# ---------------------------------------------------------------- 基准指数日线
+INDEX_DAILY_SYMBOLS = {
+    '000300': 'sh000300', '000905': 'sh000905',
+    '399006': 'sz399006', '000688': 'sh000688',
+}
+
+
+def fetch_index_daily(code, n=700):
+    """基准指数日线（腾讯 → 新浪）。返回 BAR_COLS；失败返回 None。
+
+    相对强弱必须由同日指数 K 线计算，不能再用预置的固定区间收益。
+    """
+    code = str(code)
+    sym = INDEX_DAILY_SYMBOLS.get(code) or _tencent_symbol(code)
+    js = _http_json('https://web.ifzq.gtimg.cn/appstock/app/fqkline/get'
+                    '?param=%s,day,,,%d,qfq' % (sym, n), times=1)
+    rows = []
+    if js and js.get('code') in (0, '0'):
+        node = (js.get('data') or {}).get(sym) or {}
+        arr = node.get('qfqday') or node.get('day') or []
+        for a in arr:
+            if len(a) < 6:
+                continue
+            try:
+                rows.append(dict(date=a[0], open=float(a[1]), close=float(a[2]),
+                                 high=float(a[3]), low=float(a[4]),
+                                 volume=float(a[5]), amount=0.0))
+            except (TypeError, ValueError):
+                continue
+    if not rows:
+        js = _http_json('https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/'
+                        'CN_MarketData.getKLineData?symbol=%s&scale=240&ma=no&datalen=%d'
+                        % (sym, n), times=1)
+        for a in (js if isinstance(js, list) else []):
+            try:
+                rows.append(dict(date=a['day'], open=float(a['open']), close=float(a['close']),
+                                 high=float(a['high']), low=float(a['low']),
+                                 volume=float(a['volume']), amount=0.0))
+            except (KeyError, TypeError, ValueError):
+                continue
+    if len(rows) < 30:
+        return None
+    df = pd.DataFrame(rows).drop_duplicates(subset='date').sort_values('date')
+    return _drop_unclosed_today(df[['date', 'open', 'high', 'low', 'close',
+                                    'volume', 'amount']])
 
 
 # ---------------------------------------------------------------- 实时行情

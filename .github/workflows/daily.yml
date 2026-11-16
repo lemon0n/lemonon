@@ -1,21 +1,21 @@
 name: 每日更新
 
 # 每个交易日北京 06:50 自动跑一版（UTC 22:50 前一天），
-# 也支持在 GitHub 页面点「Run workflow」或让 agent 调用 workflow_dispatch 立即跑一版。
+# 也支持在 GitHub 页面点「Run workflow」立即跑一版。
 # 说明：GitHub 免费版 cron 在高峰期可能延迟 10~30 分钟；06:50 触发是为了
-# 在 09:30 开盘前留足余量。若那次失败，下面的重试步骤会自动再试 2 次。
+# 在 09:30 开盘前留足余量。失败会自动重试 3 次。
 
 on:
   schedule:
-    - cron: '50 22 * * 0-4'      # UTC 22:50 = 北京 06:50（每个交易日盘前）
+    - cron: '50 22 * * 0-4'
   workflow_dispatch:
     inputs:
       strict:
-        description: '严格模式：任一关键通道降级就判失败'
+        description: '严格模式：状态非 OK（降级/弃权/演示）就判失败'
         required: false
         default: 'false'
   push:
-    branches: [main]             # 页面「保存到云端」写入密文后自动重新发布
+    branches: [main]
 
 concurrency:
   group: etf-daily-update
@@ -29,7 +29,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -38,10 +38,14 @@ jobs:
           python-version: '3.11'
           cache: pip
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'          # 决策契约测试需要 node 对拍前端规则引擎
+
       - name: 安装依赖
         run: pip install -r requirements.txt
 
-      - name: 单元测试（不触网，先挡住逻辑回归）
+      - name: 单元测试（不触网，先挡住逻辑与契约回归）
         run: python -m pytest tests/ -q
 
       - name: 生成当日决策（实时取数，失败自动降级）
@@ -52,22 +56,30 @@ jobs:
             echo "--- 第 $i 次尝试 ---"
             python scripts/run_update.py --json > run.json
             code=$?
-            if [ "$code" = "0" ]; then break; fi
+            if [ "$code" = "0" ] || [ "$code" = "4" ]; then break; fi
             echo "退出码 $code，60 秒后重试"
             sleep 60
           done
           python - <<'PY'
           import json
           d = json.load(open('run.json'))
-          print('数据日期', d.get('data_date'), '| 来源',
-                '实时' if not d.get('degraded') else '降级')
-          print('标的', d.get('levels'), '| 参考价位',
-                d.get('orders_valid'), '/', d.get('orders'))
-          open('summary.md', 'w', encoding='utf-8').write(
-              '数据日期 %s · 来源 %s · 标的 %s 只 · 参考价位 %s/%s\n\n降级明细：\n%s\n'
-              % (d.get('data_date'), '实时' if not d.get('degraded') else '降级',
-                 d.get('levels'), d.get('orders_valid'), d.get('orders'),
-                 '\n'.join('- ' + x for x in d.get('source', {}).get('fallback', [])) or '- 无'))
+          status = d.get('status')
+          val = d.get('validation') or {}
+          lines = [
+            '状态 %s · 数据日 %s · 来源 %s' % (
+                status, d.get('data_date'),
+                '实时' if not d.get('degraded') else '降级'),
+            '标的 %s 只 · 动作 %s' % (d.get('levels'), d.get('action_count')),
+            '发布前校验：%s' % ('通过' if val.get('ok') else '未通过'),
+          ]
+          if val.get('errors'):
+              lines.append('校验错误：' + '；'.join(val['errors']))
+          fb = (d.get('source') or {}).get('fallback') or []
+          if fb:
+              lines.append('降级明细：')
+              lines += ['- ' + x for x in fb]
+          open('summary.md', 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
+          print('\n'.join(lines))
           PY
           cat summary.md >> $GITHUB_STEP_SUMMARY
           exit $code
@@ -76,12 +88,11 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/index.html data/last_run.json
+          git add web/index.html web/analysis_packet.json data/last_run.json
           if git diff --cached --quiet; then
             echo "无变化，跳过提交"
           else
             git commit -m "chore: 每日更新 $(date -u '+%Y-%m-%d %H:%M UTC')"
-            # 若期间有人手动推送，先 rebase 再推，最多重试 3 次
             for i in 1 2 3; do
               if git push; then exit 0; fi
               echo "推送被拒，拉取远端后重试（第 $i 次）"
@@ -90,13 +101,16 @@ jobs:
             exit 1
           fi
 
-      - name: 归档单文件 HTML
+      - name: 归档产物
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: etf-dashboard-${{ github.run_number }}
           path: |
             web/index.html
+            web/analysis_packet.json
             data/last_run.json
+            run.json
           retention-days: 30
 
   deploy:
@@ -108,7 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}      # 取上一步刚提交的产物
+          ref: ${{ github.ref }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,30 +1,47 @@
-# 市场阶段适配仓位 / 止损与价位规则（公开版不含组合层与个人仓位）
+# 组合与交易约束（公开版：只给市场风险预算，不含个人资金数据）
+# 命名规则：凡是分母不同的权重，字段名必须写清楚：
+#   *_of_invested = 占已投资市值
+#   *_of_assets   = 占含现金总资产
 position:
-  regime_fit:                     # 市场阶段 → 适配仓位区间（只作市场判断，不是个人持仓建议）
-    'C杀':            [30, 40]
-    缩量横盘整理:       [60, 70]
-    主升浪:            [80, 90]
-    A杀:               [30, 40]
-    B反:               [40, 50]
-  current_regime: 缩量横盘整理
-  test_layers: [3, 4]
-  test_layer_pct: 10
+  # 可观测市场状态 → 仓位区间（由基准指数趋势 / 波动计算，不再使用叙事标签）
+  regime_fit:
+    上行趋势:            {lo: 80, hi: 90}
+    震荡区间:            {lo: 60, hi: 70}
+    下行趋势:            {lo: 30, hi: 40}
+    下行趋势 · 波动抬升:  {lo: 20, hi: 30}
+    上行趋势 · 波动抬升:  {lo: 60, hi: 70}
+    未知:                {lo: null, hi: null}
 
 stop:
   hard_rule: true
   buy_point_1_ma: 10
   buy_point_2_ma: 5
-  reduce_priority: true           # 减仓优先于选股
+  reduce_priority: true
 
-# 类别占比参考值（%），只用于页面对照，不是投资建议
-structure_target:
+# 类别结构参考：分母 = 已投资市值（不含现金），合计 100
+# 组合约束（现金下限、总仓位上限）另见 constraints，不要混用分母。
+structure_target_of_invested:
   宽基: 50
   行业: 25
   债券: 15
   黄金: 5
   海外: 5
 
-orders:
-  default_bracket: true
-  oco: true
-  max_orders_per_leg: 1
+# 组合硬约束（任一不满足，目标方案不得发布）
+constraints:
+  max_single_weight_pct: 25          # 单只占含现金总资产上限
+  max_category_weight_pct: 60        # 单一类别占含现金总资产上限
+  min_cash_pct: 5                    # 最低现金缓冲（占总资产）
+  max_legs: 8
+  lot_size: 100
+  commission_bps: 0.5                # 单边佣金（万 0.5）
+  min_commission_cny: 5.0            # 券商最低佣金；小资金组合影响显著
+  slippage_bps: 1.0                  # 一跳滑点假设（情景，不保证成交）
+  t_plus: 1
+
+# 目标权重政策（先把动作翻译成目标权重，再算目标份额）
+execution:
+  trim_ratio: 0.5                    # TRIM：减到当前权重的一半
+  add_step_pct: 5                    # ADD：单次加仓步长（占总资产）
+  rebalance_band_pct: 2              # 不换仓带：偏离小于该值不交易
+  clear_target: 0                    # CLEAR：目标权重 0（不是「反弹再卖」的价差博弈）

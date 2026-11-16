@@ -1,73 +1,52 @@
-# 策略阈值参数（五均线 / 量能 / 结构 / 分诊 / 打分）
+# 策略阈值参数（均线 / 量能 / 结构 / 分诊 / 打分）
 # 规则文本与出处统一维护在 config/methodology.yaml（蒸馏规则卡）。
+# 指标实现唯一来源：src/etfquant/features.py（生产与回测共用）。
 ma:
   periods: [5, 10, 20, 60, 120]
-  stand_back: 收盘价 > MA5                    # 短期回暖确认
-  add_requires_days_above_ma5: 3            # 五均线上三日才可考虑加仓 (7879/7681)
-  stop_ma: 10                               # 买点一止损十均线（主力成本）
-  stop_consecutive_days: 1                  # 连续收盘低于MA10即执行（回测优化：2→1，R3 样本内夏普 0.88 / 样本外 1.01）
-  stop_buy2_ma: 5                           # 买点二止损五均线
-  tangle_atr_pct: 0.012                     # 5/10/20 聚集缠绕阈值
-  cross_signal: MA5 上穿 MA20                # 趋势扭转信号 (8231)
+  stand_back: 收盘价 > MA5
+  add_requires_days_above_ma5: 3
+  stop_ma: 10
+  # 回退到方法论默认 2 日：此前的「1 日」由已被撤回的回测选参而来（见 docs/回测报告.md），
+  # 在时间外验证完成前不再沿用该优化值。
+  stop_consecutive_days: 2
+  stop_buy2_ma: 5
+  tangle_atr_pct: 0.012
+  cross_signal: MA5 上穿 MA20
 
 breakout:
-  true_all_of:                              # 真突破四条（须全中）
+  true_all_of:
     - 不破关键位
     - 明显缩量
     - 慢跌快涨
-    - 有承接（下影线/小阳线/连续不破低）
-  false_if: [放量下跌, 跌破重要均线]          # 假突破 = 出货
-  shrink_ratio: 0.80                        # 量比 < 0.8 判明显缩量
-  expand_ratio: 1.30                        # 量比 > 1.3 判放量
+    - 有承接
+  false_if: [放量下跌, 跌破重要均线]
+  shrink_ratio: 0.80
+  expand_ratio: 1.30
   main_cost_ma: 10
-  abandon_ma: 20                            # 跌破 20 日线 = 主力放弃
+  abandon_ma: 20
 
 cycle:
   fib: [0.382, 0.618]
-  phases: [A杀, B反, C杀, 缩量横盘整理, 主升浪]
-  c_kill_confirm: 跌破 A 浪最低点
 
-# A/B/C/D 分诊：命中任一触发项即入该级，优先级 D > C > A > B
 triage:
-  D:
-    - 连两日收盘在 MA10 下方
-    - 放量下跌破 MA20
-    - 无业绩纯题材 且 板块破位新低
-    - 假突破成立
-  C:
-    - 跌破 MA5
-    - 放量滞涨 / 冲高回落
-    - 折溢价偏高
-    - 板块首轮分歧
-  A:
-    - 收盘站回 MA5 且 站上三日
-    - 缩量回踩不破关键位
-    - 先于大盘企稳
-    - 真突破四条全中
-  B:
-    - 均线缠绕 / 缩量整理
-    - 趋势未破坏但缺确认
-    - 等待 MA5 上穿 MA20
+  # 分诊阈值全部由 config/methodology.yaml 的规则卡定义；这里只保留展示用文案
+  levels: [D, C, A, B]
 
 score:
+  # 量能特征分（只由量比与缩量回踩构成，不冒充资金流向）
   weights: {momentum: 0.30, fund: 0.25, trend: 0.30, premium: 0.15}
   premium_penalty_threshold_pct: 1.0
 
-# 回测优选参数（3 轮优化 + 双随机样本验证，详见 回测报告.md；引擎 DEFAULT_PARAMS 同源）
-# 最终选定 R3 = 更严止损（MA10 止损 1 日）+ 更早进场（站回 MA5 满 2 日）+ 仓位上限 6腿×15%
-# 样本内（seed=7，8 只）：年化 6.01% / 回撤 -5.79% / 夏普 0.88 / 超额 +17.04%（基准 3.29%）
-# 样本外（seed=42，另 8 只）：年化 6.04% / 回撤 -4.29% / 夏普 1.01 / 卡玛 1.41 / 超额 +17.15% / 胜率 74.7%
-# 说明：回测用固定仓位上限近似阶段适配仓位；实盘层仓位仍按 regime_fit（30~90%）随阶段调整。
+# 回测参数：仅保留成本与执行假设；信号本身必须来自生产规则卡，不再在此维护「简化版策略」。
+# 旧 3 轮优化结果已按指导书 P0-1 撤回，见 docs/回测报告.md 的冻结说明。
 backtest:
-  entry_days_above_ma5: 2
-  stop_days_below_ma10: 1
-  entry_need_ma10: true
-  entry_need_bull: false
-  stop_break_ma20: true
-  trim_shadow_pct: 2.0
-  tp_pos_pct: 0.93
-  shrink_ratio: 0.80
-  expand_ratio: 1.30
-  leg_weight_pct: 15.0
-  max_legs: 6
+  start: '2023-01-01'
+  end: '2026-11-12'
+  initial_cash: 100000.0
   fee_bps: 0.5
+  min_commission_cny: 5.0
+  slippage_bps: 1.0
+  lot_size: 100
+  max_legs: 6
+  leg_weight_pct: 15.0
+  warmup_bars: 130

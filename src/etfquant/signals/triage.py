@@ -1,103 +1,37 @@
 # -*- coding: utf-8 -*-
-"""A/B/C/D 分诊引擎（核心）—— 规则卡驱动，优先级 D > C > A > B。
+"""分诊：不再维护第二套 A/B/C/D 逻辑。
 
-每条命中项 = {规则编号, 条件文本, 出处}，规则定义在 config/methodology.yaml，
-与前端 D.methodology、portfolio/analysis 共用同一事实源，无手写叙述句。
+历史问题（指导书 P0-03）：triage.py 与 methodology.py 各写一套动作求值，
+同一形态在持仓报告与观察池里可能得到不同等级。现在本模块只做两件事：
+
+  1. 调用唯一决策函数 methodology.decide()；
+  2. 把结果包装成前端 / 报告需要的展示字段（风险标签、周期位置、突破状态）。
+
+任何「先算等级再猜动作」的分支都已删除。
 """
-from .. import config
 from .. import methodology as M
 
 
-def _hit(rid, text=None):
-    for r in M.rules():
-        if r['id'] == rid:
-            h = {'id': rid, 'text': text or r['text'], 'src': r['src'],
-                 'name': r['name'], 'rationale': r.get('rationale'), 'exec': r.get('exec')}
-            return h
-    return {'id': rid, 'text': text or rid, 'src': '', 'name': rid,
-            'rationale': None, 'exec': None}
-
-
-def compute(f, rs, cfg):
-    st = cfg['strategy']
-    t = st['triage']
-    m = M.load()
-    acts = m['actions']
-    hits = []
-    level = None
-
-    # ---- D：止损/破位优先 ----
-    d_hits = []
-    if f['below_ma10_2d'] >= f['stop_consecutive_days']:
-        d_hits.append(_hit('R-D1'))
-    if f['false_breakout']:
-        d_hits.append(_hit('R-D2'))
-    if f['expand'] and f['last'] < f['ma20'] and f['change_pct'] < -2:
-        d_hits.append(_hit('R-D3'))
-    if d_hits:
-        level, hits = 'D', d_hits
-
-    # ---- C：降仓 / 保利 ----
-    if level is None:
-        c_hits = []
-        if not f['stand_back'] and f['premium_high'] and f.get('premium_pct') is not None:
-            c_hits.append(_hit('R-C3', '未站回MA5且溢价%.2f%%' % f['premium_pct']))
-        if not f['stand_back'] and f['expand']:
-            c_hits.append(_hit('R-C1'))
-        if f['reduce_think']['upper_shadow_pct'] > 2.0:
-            c_hits.append(_hit('R-C2', '上影线%.1f%%' % f['reduce_think']['upper_shadow_pct']))
-        if c_hits:
-            level, hits = 'C', c_hits
-
-    # ---- A：持有 / 加仓 ----
-    if level is None:
-        a_hits = []
-        if f['stand_back']:
-            a_hits.append(_hit('R-A2', '站回MA5（%s）' % f['five_state']))
-        if f['add_ready']:
-            a_hits.append(_hit('R-A2', '五均线上三日 → 加仓前置'))
-        if f['true_breakout']:
-            a_hits.append(_hit('R-A1'))
-        if f['shrink'] and f['last'] > f['ma10'] and f['stand_back']:
-            a_hits.append(_hit('R-A1', '缩量回踩不破关键位'))
-        if rs['ahead']:
-            a_hits.append(_hit('R-A2', '先于大盘企稳'))
-        # A 需「收盘站回五均线且站上≥2日」+ 一条确认项
-        if f['stand_back'] and f['days_above_ma5'] >= 2 and len(a_hits) >= 2:
-            level, hits = 'A', a_hits
-
-    # ---- B：兜底（趋势未破坏但缺确认）----
-    if level is None:
-        b_hits = []
-        if f['ma_tangle'] or f['tangle_pct'] < 1.5:
-            b_hits.append(_hit('R-B1', '均线缠绕（%.2f%%）' % f['tangle_pct']))
-        if not f['stand_back']:
-            b_hits.append(_hit('R-B1', '未站回MA5，等待确认'))
-        if f['shrink']:
-            b_hits.append(_hit('R-B1', '缩量整理'))
-        if not b_hits:
-            b_hits.append(_hit('R-B1'))
-        level, hits = 'B', b_hits
-
-    # ---- 操作分支（动作码 + 文本来自规则卡） ----
-    if level == 'D':
-        branch = acts['CLEAR']
-    elif level == 'C':
-        branch = acts['TRIM']
-    elif level == 'A':
-        branch = acts['ADD'] if (f['add_ready'] and f['true_breakout']) else acts['HOLD']
-    else:
-        branch = acts['HOLD'] if (f['stand_back'] and not f['expand']) else '降仓保留'
-    allow_add = (level == 'A' and branch == acts['ADD'])
-
+def compute(f, rs, cfg, overrides=None, data_status='OK'):
+    """f: indicators.analyze 输出；rs: relative_strength.compute 输出。"""
+    ov = dict(overrides or {})
+    dec = M.decide(f, data_status=data_status, overrides=ov)
     risk_flags = []
-    if f['false_breakout']: risk_flags.append('假突破')
-    if f['premium_high']: risk_flags.append('折溢价偏高')
-    if f['below_ma10_2d'] >= 2: risk_flags.append('破位')
-    if f['cycle_phase'].startswith('C杀'): risk_flags.append('C杀破位')
-    if not risk_flags: risk_flags = ['无']
+    if f.get('false_breakout'):
+        risk_flags.append('放量下跌破MA20')
+    if f.get('below_ma10_2d', 0) >= 1:
+        risk_flags.append('收盘低于MA10 %d 日' % f['below_ma10_2d'])
+    if f.get('is_20d_low'):
+        risk_flags.append('20日新低')
+    if f.get('premium_available') is False:
+        risk_flags.append('IOPV 缺失（折溢价未参与判定）')
+    if not risk_flags:
+        risk_flags = ['无']
 
-    return dict(level=level, hits=hits,
-                branch=branch, allow_add=allow_add, risk_flags=risk_flags,
-                stop=f['stop'], ma_state=f['ma_state'], five_state=f['five_state'],
-                cycle_phase=f['cycle_phase'], breakout_label=f['breakout_label'])
+    return dict(status=dec['status'], level=dec['level'], action=dec['action'],
+                rule_ids=dec['rule_ids'], hits=dec['hits'],
+                blocked_by=dec['blocked_by'], unknowns=dec['unknowns'],
+                risk_flags=risk_flags,
+                cycle_phase=f.get('cycle_phase'), ma_state=f.get('ma_state'),
+                five_state=f.get('five_state'), breakout_label=f.get('breakout_label'),
+                rs=rs)

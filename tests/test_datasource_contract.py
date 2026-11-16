@@ -51,16 +51,30 @@ def test_validate_bars_rejects_short_and_missing():
         validate_bars(good.drop(columns=['amount']), 'X')  # 缺列
 
 
-def test_ma_allows_missing_long_periods():
+def test_features_allow_missing_long_periods():
     """新发 ETF 不足 120 根时，MA120 留空而不是整条腿失败。"""
-    from etfquant import config
-    from etfquant.indicators import ma
+    from etfquant import config, features
     bars = pd.DataFrame([dict(date=pd.Timestamp('2026-01-01') + pd.Timedelta(days=i),
                               open=1, high=1, low=1, close=1 + i * 0.001,
                               volume=100, amount=100) for i in range(34)])
-    out, _ = ma.compute(bars, config.cfg()['strategy'])
-    assert out['ma20'] is not None
-    assert out['ma120'] is None
+    d = features.last_dict(features.frame(bars, config.cfg()))
+    assert d['ma20'] is not None
+    assert d['ma120'] is None
+
+
+def test_upper_shadow_uses_third_last_bar():
+    """生产与回测必须用同一根 K 线的上影线（倒数第三根）。"""
+    from etfquant import config, features
+    rows = []
+    for i in range(40):
+        rows.append(dict(date=pd.Timestamp('2026-01-01') + pd.Timedelta(days=i),
+                         open=1.0, high=1.0, low=1.0, close=1.0,
+                         volume=100, amount=100))
+    # 倒数第三根：high=1.1，open=close=1.0 → 上影线 10%
+    rows[-3]['high'] = 1.1
+    bars = pd.DataFrame(rows)
+    d = features.last_dict(features.frame(bars, config.cfg()))
+    assert d['reduce_think']['upper_shadow_pct'] == pytest.approx(10.0, abs=0.01)
 
 
 def test_index_symbols_shape():
@@ -68,3 +82,30 @@ def test_index_symbols_shape():
     assert a.INDEX_SYMBOLS['创业板指'] == 'sz399006'
     for v in a.INDEX_SYMBOLS.values():
         assert v[:2] in ('sh', 'sz') and len(v) == 8
+
+
+def test_unclosed_today_is_dropped(monkeypatch):
+    """盘中未收盘 K 线不得进入日频信号（否则量比会被打成 0.13 这种失真值）。"""
+    import datetime as _dt
+
+    class _Fake(_dt.datetime):
+        @classmethod
+        def utcnow(cls):
+            return _dt.datetime(2026, 11, 16, 3, 0)   # 北京 11:00（盘中）
+
+    monkeypatch.setattr(a.datetime, 'datetime', _Fake)
+    df = pd.DataFrame([dict(date='2026-11-13', open=1, high=1, low=1, close=1,
+                            volume=100, amount=100),
+                       dict(date='2026-11-16', open=1, high=1, low=1, close=1,
+                            volume=3, amount=3)])
+    out = a._drop_unclosed_today(df)
+    assert list(out['date']) == ['2026-11-13']
+
+    class _After(_dt.datetime):
+        @classmethod
+        def utcnow(cls):
+            return _dt.datetime(2026, 11, 16, 7, 30)  # 北京 15:30（收盘后）
+
+    monkeypatch.setattr(a.datetime, 'datetime', _After)
+    out2 = a._drop_unclosed_today(df)
+    assert len(out2) == 2
