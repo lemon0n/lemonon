@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """统一数据结构定义与校验。"""
 BAR_COLS = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
-SPOT_COLS = ['code', 'name', 'last', 'iopv', 'premium_pct', 'change_pct']
 
 # 最少需要多少根日线才能算核心指标（MA5/10/20 + 20 日高低点）
 MIN_BARS = 30

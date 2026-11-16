@@ -8,7 +8,6 @@
   · 阶段识别只是风险过滤器，不是方向预测。
 """
 import numpy as np
-import pandas as pd
 
 from .. import config
 

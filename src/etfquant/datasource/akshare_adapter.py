@@ -463,11 +463,10 @@ def fetch_indices():
 
         q = quotes.get(sym)
         if q:
-            last, chg, as_of = q
+            last, chg = q[0], q[1]
         elif last_k is not None:
             last = last_k
             chg = round((last_k / prev_k - 1) * 100, 2) if prev_k else 0.0
-            as_of = ''
         else:
             continue
         out.append(dict(name=name, last=round(last, 2), chg_pct=chg,

@@ -9,7 +9,6 @@
   · 健康分拆成「数据质量 / 集中度 / 趋势 / 风险」四项仪表，不再输出单一伪精确分数；
   · 整体状态 OK / DEGRADED / ABSTAIN / DEMO / ERROR，对应能否给出交易动作。
 """
-import math
 
 from .. import methodology as M
 from .. import pricing as P
@@ -116,23 +115,28 @@ def evidence_card(f, rs, dec, snap_row, regime):
 
     counter = []
     if f.get('true_breakout_count') is not None and 0 < f['true_breakout_count'] < 4:
-        counter.append('突破四条仅满足 %d/4，结构条件不完整' % f['true_breakout_count'])
+        counter.append('突破四项只满足 %d 项，结构条件不完整' % f['true_breakout_count'])
     if rs and rs.get('is_known') and rs.get('excess5') is not None and rs['excess5'] < 0:
-        counter.append('5 日跑输基准 %.2fpct，不支持「相对强势」的假设' % rs['excess5'])
+        counter.append('近 5 日跑输基准 %.2fpct，不支持「强于大盘」这个说法' % rs['excess5'])
     if f.get('premium_available') is False:
-        counter.append('IOPV 缺失，折溢价条件无法验证（缺失不视为满足）')
+        counter.append('没有折溢价数据，这条规则没参与判断')
     if not counter:
-        counter.append('未发现与当前信号方向冲突的可观测证据（不等于信号有效）')
+        counter.append('暂未发现反对证据（这不代表判断正确）')
 
     unknowns = list(dec.get('unknowns') or [])
     if f.get('premium_available') is False:
-        unknowns.append('折溢价/估值位置未知')
-    unknowns.append('资金流向、机构持仓与持仓集中度的底层穿透数据未接入')
+        unknowns.append('折溢价和估值位置还看不到')
+    unknowns.append('资金流向、机构持仓、基金实际买的是什么，都还看不到')
 
-    invalid = ['收盘重新站上 MA10 且连续满足站上 MA5 阈值', '量比回落到平量且结构条件改善',
-               '下一次运行出现与当前等级相反的规则命中']
+    # 失效条件：只列真正会翻转当前结论的事件，避免同一件事换个说法重复两遍。
     if dec.get('action') in ('CLEAR', 'TRIM'):
-        invalid.insert(0, '收盘重新站稳 MA10（当前退出条件失效）')
+        invalid = ['收盘重新站稳 MA10，退出条件不再成立',
+                   '成交量回落到平常水平且结构改善',
+                   '下次判断给出相反的结论']
+    else:
+        invalid = ['收盘重新跌破 MA10',
+                   '成交量放大但价格不再上行',
+                   '下次判断给出相反的结论']
     return dict(facts=facts, comparisons=comparisons, rules=rule_txt,
                 portfolio_impact=portfolio_imp, counter_evidence=counter,
                 unknowns=unknowns, invalidation=invalid)
@@ -214,6 +218,8 @@ def analyze(port, snap, features, regime, cfg, meta=None):
         if leg:
             leg.update(target_weight=d['target_weight'],
                        target_shares=d['target_shares'],
+                       current_shares=d.get('current_shares'),
+                       current_weight=d.get('current_weight'),
                        delta_shares=d.get('delta_shares'),
                        notional=d.get('notional'), fee=d.get('fee'),
                        constraints_applied=d.get('constraints_applied') or [])

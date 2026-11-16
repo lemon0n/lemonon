@@ -7,13 +7,12 @@
   data/snapshot/etf_spot.csv           最新价 / IOPV / 折溢价 / 涨跌 / 成交额
   data/snapshot/sector_flow.csv        申万一级 31 + 概念 25 板块资金流
   data/snapshot/market.json            市场概况全部结构化快照
-  data/snapshot/benchmark_ret.json     基准指数区间涨幅（相对强弱用）
 
 形态经过内联自检：每只标的的 MA5/10/20/60/120、连续站上 MA5 天数、
-连两日收盘 MA10 下方、量比、均线缠绕度都会被计算并打印，确保
-signals/triage.py 能得出 A2 / B2 / C1 / D1，与 Demo 一致。
+连两日收盘 MA10 下方、量比、均线缠绕度都会被计算并打印。
+规则判定统一由 methodology.decide() 完成，本脚本不再自带分诊。
 """
-import os, sys, json, math
+import os, json, zlib
 import numpy as np
 import pandas as pd
 
@@ -122,7 +121,6 @@ SOURCES = {
     'mof':      'http://www.mof.gov.cn/',
 }
 
-
 def attach_urls(m):
     """给每项宏观/市场数据挂上可点击的公开来源页面。"""
     S = SOURCES
@@ -155,7 +153,6 @@ def attach_urls(m):
         x['url'] = S['jisilu']
     return m
 
-
 def build_series(pattern, price):
     """返回 (close, volume, open_, high, low) 五个等长数组。"""
     c = BASE.copy()
@@ -163,7 +160,9 @@ def build_series(pattern, price):
     # 按末值归一，使最后一日收盘价 == 当前价
     c = c / c[-1] * price
 
-    rng = np.random.default_rng(abs(hash(pattern)) % (2**31))
+    # 稳定种子：内置 hash() 会被 PYTHONHASHSEED 随机化，同一脚本两次运行结果不同，
+    # 与「可复现快照」的承诺冲突。改用 CRC32，跨进程、跨机器一致。
+    rng = np.random.default_rng(zlib.crc32(pattern.encode('utf-8')))
     vol = 1.0e8 * (1.0 + 0.22 * rng.standard_normal(N))
     vol = np.clip(vol, 4.0e7, None)
     # 最后 6 日量能平齐，末日按目标倍数注入
@@ -190,7 +189,6 @@ def build_series(pattern, price):
         l[-1] = min(o[-1], c[-1]) * 0.992
     return np.round(c, 4), np.round(vol, 0), np.round(o, 4), np.round(h, 4), np.round(l, 4)
 
-
 def state(c, v, o, h, l):
     """内联轻量自检 —— 与 indicators 采用同一套定义。"""
     s = pd.Series(c)
@@ -210,7 +208,6 @@ def state(c, v, o, h, l):
                 ma60=ma[60][-1], ma120=ma[120][-1], days_above_ma5=days,
                 below_ma10_2d=below10, tangle_pct=tangle * 100, vol_ratio=vr,
                 ma_bull=(ma5[-1] > ma10[-1] > ma20[-1]))
-
 
 def main():
     dates = pd.bdate_range(end='2026-11-11', periods=N).strftime('%Y-%m-%d')
@@ -328,23 +325,11 @@ def main():
     with open(os.path.join(SNAP, 'market.json'), 'w', encoding='utf-8') as f:
         json.dump(market, f, ensure_ascii=False, indent=2)
 
-    # 基准区间涨幅（相对强弱用）
-    bret = {'000300': {'ret5': 0.62, 'ret20': -1.84},
-            '000905': {'ret5': -0.31, 'ret20': -3.02},
-            '399006': {'ret5': -0.88, 'ret20': -4.61},
-            '000688': {'ret5': 1.24, 'ret20': -0.92},
-            'NDX':    {'ret5': 0.94, 'ret20': 2.31},
-            'AU9999': {'ret5': 0.71, 'ret20': 3.08},
-            'CBA00301': {'ret5': 0.08, 'ret20': 0.31}}
-    with open(os.path.join(SNAP, 'benchmark_ret.json'), 'w', encoding='utf-8') as f:
-        json.dump(bret, f, ensure_ascii=False, indent=2)
-
-    print(f'\n=== 产出 ===')
+    print('\n=== 产出 ===')
     print(f'  日线 {len(ETFS)} 只 × {N} 交易日 → {DAILY}/')
     print(f'  spot {len(spot_rows)} 行 → etf_spot.csv')
     print(f'  板块 {len(rows)} 行 → sector_flow.csv')
-    print('  market.json / benchmark_ret.json')
-
+    print('  market.json')
 
 if __name__ == '__main__':
     main()

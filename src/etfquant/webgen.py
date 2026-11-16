@@ -193,6 +193,10 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None):
         orders=[l for l in legcards if l['action'] in ('CLEAR', 'TRIM', 'ADD')],
         trading=cfg['universe'],
         methodology=M.compact(),
+        # 执行与约束参数：页面端必须用同一份配置计算目标份额，
+        # 否则改了 risk.yaml 之后页面会静默用旧参数（此前 JS 里是写死的常量）。
+        policy=dict(constraints=(cfg.get('risk') or {}).get('constraints') or {},
+                    execution=(cfg.get('risk') or {}).get('execution') or {}),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
     )
 

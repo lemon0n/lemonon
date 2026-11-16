@@ -24,7 +24,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import pandas as pd
 
 from etfquant.backtest import data as bdata, engine as beng
-from etfquant import config
 
 # 固定标的池（不使用随机抽样：随机抽样不是独立时间外样本）
 POOL = ['510300', '510500', '588000', '159915', '512100', '510880',

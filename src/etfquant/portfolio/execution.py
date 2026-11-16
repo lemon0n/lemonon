@@ -11,7 +11,6 @@
 """
 import math
 
-from .. import config
 
 
 def _lot_floor(shares, lot):

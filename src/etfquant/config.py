@@ -26,12 +26,6 @@ def snap_csv(name):
     return pd.read_csv(os.path.join(SNAP, name), dtype={'code': str})
 
 
-def positions_csv():
-    # code / benchmark 必须按字符串读，否则 '000300' 会被推断成 300.0 丢失前导零
-    return pd.read_csv(os.path.join(POS, 'positions.csv'),
-                       dtype={'code': str, 'benchmark': str})
-
-
 def cfg():
     return dict(universe=yaml_conf('universe.yaml'),
                 strategy=yaml_conf('strategy.yaml'),

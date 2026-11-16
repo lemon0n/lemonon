@@ -103,10 +103,6 @@ def analyze(bars, spot_row, cfg=None):
     return f
 
 
-def _tb(d, key):
-    return bool(d.get(key, False))
-
-
 def _val(row, key, default=None):
     """兼容 dict / DataFrame.itertuples / 以 code 为索引的 Series。"""
     if hasattr(row, 'get') and key in row:

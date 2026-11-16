@@ -16,7 +16,7 @@ import pytest
 from etfquant import config, pipeline
 from etfquant.datasource import loader
 from etfquant.indicators import analyze
-from etfquant.signals import relative_strength, market_regime, triage
+from etfquant.signals import market_regime
 from etfquant.portfolio import watchlist
 
 CFG = config.cfg()
@@ -70,16 +70,16 @@ def test_missing_code_is_skipped_not_crash():
     assert [r['code'] for r in w['rows']] == ['510300', '510500', '588000']
 
 
-def test_triage_uses_single_decision_function():
-    """分诊结果必须来自 methodology.decide，且离线合成数据下动作一律 ABSTAIN。"""
+def test_decision_is_single_function_and_demo_never_acts():
+    """决策只有一个入口 methodology.decide；离线合成数据下一律 ABSTAIN。"""
+    from etfquant import methodology as M
     sp = _sp()
     for r in _rows():
         f = analyze(loader.daily(r['code']), sp.loc[r['code']], CFG)
-        rs = relative_strength.compute(f, loader.index_daily(r['benchmark']), CFG)
-        t = triage.compute(f, rs, CFG, data_status='DEMO')
-        assert t['status'] == 'DEMO'
-        assert t['action'] == 'ABSTAIN'
-        assert t['unknowns']
+        dec = M.decide(f, data_status='DEMO')
+        assert dec['status'] == 'DEMO'
+        assert dec['action'] == 'ABSTAIN'
+        assert dec['unknowns']
 
 
 def test_premium_unavailable_is_safe():

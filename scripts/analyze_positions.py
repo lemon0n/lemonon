@@ -1,18 +1,22 @@
 # -*- coding: utf-8 -*-
-"""当前持仓专业分析（S1–S5 + 执行后闭环）。
+"""当前持仓分析（S1–S5 + 执行后闭环）。
 
 用法：
   POSITIONS_PASSPHRASE='口令' python3 scripts/analyze_positions.py --out docs/当前持仓分析报告.md
 
-报告只渲染 portfolio.analysis.analyze 的结构化结果，不另写业务逻辑：
-  · 数据可信度与状态（OK / DEGRADED / ABSTAIN / DEMO / ERROR）
-  · 组合前视图（快照完整性 + 三类集中度）
-  · 逐标的证据卡（事实 / 比较 / 规则 / 组合含义 / 反证 / 未知项 / 失效条件）
-  · 组合决策与执行后视图（目标份额、费用、现金、约束校验）
-  · 模型边界与历史证据
+报告只渲染 portfolio.analysis.analyze 的结构化结果，不另写业务逻辑。
+正文固定四段，结论先行，同一事实只出现一次：
+
+  结论      —— 市场状态、今天做什么、执行后仓位（一屏读完）
+  每只怎么办 —— 动作 / 目标份额 / 价格，一张表
+  组合现状   —— 快照、集中度、结构偏离
+  每只为什么 —— 规则依据、反对证据、作废条件
+  附注      —— 数据状态、口径、边界、免责
+
+行情取数、持仓解密、数据包写入都在 main() 里；render_report() 是纯函数，
+给定结构化结果即可产出全文，便于测试与复用。
 """
 import argparse
-import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -26,6 +30,15 @@ from etfquant.signals import market_regime, relative_strength
 from etfquant.portfolio import positions, analysis
 
 MIN_BARS = 35
+
+# 对外只说人话：内部状态码在正文里统一翻译一次，不再印图例。
+STATUS_TXT = {
+    'OK': '正常',
+    'DEGRADED': '部分数据缺失',
+    'ABSTAIN': '数据不足，不做判断',
+    'DEMO': '演示数据，不可用于实盘',
+    'ERROR': '执行后校验未通过',
+}
 
 
 def fetch_bars(code):
@@ -49,6 +62,186 @@ def rmb(x):
 
 def pct(x):
     return '—' if x is None else '%.2f%%' % x
+
+
+def _price(v):
+    return '—' if v is None else '%.3f' % v
+
+
+def _shares(v):
+    return '—' if v is None else ('%d' % v if float(v).is_integer() else '%.2f' % v)
+
+
+def _action_summary(legs):
+    cnt = {}
+    for l in legs:
+        if l['action'] in ('CLEAR', 'TRIM', 'ADD'):
+            cnt[l['action']] = cnt.get(l['action'], 0) + 1
+    if not cnt:
+        return '不动'
+    return '、'.join('%s %d 只' % ({'CLEAR': '清仓', 'TRIM': '减仓', 'ADD': '加仓'}[a], n)
+                    for a, n in cnt.items())
+
+
+def _rule_reason(leg):
+    """一句话说明为什么是这个动作：优先用规则名，其次用动作名。"""
+    hits = leg.get('hits') or []
+    if hits:
+        return hits[0].get('name') or hits[0].get('text') or leg['action_text']
+    return '没有触发任何条件，维持不动'
+
+
+def render_report(res, snap, regime, qmap, now):
+    """结构化结果 → Markdown 全文（纯函数，不触网、不写盘）。"""
+    lines = []
+    legs = res['legs']
+    pa = res.get('portfolio_after') or {}
+    s1 = res['s1']
+
+    lines.append('# 持仓分析 · %s\n\n' % (snap.get('as_of') or '—'))
+    lines.append('- 生成时间：%s（北京时间）\n' % now.strftime('%Y-%m-%d %H:%M'))
+    lines.append('- 基准：%s（沪深300，截至 %s）\n'
+                 % (regime.get('regime') or '未知', regime.get('as_of') or '—'))
+    lines.append('- 状态：%s\n\n' % STATUS_TXT.get(res['status'], res['status']))
+
+    # ---------------- 结论 ----------------
+    lines.append('## 结论\n\n')
+    if s1.get('fit_lo') is not None and s1.get('position_pct') is not None:
+        if s1['position_action'] == 'REDUCE':
+            pos_note = '偏高，需要降下来'
+        elif s1['position_action'] == 'ADD':
+            pos_note = '偏低，可以分批补'
+        else:
+            pos_note = '在合理区间内'
+        lines.append('- 市场：%s，建议总仓位 %s~%s%%；当前 %s，%s。\n'
+                     % (s1['regime'], s1['fit_lo'], s1['fit_hi'],
+                        pct(s1['position_pct']), pos_note))
+    else:
+        lines.append('- 市场：%s；仓位区间无法确定，本次不给仓位建议。\n'
+                     % (s1.get('regime') or '未知'))
+
+    lines.append('- 今天：%s。\n' % _action_summary(legs))
+    if pa.get('position_pct') is not None:
+        lines.append('- 做完之后（按现价估算，不是成交回报）：总资产 %s，仓位 %s，'
+                     '现金 %s，持仓 %s 只。\n'
+                     % (rmb(pa.get('total_asset')), pct(pa.get('position_pct')),
+                        pct(pa.get('cash_pct')), pa.get('legs')))
+    notes = list(res['constraint_violations']) + list(res.get('warnings') or [])
+    if notes:
+        lines.append('- 需要留意：%s\n' % '；'.join(notes))
+    lines.append('\n')
+
+    # ---------------- 一、每只怎么办 ----------------
+    lines.append('## 一、每只怎么办\n\n')
+    lines.append('| 动作 | 代码 | 名称 | 现价 | 当前份额 | 目标份额 | 限价 | 止损 | 参考目标 | 预计费用 | 依据 |\n')
+    lines.append('|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|\n')
+    for l in legs:
+        act = l['action']
+        if act in ('CLEAR', 'TRIM', 'ADD'):
+            limit, stop, tp = l.get('entry'), l.get('stop'), l.get('take_profit')
+        elif act in ('HOLD', 'WATCH'):
+            limit, stop, tp = None, l.get('stop'), l.get('take_profit')
+        else:
+            limit = stop = tp = None
+        lines.append('| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' % (
+            l['action_text'], l['code'], l['name'], _price(l.get('last')),
+            _shares(l.get('current_shares') if l.get('current_shares') is not None else None),
+            _shares(l.get('target_shares')),
+            _price(limit), _price(stop), _price(tp),
+            '—' if not l.get('fee') else '¥%.2f' % l['fee'],
+            _rule_reason(l)))
+    lines.append('\n限价是保护价，可能不成交；止损与参考目标只是观察位，不是承诺。\n\n')
+
+    # ---------------- 二、组合现状 ----------------
+    lines.append('## 二、组合现状\n\n')
+    if snap.get('complete'):
+        lines.append('| 指标 | 数值 |\n|---|---|\n')
+        lines.append('| 总资产 | %s（现金 %s） |\n'
+                     % (rmb(snap['total_asset']), rmb(snap['cash'])))
+        lines.append('| 持仓市值 | %s（%d 只） |\n' % (rmb(snap['total_pos']), len(snap['rows'])))
+        lines.append('| 总仓位 | %s（现金 %s） |\n'
+                     % (pct(snap['position_pct']), pct(snap['cash_pct'])))
+        lines.append('| 浮动盈亏 | %s（%s） |\n\n'
+                     % (rmb(snap.get('pnl')), pct(snap.get('pnl_pct'))))
+    else:
+        lines.append('有持仓拿不到有效价格（%s），总资产和总仓位不计算。\n\n'
+                     % '、'.join(snap.get('missing') or []))
+
+    lines.append('| 代码 | 名称 | 类别 | 份额 | 成本 | 现价 | 市值 | 权重 | 浮动盈亏 |\n')
+    lines.append('|---|---|---|---:|---:|---:|---:|---:|---:|\n')
+    for r in snap['rows']:
+        lines.append('| %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' % (
+            r['code'], r['name'], r['category'], _shares(r['shares']),
+            '%.3f' % r['cost'], _price(r['last']), rmb(r['mv']),
+            pct(r['weight']), pct(r['pnl_pct'])))
+
+    nom = res['risk']['nominal']
+    corr = res['risk']['correlation']
+    lines.append('\n- 集中度：单只最大 %s%%，HHI %s，相当于 %s 只等权。\n'
+                 % (nom['max_single'], nom['hhi'], nom['effective_n']))
+    lt = res['risk']['lookthrough']
+    if lt:
+        lines.append('- 底层重叠：%s。\n'
+                     % '、'.join('%s %.2f%%' % (g['group'], g['weight']) for g in lt[:5]))
+    if corr.get('available'):
+        hi = corr.get('high_pairs') or []
+        lines.append('- 相关性：%d 个对齐样本；%s。\n'
+                     % (corr['n_obs'],
+                        ('高度相关 ' + '、'.join('%s/%s %.2f' % (p['a'], p['b'], p['corr'])
+                                                for p in hi)) if hi else '没有相关性超过 0.7 的持仓对'))
+    else:
+        lines.append('- 相关性：算不了（%s）。\n' % corr.get('reason'))
+
+    lines.append('\n| 类别 | 当前 | 参考 | 偏离 |\n|---|---:|---:|---:|\n')
+    for r in res['s2']['rows']:
+        lines.append('| %s | %s | %s | %s |\n' % (
+            r['category'], pct(r['current_pct_of_invested']),
+            '—' if r['target_pct_of_invested'] is None else '%s%%' % r['target_pct_of_invested'],
+            '—' if r['deviation_pct'] is None else '%+.2fpct' % r['deviation_pct']))
+    lines.append('\n结构占比按已投资部分算（不含现金）。\n')
+    if res['s2']['unclassified']:
+        lines.append('\n有标的分不出类别（%s），这一项核对不完整。\n'
+                     % '、'.join(res['s2']['unclassified']))
+
+    # ---------------- 三、每只为什么 ----------------
+    lines.append('\n## 三、每只为什么\n')
+    for l in legs:
+        e = l.get('evidence') or {}
+        lines.append('\n### %s %s\n\n' % (l['code'], l['name']))
+        facts = list(e.get('facts') or []) + list(e.get('comparisons') or [])
+        if facts:
+            lines.append('- 现在的情况：%s。\n' % '；'.join(facts))
+        rid = '（%s）' % '、'.join(l['rule_ids']) if l.get('rule_ids') else ''
+        lines.append('- 规则判断：%s → %s%s。\n' % (_rule_reason(l), l['action_text'], rid))
+        if e.get('counter_evidence'):
+            lines.append('- 不支持这个判断的：%s。\n' % '；'.join(e['counter_evidence']))
+        if e.get('invalidation'):
+            lines.append('- 什么情况下这个判断作废：%s。\n'
+                         % '；'.join(e['invalidation'][:3]))
+        if e.get('unknowns'):
+            lines.append('- 还看不到的：%s。\n' % '；'.join(e['unknowns'][:2]))
+
+    # ---------------- 附注 ----------------
+    lines.append('\n## 附注\n\n')
+    dq = res['dashboard']['data_quality']
+    if dq['abstain'] or dq['degraded'] or dq['missing']:
+        bits = []
+        if dq['missing']:
+            bits.append('缺价 %s' % '、'.join(dq['missing']))
+        if dq['abstain']:
+            bits.append('数据不足 %s' % '、'.join(dq['abstain']))
+        if dq['degraded']:
+            bits.append('数据降级 %s' % '、'.join(dq['degraded']))
+        lines.append('- 数据：%s。\n' % '；'.join(bits))
+    else:
+        lines.append('- 数据：全部持仓的行情完整。\n')
+    if regime.get('observations'):
+        lines.append('- 市场状态怎么来的：%s。\n' % '；'.join(regime['observations']))
+    lines.append('- 口径：仓位与占比按含现金的总资产算；结构占比按已投资部分算。\n')
+    lines.append('- 边界：没有交易流水，只有当前持仓和浮动盈亏；'
+                 '下单方式是保护价委托，可能不成交。\n')
+    lines.append('\n仅供研究参考，不构成投资建议。\n')
+    return ''.join(lines)
 
 
 def main():
@@ -106,172 +299,11 @@ def main():
                            meta=dict(bars_ok=bars_ok, rs=rs_map, returns=returns,
                                      universe=uni))
 
-    lines = []
-    lines.append('# 当前持仓分析报告\n\n')
-    lines.append('- 生成时间：%s（北京时间）\n' % now.strftime('%Y-%m-%d %H:%M'))
-    lines.append('- 行情数据日：%s（逐只见证据卡「事实」行）\n' % (snap.get('as_of') or '—'))
-    lines.append('- 基准：%s（%s，基准数据日 %s）\n'
-                 % (regime.get('regime'), '000300', regime.get('as_of') or '—'))
-    lines.append('- 分析状态：**%s**（OK=可给研究性方案；DEGRADED=有缺失但可用；'
-                 'ABSTAIN=关键数据不足不出单；DEMO=合成数据仅演示；ERROR=校验失败）\n'
-                 % res['status'])
-    lines.append('- 决策来源：`config/methodology.yaml`（规则卡 v2.0）；每条结论可回查规则编号\n')
-    lines.append('- 说明：本报告为研究性复盘，不含任何保证成交的价格或收益承诺。\n\n')
-
-    # ---- 数据可信度 ----
-    dq = res['dashboard']['data_quality']
-    lines.append('## 一、运行与数据可信度\n\n')
-    lines.append('| 项目 | 值 |\n|---|---|\n')
-    lines.append('| 组合快照完整 | %s |\n' % ('是' if dq['complete'] else
-                                              '否（缺价：%s）' % '、'.join(dq['missing'])))
-    lines.append('| 数据不足（ABSTAIN） | %s |\n' % ('、'.join(dq['abstain']) or '无'))
-    lines.append('| 降级（DEGRADED） | %s |\n' % ('、'.join(dq['degraded']) or '无'))
-    lines.append('| 分类未知 | %s |\n' % ('、'.join(dq['unclassified']) or '无'))
-    lines.append('| 基准日期一致 | %s |\n'
-                 % ('是' if all((rs_map.get(c) or {}).get('is_known') for c in features) else '否（见未知项）'))
-    lines.append('\n> 数据缺失会被标为 ABSTAIN，不会自动变成「持有」。\n\n')
-
-    # ---- 组合前视图 ----
-    lines.append('## 二、组合前视图\n\n')
-    if snap.get('complete'):
-        lines.append('| 指标 | 值 |\n|---|---|\n')
-        lines.append('| 总资产 | %s（现金 %s） |\n' % (rmb(snap['total_asset']), rmb(snap['cash'])))
-        lines.append('| 持仓市值 | %s（%d 只） |\n' % (rmb(snap['total_pos']), len(snap['rows'])))
-        lines.append('| 总仓位 | %s（现金 %s） |\n'
-                     % (pct(snap['position_pct']), pct(snap['cash_pct'])))
-        lines.append('| 浮动盈亏 | %s（%s） |\n'
-                     % (rmb(snap.get('pnl')), pct(snap.get('pnl_pct'))))
-    else:
-        lines.append('组合快照不完整：%s 缺少有效价格，总资产与总仓位不计算。\n\n'
-                     % '、'.join(snap.get('missing') or []))
-
-    lines.append('\n| 代码 | 名称 | 类别 | 份额 | 成本 | 最新价 | 市值 | 权重% | 浮动盈亏% | 数据 |\n')
-    lines.append('|---|---|---|---:|---:|---:|---:|---:|---:|---|\n')
-    for r in snap['rows']:
-        q = qmap.get(r['code']) or {}
-        lines.append('| %s | %s | %s | %d | %.3f | %s | %s | %s | %s | %s |\n' % (
-            r['code'], r['name'], r['category'], r['shares'], r['cost'],
-            '—' if r['last'] is None else '%.3f' % r['last'], rmb(r['mv']),
-            '—' if r['weight'] is None else '%.2f' % r['weight'],
-            '—' if r['pnl_pct'] is None else '%.2f' % r['pnl_pct'],
-            q.get('status', '—')))
-
-    nom = res['risk']['nominal']
-    corr = res['risk']['correlation']
-    lines.append('\n**集中度与相关性**\n\n')
-    lines.append('- 名义：单只最大 %s%%，HHI %s，有效只数 %s\n'
-                 % (nom['max_single'], nom['hhi'], nom['effective_n']))
-    lt = res['risk']['lookthrough']
-    if lt:
-        lines.append('- 底层敞口（按跟踪指数/类别合并）：%s\n'
-                     % '、'.join('%s %.2f%%' % (g['group'], g['weight']) for g in lt[:5]))
-    if corr.get('available'):
-        hi = corr.get('high_pairs') or []
-        lines.append('- 相关性：%d 个对齐样本；%s\n'
-                     % (corr['n_obs'],
-                        ('高相关持仓对 ' + '、'.join('%s/%s %.2f' % (p['a'], p['b'], p['corr'])
-                                                    for p in hi)) if hi else '未发现 >=0.7 的持仓对'))
-    else:
-        lines.append('- 相关性：不可估计（%s）——不做相关性分散结论\n' % corr.get('reason'))
-    rc = res['risk'].get('risk_contribution')
-    if rc:
-        lines.append('- 成分风险贡献：%s\n'
-                     % '、'.join('%s %.1f%%' % (x['code'], x['pct']) for x in rc))
-
-    # ---- 逐标的证据卡 ----
-    lines.append('\n## 三、逐标的证据卡\n')
-    for l in res['legs']:
-        e = l.get('evidence') or {}
-        lines.append('\n### %s %s（权重 %s，浮动盈亏 %s，数据 %s）\n\n'
-                     % (l['code'], l['name'], pct(l['weight']), pct(l['pnl_pct']),
-                        l['data_status']))
-        lines.append('| 模块 | 内容 |\n|---|---|\n')
-        lines.append('| 可观测事实 | %s |\n' % '<br>'.join(e.get('facts') or ['—']))
-        lines.append('| 比较 | %s |\n' % '<br>'.join(e.get('comparisons') or ['—']))
-        lines.append('| 规则结果 | %s → %s（%s） |\n'
-                     % ('、'.join(l['rule_ids']) or '—', l['action_text'], l['level']))
-        lines.append('| 组合含义 | %s |\n' % '<br>'.join(e.get('portfolio_impact') or ['—']))
-        lines.append('| 反证 | %s |\n' % '<br>'.join(e.get('counter_evidence') or ['—']))
-        lines.append('| 未知项 | %s |\n' % '<br>'.join(e.get('unknowns') or ['—']))
-        lines.append('| 失效条件 | %s |\n' % '<br>'.join(e.get('invalidation') or ['—']))
-        lines.append('| 执行政策 | %s；目标份额 %s |\n'
-                     % (l.get('price_note') or '—',
-                        '—' if l.get('target_shares') is None else l['target_shares']))
-        if l.get('hits'):
-            for h in l['hits']:
-                r = h.get('rationale') or {}
-                if r.get('judge'):
-                    lines.append('\n> **%s 判断**：%s\n' % (h['id'], r['judge']))
-
-    # ---- 决策与执行后 ----
-    lines.append('\n## 四、组合决策与执行后视图\n\n')
-    lines.append('### S1 市场定仓\n\n')
-    lines.append('| 市场状态 | 仓位区间 | 当前仓位 | 仓位动作 |\n|---|---|---|---|\n')
-    lines.append('| %s | %s | %s | %s |\n' % (
-        res['s1']['regime'],
-        '—' if res['s1']['fit_lo'] is None else '%s~%s%%' % (res['s1']['fit_lo'], res['s1']['fit_hi']),
-        pct(res['s1']['position_pct']), res['s1']['position_action']))
-    if res['s1'].get('observations'):
-        lines.append('\n判定依据：%s\n' % '；'.join(res['s1']['observations']))
-
-    lines.append('\n### S2 结构核对（分母=已投资市值）\n\n')
-    lines.append('| 类别 | 当前% | 参考% | 偏离pct |\n|---|---:|---:|---:|\n')
-    for r in res['s2']['rows']:
-        lines.append('| %s | %s | %s | %s |\n' % (
-            r['category'], pct(r['current_pct_of_invested']),
-            '—' if r['target_pct_of_invested'] is None else r['target_pct_of_invested'],
-            '—' if r['deviation_pct'] is None else '%.2f' % r['deviation_pct']))
-    if res['s2']['unclassified']:
-        lines.append('\n> 分类未知：%s（结构核对不完整，不据此加分）\n'
-                     % '、'.join(res['s2']['unclassified']))
-
-    lines.append('\n### S4 目标份额与执行后复核\n\n')
-    if not res['decisions']:
-        lines.append(res['brief']['no_action'] + '\n')
-    else:
-        lines.append('| 代码 | 动作 | 当前权重% | 目标权重% | 当前份额 | 目标份额 | 增减 | '
-                     '预计费用 | 规则 |\n|---|---|---:|---:|---:|---:|---:|---:|---|\n')
-        for d in res['decisions']:
-            lines.append('| %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' % (
-                d['code'], d['action'],
-                '—' if d['current_weight'] is None else '%.2f' % d['current_weight'],
-                '—' if d['target_weight'] is None else '%.2f' % d['target_weight'],
-                '—' if d['current_shares'] is None else int(d['current_shares']),
-                '—' if d['target_shares'] is None else int(d['target_shares']),
-                '—' if d.get('delta_shares') is None else int(d['delta_shares']),
-                '—' if d.get('fee') is None else '¥%.2f' % d['fee'],
-                ' / '.join(d['reason_ids']) or '—'))
-    pa = res.get('portfolio_after') or {}
-    lines.append('\n**执行后（按当前价格静态估算，不是成交回报）**\n\n')
-    lines.append('| 项目 | 执行前 | 执行后 |\n|---|---:|---:|\n')
-    lines.append('| 总仓位 | %s | %s |\n'
-                 % (pct(snap.get('position_pct')), pct(pa.get('position_pct'))))
-    lines.append('| 现金占比 | %s | %s |\n'
-                 % (pct(snap.get('cash_pct')), pct(pa.get('cash_pct'))))
-    lines.append('| 持仓腿数 | %d | %s |\n' % (len(snap['rows']), pa.get('legs')))
-    lines.append('| 预计交易费用 | — | ¥%.2f |\n'
-                 % sum(d.get('fee') or 0 for d in res['decisions']))
-    if res['constraint_violations']:
-        lines.append('\n> **执行后约束未通过**：%s。系统不发布目标份额。\n'
-                     % '；'.join(res['constraint_violations']))
-    if res['warnings']:
-        lines.append('\n> 提示：%s\n' % '；'.join(res['warnings']))
-    lines.append('\n%s\n' % res['brief']['act'])
-
-    # ---- 模型边界 ----
-    lines.append('\n## 五、模型边界与历史证据\n\n')
-    lines.append('- 当前规则版本：规则卡 v2.0（`config/methodology.yaml`），只有一套动作求值函数；\n')
-    lines.append('- 回测与生产共用 `features.frame` 与 `methodology.decide`，不再维护简化版策略；\n')
-    lines.append('- 旧回测结论（20.44% / 74.7% 等）已撤回，不得用于证明当前模型有效，'
-                 '见 `docs/回测报告.md` 的冻结说明；\n')
-    lines.append('- 本报告不含真实账户绩效（没有交易流水），只有当前快照与浮动盈亏；\n')
-    lines.append('- 没有任何价格是「保证成交价」：限价、止损与参考阻力都是执行政策。\n')
-    lines.append('\n---\n仅供研究参考，不构成投资建议。\n')
-
+    text = render_report(res, snap, regime, qmap, now)
     out = a.out or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                 '持仓分析报告.md')
     with open(out, 'w', encoding='utf-8') as f:
-        f.writelines(lines)
+        f.write(text)
     print('已生成 → %s' % out)
     print('状态：%s · 动作：%s' % (res['status'],
                                  {l['code']: l['action'] for l in res['legs']}))

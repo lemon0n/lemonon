@@ -17,7 +17,6 @@
 注意：这里的「目标权重」是回测参数（等权 / 固定上限），不等于生产按 regime
 动态给定的目标权重；两者口径差异在报告里必须写明。
 """
-import math
 
 import numpy as np
 import pandas as pd
@@ -67,7 +66,7 @@ def _feature_dicts(f, warm):
     return out
 
 
-def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
+def run_portfolio(bars_by_code, p=None, cfg=None):
     """多标的组合走查。返回 trades / equity / legs / stats。"""
     cfg = cfg or config.cfg()
     p = dict(DEFAULT_PARAMS, **(p or {}))

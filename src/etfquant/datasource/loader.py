@@ -33,7 +33,6 @@ STATE = {
 
 _CACHE = {'daily': {}, 'spot': None, 'sector': None, 'index_daily': {}}
 
-CRITICAL = ('daily', 'spot', 'index_daily')
 
 
 def _now_bj():

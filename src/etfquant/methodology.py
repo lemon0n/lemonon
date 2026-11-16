@@ -19,7 +19,6 @@ _CACHE = {}
 
 VALID_ACTIONS = ('CLEAR', 'TRIM', 'ADD', 'HOLD', 'WATCH')
 VALID_LEVELS = ('A', 'B', 'C', 'D')
-STATES = ('OK', 'DEGRADED', 'ABSTAIN', 'ERROR')
 
 
 class RuleConfigError(ValueError):
@@ -66,13 +65,6 @@ def rules():
     rs = copy.deepcopy(load()['rules'])
     rs.sort(key=lambda r: -r['priority'])
     return rs
-
-
-def rule(rid):
-    for r in rules():
-        if r['id'] == rid:
-            return r
-    return None
 
 
 # ---------------------------------------------------------------- 谓词
@@ -181,11 +173,6 @@ def decide(feat, data_status='OK', overrides=None):
     return dict(status='OK' if data_status == 'OK' else 'DEGRADED',
                 level=level, action=action, rule_ids=rule_ids, hits=hits,
                 blocked_by=blocked, unknowns=[])
-
-
-def evaluate(feat, overrides=None):
-    """兼容旧调用：返回 decide() 的 level/action/hits/rule_ids。"""
-    return decide(feat, overrides=overrides)
 
 
 def compact():

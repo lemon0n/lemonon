@@ -30,9 +30,9 @@ python3.11 scripts/run_update.py --snapshot # 不联网，用离线快照（结�
 python3.11 scripts/run_update.py --push     # 生成后自动 commit + push
 python3.11 scripts/run_update.py --strict   # 状态非 OK 即退出码 1（适合 CI 报警）
 python3.11 scripts/run_update.py --verify   # 只做发布前校验
-python3.11 -m pytest tests/ -q              # 60 项测试，不触网（含 Python↔JS 决策契约对拍）
+python3.11 -m pytest tests/ -q              # 73 项测试，不触网（含决策 / 执行闭环的 Python↔JS 对拍）
 
-# 持仓专业分析（S1–S5 + 执行后模拟 → Markdown + 数据包）
+# 持仓分析（结论 → 每只怎么办 → 组合现状 → 每只为什么 → 附注，输出 Markdown + 数据包）
 POSITIONS_PASSPHRASE='口令' python3.11 scripts/analyze_positions.py \
   --out docs/当前持仓分析报告.md --packet data/packets/positions_packet.json
 

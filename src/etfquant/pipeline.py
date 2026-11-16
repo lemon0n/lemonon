@@ -270,5 +270,3 @@ def _code_version():
         return 'unknown'
 
 
-def run_snapshot():
-    return run(use_live=False)

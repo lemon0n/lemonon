@@ -8,7 +8,6 @@
   · CLEAR: 目标份额为 0，不提供普通做多止盈目标（tp=None），也不提供「清仓止损价」
   · 缺失数据时返回 None，由上层标记数据不可用，而不是编一个价格
 """
-from . import methodology as M
 import math
 
 
@@ -56,8 +55,6 @@ def prices(action, f, prec=0.001):
         return dict(side='buy', entry=None, stop=None, tp=None,
                     price_types={}, basis=[], note='现价缺失，无法生成价位')
 
-    keys = {'CLEAR': 'CLEAR', 'TRIM': 'TRIM', 'ADD': 'ADD',
-            'HOLD': 'HOLD', 'WATCH': 'WATCH'}
     side = 'sell' if action in ('CLEAR', 'TRIM') else 'buy'
     rd = f.get('reduce_think') or {}
     hi20 = _num(rd.get('high20')) or 0.0
@@ -110,7 +107,3 @@ def prices(action, f, prec=0.001):
                                  tp='观察参考阻力（非必到目标价）'),
                 basis=basis, note='日频系统无次日盘口，以上均为执行政策而非成交承诺')
 
-
-def card(action):
-    pm = (M.load().get('pricing') or {})
-    return pm.get(action) or pm.get('HOLD') or dict(side='buy')

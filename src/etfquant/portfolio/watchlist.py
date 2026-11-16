@@ -4,7 +4,7 @@
 不含份额、成本、市值、盈亏、现金等任何账户数据 —— 这个工程对外公开，
 页面与内嵌 JSON 里都不应出现个人持仓信息。
 """
-from .. import config, universe
+from .. import universe
 
 
 def _s(v):

@@ -138,7 +138,6 @@ process.stdout.write(JSON.stringify(out));
 
 @pytest.mark.skipif(not _node(), reason='需要 node 才能对拍前端规则引擎')
 def test_python_js_decide_identical():
-    cfg = config.cfg()
     dashboard = M.compact()
     js = _run_js(dict(dashboard=dashboard, cases=GOLDEN))
     assert js.returncode == 0, js.stderr
@@ -218,8 +217,6 @@ process.stdout.write(JSON.stringify(out));
 def test_page_payload_matches_backend_decisions(tmp_path):
     """页面内嵌数据 → 前端引擎的动作与价位，必须与后端写出的完全一致。"""
     from etfquant import pipeline
-    import etfquant.webgen as webgen
-    cfg = config.cfg()
     old_web, old_root = config.WEB, config.ROOT
     config.WEB = str(tmp_path)
     config.ROOT = str(tmp_path.parent)
