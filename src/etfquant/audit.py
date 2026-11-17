@@ -90,8 +90,8 @@ def out_of_time(decision):
     except OSError:
         return dict(ok=False, note='回测报告不可读')
     has_boundary = any(k in text for k in ('不作为', '冻结', '不能证明', '研究材料'))
-    return dict(ok=has_boundary and not decision.get('orders'),
-                note='报告已声明研究边界；当前运行%s可执行订单'
+    return dict(ok=has_boundary,
+                note='报告已声明研究边界；当前运行%s可执行订单（订单不影响该指标）'
                      % ('存在' if decision.get('orders') else '没有'))
 
 

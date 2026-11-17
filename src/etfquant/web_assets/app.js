@@ -665,7 +665,7 @@ function staleNotice(){
 function page5CashOnly(h,p,s1,adv,pdec){
   var cash=n(HOLD.cash),asset=(p&&p.totalAsset!=null)?n(p.totalAsset):cash;
   var orders=pdec?pdec.orders.length:0;
-  h+=sec('① 全现金组合');
+  h+=sec('① 组合资金与今日运营概览');
   h+='<div class="grid4">'+
     kpi('总资产',fy(asset),'当前全部为现金')+
     kpi('现金',fy(cash),asset>0?'现金占比 100%':'暂无可用资金')+
@@ -675,7 +675,10 @@ function page5CashOnly(h,p,s1,adv,pdec){
   h+=box('<div class="notice">当前为空仓（全现金），今日无需调整。'+
     '现金不承担市场风险；需要建仓时请先在「持仓设置」录入持仓，'+
     '再由执行层按约束生成目标份额。</div>');
-  h+=sec('② 可评估建仓（仅研究，不生成订单）');
+  h+=sec('② 组合分析 → 单ETF分析');
+  h+=box('<div class="notice">当前没有持仓，组合结构、集中度与单 ETF 证据卡暂无可展示内容；'+
+    '执行层仍会评估建仓候选，但不会在无持仓快照时发布目标份额。</div>');
+  h+=sec('③ 市场变化、关注方向与建仓候选');
   if(adv&&adv.adds&&adv.adds.length){
     h+=tbl(['评级','ETF','价位','规则'],adv.adds.map(function(x){
       return tr([tag(x.level,x.level==='A'?'buy':'hold'),
@@ -699,12 +702,12 @@ function page5(){
 
   var after=PDEC.portfolio_after;
 
-  /* ① 组合层结论（S1 + S5），并在同一处给出执行后视角 */
-  h+=sec('① 组合结论与执行后视角');
+  /* ① 组合资金与今日运营概览（结论 + 快照 + 风险/质量合并为首屏） */
+  h+=sec('① 组合资金与今日运营概览');
   h+='<div id="orderListBox">'+orderList(p,s1,adv,PDEC)+'</div>';
 
-  /* ② 组合快照（缺价即 ABSTAIN，不给正常总仓位） */
-  h+=sec('② 组合快照');
+  /* 资金与持仓快照（缺价即 ABSTAIN，不给正常总仓位） */
+  h+='<div class="sec-sub">资金与持仓快照</div>';
   if(!p.complete){
     h+=box('<div class="notice warn">组合快照不完整：缺有效价格 '+esc(p.missing.join('、'))+
       '。总资产、总仓位、健康仪表与调仓建议均不计算（缺价不等于 0）。</div>');
@@ -724,14 +727,17 @@ function page5(){
     ['今日待执行',PDEC.orders.length+' 笔',false]
   ].map(function(x){ return '<span class="'+(x[2]?'warn':'')+'">'+x[0]+' <b>'+x[1]+'</b></span>'; }).join('')+'</div>';
 
-  /* ③ 四项仪表（分开列示，不合成单一分数） */
+  /* 风险与数据质量（四层完整度分开列示，不合成单一分数） */
   var dash=dashboardOf(p);
-  h+=sec('③ 风险与数据质量仪表');
+  var L=(PDEC&&PDEC.layers)||{};
+  h+='<div class="sec-sub">风险与数据质量</div>';
   h+='<div class="grid2">';
-  h+=box(bt('数据质量')+kv([
-    ['组合快照',dash.dataQuality.complete?'完整':'不完整（缺 '+dash.dataQuality.missing.length+' 只）'],
+  h+=box(bt('数据质量（四层）')+kv([
+    ['价格快照',L.price?'完整':'不完整'],
+    ['技术面',L.technical?'完整':'不完整'],
+    ['分类与基准',L.classification?'完整':'不完整'],
+    ['综合分析',L.decision?'可用':'不可用'],
     ['缺价标的',esc(dash.dataQuality.missing.join('、')||'无')],
-    ['无技术面数据',esc(dash.dataQuality.abstain.join('、')||'无')],
     ['分类未知',esc((p.rows.filter(function(r){ return r.category==='未分类'; })
       .map(function(r){ return r.code; })).join('、')||'无')]
   ]));
@@ -762,8 +768,9 @@ function page5(){
       '。系统不发布目标份额，仅保留诊断草案。</div>');
   }
 
-  /* ④ 持仓明细 */
-  h+=sec('④ 持仓明细');
+  /* ② 组合分析 → 单ETF分析 */
+  h+=sec('② 组合分析 → 单ETF分析');
+  h+='<div class="sec-sub">持仓明细</div>';
   var head=['代码','名称','类别','份额','成本','最新价','市值','权重','浮动盈亏','今日动作','价位','等级','数据'];
   var al=['','','','r','r','r','r','r','r','','','',''];
   h+=box(tbl(head,p.rows.map(function(r,i){
@@ -781,7 +788,7 @@ function page5(){
   p.rows.forEach(function(r){ if(r.mv!=null){ inv[r.category]=(inv[r.category]||0)+r.mv; invTotal+=r.mv; } });
   var keys=Object.keys(inv);
   Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
-  h+=sec('⑤ 结构与绩效');
+  h+='<div class="sec-sub">结构与绩效（固定份额回溯不等于账户绩效）</div>';
   h+='<div class="grid2">';
   h+=box(bt('结构占比（分母=已投资市值）')+tbl(['类别','当前','参考','偏离'],
     keys.map(function(k){
@@ -798,11 +805,31 @@ function page5(){
   /* ⑥ 逐只证据卡 */
   var items=heldLegs(p);
   if(items.length){
-    h+=sec('⑥ 逐只证据卡 · '+items.length+' 只');
+    h+='<div class="sec-sub">逐只证据卡 · '+items.length+' 只</div>';
     items.forEach(function(it){
       h+=legDetail(it.l,it.r,s1);
       h+=evidenceHtml(it.l,{a:adv.rows.filter(function(x){ return x.code===it.l.code; })[0].a});
     });
+  }
+  /* ③ 市场变化、关注方向与建仓候选 */
+  h+=sec('③ 市场变化、关注方向与建仓候选');
+  var rg=(D.market||{}).regime||{};
+  h+=box(bt('与决策相关的市场变化')+kv([
+    ['市场状态',esc(rg.regime||'—')],
+    ['仓位区间',(rg.fit_lo==null||rg.fit_hi==null)?'—':rg.fit_lo+'~'+rg.fit_hi+'%'],
+    ['主要观察',esc((rg.observations||[]).slice(0,3).join('；')||'—')]
+  ])+'<div class="notice">完整市场概况见「市场概况」页；此处只列与组合决策相关的证据，不重复整页。</div>');
+  var cands=(adv&&adv.adds)||[];
+  if(cands.length){
+    h+=box(bt('关注方向（研究，不生成订单）')+tbl(['评级','ETF','价位','规则'],
+      cands.slice(0,6).map(function(x){
+        return tr([tag(x.level,x.level==='A'?'buy':'hold'),
+          '<b>'+esc(x.code)+'</b> '+esc(x.name),esc(x.price),esc(x.rule)]);
+      }),['','','',''])+
+      '<div class="notice">以上仅为关注方向；建仓需通过数据质量、现金、集中度与相关性门禁，'+
+      '无合格候选时不生成任何订单。</div>');
+  }else{
+    h+=box('<div class="notice">当前没有满足组合约束的新增方向，继续观察。</div>');
   }
   return h;
 }

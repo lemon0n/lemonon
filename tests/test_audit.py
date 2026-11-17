@@ -83,3 +83,26 @@ def test_decision_separates_warning_and_orders():
     assert isinstance(d['orders'], list)
     for o in d['orders']:
         assert o['delta_shares']
+
+
+def test_refresh_quotes_does_not_recompute_daily_signal():
+    """刷新行情只能更新估值，不得重跑 decide/prices（否则新价×旧均线混算）。"""
+    with open(os.path.join(ROOT, 'src', 'etfquant', 'web_assets', 'app.js'),
+              encoding='utf-8') as f:
+        src = f.read()
+    m = re.search(r'function applyQuote\(.*?\n\}', src, re.S)
+    assert m, '未找到 applyQuote'
+    body = m.group(0)
+    assert 'decide(' not in body
+    assert '.prices(' not in body
+    assert 'SIGNAL_STALE=true' in body
+
+
+def test_page5_has_single_order_count_source():
+    """页面不得再用第二套过滤条件数订单；必须只读 PDEC。"""
+    with open(os.path.join(ROOT, 'src', 'etfquant', 'web_assets', 'app.js'),
+              encoding='utf-8') as f:
+        src = f.read()
+    assert 'sim.rows.filter' not in src
+    assert 'refreshOrderListBox' not in src
+    assert 'PDEC.orders.length' in src

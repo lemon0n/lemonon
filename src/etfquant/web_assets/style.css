@@ -48,6 +48,7 @@ body{margin:0}
 .sec{display:flex;align-items:center;gap:9px;margin:24px 0 11px;font-size:13px;
   font-weight:700;color:var(--blue-d)}
 .sec .bar{width:3px;height:14px;background:var(--blue)}
+.sec-sub{margin:16px 0 8px;font-size:12px;font-weight:650;color:#5b6673}
 .box{background:#fff;border:1px solid var(--line);padding:14px 16px;margin-bottom:12px}
 .box.tight{padding:0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
