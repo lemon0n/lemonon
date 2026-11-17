@@ -67,11 +67,50 @@ def write_manifest(r):
         'fallback': r['source']['fallback'],
         'validation': r.get('validation'),
         'run_id': r.get('run_id'),
+        'input_hash': r.get('input_hash'),
+        'config_hash': r.get('config_hash'),
         'html': r['html'],
     }
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     return path
+
+
+def verify_products():
+    """校验页面、数据包与运行清单来自同一次运行，并复跑数据包不变量。"""
+    root = config.ROOT
+    paths = dict(packet=os.path.join(root, 'web', 'analysis_packet.json'),
+                 manifest=os.path.join(root, 'data', 'last_run.json'),
+                 html=os.path.join(root, 'web', 'index.html'))
+    errors, warnings = [], []
+    for name, path in paths.items():
+        if not os.path.exists(path):
+            errors.append('缺少发布产物：%s' % name)
+    if errors:
+        return dict(ok=False, errors=errors, warnings=warnings)
+
+    pkt = json.load(open(paths['packet'], encoding='utf-8'))
+    man = json.load(open(paths['manifest'], encoding='utf-8'))
+    with open(paths['html'], encoding='utf-8') as f:
+        html = f.read()
+
+    import re
+    m = re.search(r'"packet":\{[^}]*"run_id":"([^"]+)"', html)
+    html_run = m.group(1) if m else None
+    ids = dict(packet=pkt.get('run_id'), manifest=man.get('run_id'), html=html_run)
+    values = {v for v in ids.values() if v}
+    if len(values) > 1:
+        errors.append('产物不同源：run_id 不一致 %s' % ids)
+    if man.get('input_hash') and pkt.get('input_hash') \
+            and man['input_hash'] != pkt['input_hash']:
+        errors.append('运行清单与数据包 input_hash 不一致')
+    chk = packet.validate_packet(pkt, cfg=config.cfg())
+    errors.extend(chk['errors'])
+    warnings.extend(chk['warnings'])
+    if not man.get('ok'):
+        warnings.append('最近一次运行状态为 %s' % man.get('status'))
+    return dict(ok=not errors, errors=errors, warnings=warnings,
+                run_id=ids.get('packet'), ids=ids)
 
 
 def main():
@@ -85,12 +124,7 @@ def main():
     a = ap.parse_args()
 
     if a.verify:
-        path = os.path.join(config.ROOT, 'web', 'analysis_packet.json')
-        if not os.path.exists(path):
-            print('找不到 %s' % path, file=sys.stderr)
-            return 4
-        pkt = json.load(open(path, encoding='utf-8'))
-        chk = packet.validate_packet(pkt)
+        chk = verify_products()
         print(json.dumps(chk, ensure_ascii=False, indent=2))
         return 0 if chk['ok'] else 4
 

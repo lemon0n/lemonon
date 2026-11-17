@@ -33,6 +33,8 @@ DEFAULT_PARAMS = dict(
     lot_size=100,
     max_legs=6,
     leg_weight_pct=15.0,
+    add_step_pct=5.0,
+    max_single_weight_pct=25.0,
     warmup_bars=130,
 )
 
@@ -40,11 +42,17 @@ DEFAULT_PARAMS = dict(
 def params(cfg=None):
     cfg = cfg or config.cfg()
     bt = dict(cfg['strategy'].get('backtest') or {})
+    ex = dict((cfg.get('risk') or {}).get('execution') or {})
+    c = dict((cfg.get('risk') or {}).get('constraints') or {})
     p = dict(DEFAULT_PARAMS)
     for k in ('initial_cash', 'fee_bps', 'min_commission_cny', 'slippage_bps',
               'lot_size', 'max_legs', 'leg_weight_pct', 'warmup_bars'):
         if k in bt:
             p[k] = bt[k]
+    if 'add_step_pct' in ex:
+        p['add_step_pct'] = float(ex['add_step_pct'])
+    if 'max_single_weight_pct' in c:
+        p['max_single_weight_pct'] = float(c['max_single_weight_pct'])
     return p
 
 
@@ -55,6 +63,25 @@ def build_features(df, cfg=None):
 
 def _fee(notional, p):
     return max(p['min_commission_cny'], abs(notional) * p['fee_bps'] / 10000.0)
+
+
+def equity_at_open(cash, legs, d, open_px, prev_close, last_close=None):
+    """开盘决策可用权益（无前视）：现金 + 持仓 × 当日开盘，缺开盘用前收盘。
+
+    明确不接受「当日收盘」作为估值来源：那是成交之后才可知的信息。
+    """
+    last_close = last_close or {}
+    v = float(cash)
+    for code, leg in legs.items():
+        px = (open_px.get(code) or {}).get(d)
+        if px is None:
+            px = (prev_close.get(code) or {}).get(d)
+        if px is None:
+            px = (last_close.get(code) or {}).get(d)
+        if px is None:
+            continue
+        v += leg['shares'] * px
+    return v
 
 
 def _feature_dicts(f, warm):
@@ -80,18 +107,30 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
     dates = sorted(set().union(*[set(f['date']) for f in feats.values()]))
     idx = {c: {d: i for i, d in enumerate(f['date'])} for c, f in feats.items()}
     last_close, last_date = {}, {}
+    open_px, prev_close = {}, {}
     for c, f in feats.items():
         vals = f['close'].values
+        opens = f['open'].values
         lc, ld, cur = {}, {}, None
+        op, pc, prev = {}, {}, None
         for i, d in enumerate(f['date']):
             v = vals[i]
+            pc[d] = prev          # 严格早于 d 的最近合法收盘（不含当日）
             if v == v and v > 0:
                 cur = float(v)
                 ld[d] = d
+                prev = float(v)
             lc[d] = cur          # 缺 K 线沿用最近一次合法收盘（stale）
             last_date[d] = ld.get(d)
+            try:
+                ov = float(opens[i])
+                op[d] = ov if np.isfinite(ov) and ov > 0 else None
+            except (TypeError, ValueError):
+                op[d] = None
         last_close[c] = lc
         last_date[c] = ld
+        open_px[c] = op
+        prev_close[c] = pc
 
     legs = {}                 # code -> {shares, cost_basis, entry_date, entry_px, opens}
     trades = []               # 完整持仓周期
@@ -111,6 +150,13 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
             v += leg['shares'] * px
         return v
 
+    def total_equity_open(d):
+        """开盘决策可用权益：现金 + 持仓 × 当日开盘（缺开盘用前一交易日收盘）。
+
+        禁止使用当日收盘：那是成交之后才可知的信息（前视偏差）。
+        """
+        return equity_at_open(cash, legs, d, open_px, prev_close, last_close)
+
     for d in dates:
         # ---- 1) 执行挂单（只在该 code 有当日 K 线时成交） ----
         still = []
@@ -126,11 +172,18 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
             if not np.isfinite(px) or px <= 0:
                 still.append(od)
                 continue
-            eq = total_equity(d)
+            eq = total_equity_open(d)
             if act == 'ADD':
-                if code in legs or len(legs) >= int(p['max_legs']):
-                    continue              # 成交端再次检查腿数上限
-                budget = eq * p['leg_weight_pct'] / 100.0
+                if code in legs:
+                    leg0 = legs[code]
+                    cur_w = leg0['shares'] * px / eq * 100 if eq > 0 else 100
+                    if cur_w + float(p['add_step_pct']) > float(p['max_single_weight_pct']) + 1e-9:
+                        continue          # 与生产一致：加仓受单只上限约束
+                    budget = eq * float(p['add_step_pct']) / 100.0
+                else:
+                    if len(legs) >= int(p['max_legs']):
+                        continue              # 成交端再次检查腿数上限
+                    budget = eq * p['leg_weight_pct'] / 100.0
                 sh = int(budget / (px * (1 + p['slippage_bps'] / 10000.0)) / lot) * lot
                 fill_px = px * (1 + p['slippage_bps'] / 10000.0)
                 while sh >= lot:
@@ -143,9 +196,17 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
                     notional = sh * fill_px
                     fee = _fee(notional, p)
                     cash -= notional + fee
-                    legs[code] = dict(shares=sh, entry_px=fill_px, entry_date=d,
-                                      cost=notional, reason=od['reason'],
-                                      realized=0.0, entry_fee=fee, exit_fee=0.0, sold=0)
+                    if code in legs:
+                        leg0 = legs[code]
+                        old = leg0['shares']
+                        leg0['entry_px'] = (leg0['entry_px'] * old + fill_px * sh) / (old + sh)
+                        leg0['shares'] = old + sh
+                        leg0['cost'] += notional
+                        leg0['entry_fee'] += fee
+                    else:
+                        legs[code] = dict(shares=sh, entry_px=fill_px, entry_date=d,
+                                          cost=notional, reason=od['reason'],
+                                          realized=0.0, entry_fee=fee, exit_fee=0.0, sold=0)
             elif act in ('TRIM', 'CLEAR'):
                 leg = legs.get(code)
                 if not leg:
@@ -189,8 +250,10 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
                 continue
             dec = M.decide(feat, data_status='OK')
             act = dec['action']
+            if any(x['code'] == code and x['action'] == act for x in pending):
+                continue                  # 同一标的同方向不重复挂单
             if code in legs:
-                if act in ('CLEAR', 'TRIM'):
+                if act in ('CLEAR', 'TRIM', 'ADD'):
                     pending.append(dict(code=code, action=act,
                                         reason='%s %s' % (dec['rule_ids'][0], dec['level']),
                                         created=d))

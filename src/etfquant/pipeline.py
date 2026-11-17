@@ -223,9 +223,12 @@ def run(use_live=True, strict=False, write_packet=True):
     if write_packet:
         runs_dir = os.path.join(config.ROOT, 'data', 'runs')
         packet.write(pkt, archive_dir=runs_dir)
+        # 发布产物与页面必须来自同一次运行，供 run_update --verify 比对
+        packet.write(pkt, path=os.path.join(config.WEB, 'analysis_packet.json'))
 
     return dict(date=meta['run_date'], data_date=meta['data_date'],
                 status=status, run_id=meta['run_id'], mode=meta['mode'],
+                input_hash=pkt.get('input_hash'), config_hash=pkt.get('config_hash'),
                 levels=len(legs),
                 level_count={k: sum(1 for l in legs if l['decision']['level'] == k)
                              for k in ('A', 'B', 'C', 'D')},

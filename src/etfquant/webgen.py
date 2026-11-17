@@ -190,18 +190,33 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         trading=cfg['universe'],
         methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
+        contract=dict(
+            version='1.0',
+            config_hash=(pkt or {}).get('config_hash'),
+            constraints=(cfg.get('risk') or {}).get('constraints') or {},
+            execution=(cfg.get('risk') or {}).get('execution') or {},
+            asset_buckets=(cfg.get('risk') or {}).get('asset_buckets') or {},
+            correlation=(cfg.get('risk') or {}).get('correlation') or {},
+        ),
+        decision=decision,
     )
 
 
-def render(data, cfg=None):
+def render(data, cfg=None, decision=True):
     css = open(os.path.join(ASSETS, 'style.css'), encoding='utf-8').read()
     rules = open(os.path.join(ASSETS, 'rules.js'), encoding='utf-8').read()
     js = open(os.path.join(ASSETS, 'app.js'), encoding='utf-8').read()
+    dpath = os.path.join(ASSETS, 'decision.js')
+    djs = ''
+    if decision and os.path.exists(dpath):
+        djs = open(dpath, encoding='utf-8').read()
+    elif isinstance(data, dict):
+        data.setdefault('contract', {})['engine'] = 'legacy'
     payload = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     payload = payload.replace('<', '\\u003c').replace('>', '\\u003e')
     html = (SHELL.replace('@@CSS@@', css)
                  .replace('@@DATA@@', payload)
-                 .replace('@@JS@@', rules + '\n' + js))
+                 .replace('@@JS@@', rules + '\n' + djs + '\n' + js))
     config.ensure_dirs(config.WEB)
     path = os.path.join(config.WEB, 'index.html')
     tmp = path + '.tmp'

@@ -13,6 +13,7 @@ Agent / CI 想在云端读持仓做分析时，用环境变量传入口令即可
 import argparse
 import base64
 import csv
+import datetime
 import getpass
 import json
 import os
@@ -43,7 +44,11 @@ def encrypt(obj, passwd):
     ct = AESGCM(_key(passwd, salt)).encrypt(
         iv, json.dumps(obj, ensure_ascii=False).encode('utf-8'), None)
     return {'v': 1, 'kdf': 'PBKDF2-SHA256', 'iter': ITER,
-            'salt': _b64(salt), 'iv': _b64(iv), 'ct': _b64(ct)}
+            'salt': _b64(salt), 'iv': _b64(iv), 'ct': _b64(ct),
+            'schema_version': 2,
+            'updated_at': datetime.datetime.now(
+                datetime.timezone(datetime.timedelta(hours=8))
+            ).strftime('%Y-%m-%d %H:%M:%S')}
 
 
 def decrypt(blob, passwd):

@@ -94,8 +94,10 @@ def build(res, snap, regime, cfg, meta=None):
                 technical=False, classification=not snap.get('unclassified'),
                 decision=False, reasons={})
     legs = _leg_by_code(res)
+    held = {str(l['code']) for l in res.get('legs') or []}
     holding = [_decision_item(d, legs.get(str(d['code'])), layers)
-               for d in res.get('decisions') or []]
+               for d in res.get('decisions') or []
+               if str(d.get('code')) in held]
     orders = _orders(res)
     fingerprint_payload = dict(
         data_date=meta.get('data_date'),

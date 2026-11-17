@@ -136,6 +136,26 @@ def classify(code, name='', category=None):
     return UNCLASSIFIED, 'unknown', '无匹配规则'
 
 
+def parse_csv(path):
+    """标准 CSV 解析（支持引号内的逗号/换行），CASH 行复用 shares 列。"""
+    rows, cash = [], 0.0
+    with open(path, encoding='utf-8-sig', newline='') as f:
+        for r in csv.DictReader(f):
+            code = (r.get('code') or '').strip()
+            if not code:
+                continue
+            if code.upper() == 'CASH':
+                cash = float(r.get('shares') or 0)
+                continue
+            rows.append(dict(code=code, name=(r.get('name') or code).strip(),
+                             category=(r.get('category') or '').strip(),
+                             shares=float(r.get('shares') or 0),
+                             cost=float(r.get('cost') or 0),
+                             settle=(r.get('settle') or 'T+1').strip(),
+                             note=(r.get('note') or '').strip()))
+    return dict(rows=rows, cash=cash)
+
+
 def load(cfg=None, env=None):
     """返回 {'rows': [...], 'cash': float} 或 None（无口令 / 无文件 / 解密失败）。"""
     env = os.environ if env is None else env
@@ -143,26 +163,19 @@ def load(cfg=None, env=None):
     if passwd and os.path.exists(ENC_PATH):
         try:
             with open(ENC_PATH, encoding='utf-8') as f:
-                return _decrypt(json.load(f), passwd)
+                port = _decrypt(json.load(f), passwd)
         except Exception:
             return None
+        errors = validate(port)
+        if errors:
+            raise ValueError('持仓数据非法：%s' % '；'.join(errors))
+        return port
     if os.path.exists(CSV_PATH):
-        rows, cash = [], 0.0
-        with open(CSV_PATH, encoding='utf-8-sig', newline='') as f:
-            for r in csv.DictReader(f):
-                code = (r.get('code') or '').strip()
-                if not code:
-                    continue
-                if code.upper() == 'CASH':
-                    cash = float(r.get('shares') or 0)
-                    continue
-                rows.append(dict(code=code, name=(r.get('name') or code).strip(),
-                                 category=(r.get('category') or '').strip(),
-                                 shares=float(r.get('shares') or 0),
-                                 cost=float(r.get('cost') or 0),
-                                 settle=(r.get('settle') or 'T+1').strip(),
-                                 note=(r.get('note') or '').strip()))
-        return dict(rows=rows, cash=cash)
+        port = parse_csv(CSV_PATH)
+        errors = validate(port)
+        if errors:
+            raise ValueError('持仓数据非法：%s' % '；'.join(errors))
+        return port
     return None
 
 

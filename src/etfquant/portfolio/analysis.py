@@ -14,7 +14,7 @@ import math
 from .. import methodology as M
 from .. import pricing as P
 from ..portfolio import decision as pdecision
-from ..portfolio import execution, risk as prisk, snapshot as snapshots
+from ..portfolio import execution, opportunities as opps, risk as prisk, snapshot as snapshots
 from ..quality import merge_status
 
 
@@ -239,6 +239,30 @@ def analyze(port, snap, features, regime, cfg, meta=None):
 
     # ---- 组合执行闭环 ----
     plan = execution.plan(legs, snap, cfg)
+
+    # ---- 建仓候选（READY 才进入方案；失败只降级为等待确认）----
+    opportunities, candidates = [], meta.get('candidates') or []
+    if candidates:
+        opportunities, ready = opps.evaluate(
+            candidates, snap, cfg, {l['code'] for l in legs}, plan)
+        if ready:
+            trial = execution.plan(legs + ready, snap, cfg)
+            init = [o for o in trial['orders'] if o['action'] == 'INITIATE']
+            if trial['ok'] and init:
+                plan = trial
+                for o in init:
+                    for item in opportunities:
+                        if item['code'] == o['code']:
+                            item['state'] = 'READY'
+                            item['target_shares'] = o['target_shares']
+                            item['target_weight'] = o.get('target_weight')
+            else:
+                for item in opportunities:
+                    if item['state'] == 'READY':
+                        item['state'] = 'WAIT_CONFIRMATION'
+                        item['reasons'] = (item.get('reasons') or []) \
+                            + (trial['violations'] or ['建仓方案未通过组合约束'])
+
     for d in plan['decisions']:
         leg = next((x for x in legs if x['code'] == d['code']), None)
         if leg:
@@ -284,6 +308,7 @@ def analyze(port, snap, features, regime, cfg, meta=None):
     out = dict(
         status=status, s1=s1, s2=s2, legs=legs, cards=cards,
         orders=plan['orders'], decisions=plan['decisions'],
+        opportunities=opportunities,
         portfolio_before=dict(
             as_of=snap.get('as_of'), complete=bool(snap.get('complete')),
             cash=_round(snap.get('cash'), 2), market_value=_round(snap.get('total_pos'), 2),

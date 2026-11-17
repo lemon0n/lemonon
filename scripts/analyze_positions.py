@@ -58,7 +58,11 @@ def main():
     a = ap.parse_args()
 
     cfg = config.cfg()
-    port = positions.load(cfg)
+    try:
+        port = positions.load(cfg)
+    except ValueError as e:
+        print('持仓数据非法（计算前已拒绝）：%s' % e)
+        return 4
     if not port or not port.get('rows'):
         print('持仓不可用：需要 POSITIONS_PASSPHRASE 环境变量或 positions/positions.csv')
         return 2

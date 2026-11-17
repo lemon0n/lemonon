@@ -9,6 +9,8 @@ var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
 var PQ = {};                      /* 持仓里不在观察池的 ETF 实时价缓存 {last,prev,chg} */
 var PERF = null, PERF_BUSY = false;
 var ENC = null, ENC_LOADING = null;   /* 云端密文包 */
+var PDEC = null;                  /* 唯一组合决策契约（浏览器执行层） */
+var SIGNAL_STALE = false;         /* 已刷新盘中价：日频信号仍基于收盘 */
 
 /* ---------------- 基础工具 ---------------- */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -104,17 +106,15 @@ function applyQuote(code,last,prev){
   PQ[String(code)]={last:last,prev:prev,chg:chg};   /* 持仓里可能有观察池之外的标的 */
   (D.legs||[]).forEach(function(l){
     if(String(l.code)===code){
+      /* 只更新最新价与涨跌幅；日频动作/价位不因盘中价重算。
+         首次刷新时冻结收盘价，供 legFeat 继续按收盘口径求值。 */
+      if(l.signal_last==null){ l.signal_last=l.last; l.signal_change=l.change; }
       l.last=last;
       if(chg!=null) l.change=chg;
-      /* 现价变了：价位按同一口径重算；等级/动作不因盘中价而改变（日频收盘信号），
-         必须重跑脚本才会更新，避免把旧均线与新价拼成「新信号」。 */
-      var dec=ETF_RULES.decide(D,legFeat(l),l.data_status||'OK',{});
-      var pr=ETF_RULES.prices(dec.action,legFeat(l),0.001);
-      l.price=pr;
-      l.status=dec.status; l.action=dec.action; l.level=dec.level;
-      l.rule_ids=dec.rule_ids; l.hits=dec.hits;
     }
   });
+  SIGNAL_STALE=true;
+  if(PDEC){ PDEC.audit=PDEC.audit||{}; PDEC.audit.stale_signal=true; }
 }
 function loadScript(url, charset, cb){
   var s=document.createElement('script');
@@ -385,7 +385,8 @@ function kpi(k,v,d,warn){
 }
 function fy(v){ return v==null?'—':'¥'+Math.round(n(v)).toLocaleString(); }
 function actText(a){ var A=(D.methodology&&D.methodology.actions)||{}; return A[a]||a; }
-function actKind(a){ return (a==='CLEAR'||a==='TRIM')?'sell':(a==='ADD'?'buy':'hold'); }
+function actKind(a){ return (a==='CLEAR'||a==='TRIM'||a==='EXIT')?'sell':
+  ((a==='ADD'||a==='INITIATE')?'buy':'hold'); }
 function fmtPrice(a){
   if(a.entry==null&&a.stop==null&&a.tp==null) return '—';
   if(a.action==='HOLD'||a.action==='WATCH') return '止损 '+f2(a.stop)+' · 目标 '+f2(a.tp);
@@ -399,7 +400,10 @@ function legFeat(l){
   var sp=l.support||{};
   var ma5=(sp.ma5!=null?sp.ma5:l.ma5), ma10=(sp.ma10!=null?sp.ma10:l.ma10),
       ma20=(sp.ma20!=null?sp.ma20:l.ma20);
-  return {last:l.last,ma5:ma5,ma10:ma10,ma20:ma20,change_pct:l.change,
+  /* 盘中刷新只改展示价（last/change）；求值固定用首次刷新前的收盘口径。 */
+  var sigLast=(l.signal_last!=null?l.signal_last:l.last),
+      sigChg=(l.signal_last!=null?l.signal_change:l.change);
+  return {last:sigLast,ma5:ma5,ma10:ma10,ma20:ma20,change_pct:sigChg,
     stand_back:l.stand_back,days_above_ma5:l.days_above_ma5,below_ma10_2d:l.below_ma10,
     expand:l.expand,shrink:l.shrink,false_breakout:l.false_breakout,
     reduce_think:l.reduce,support:sp,
@@ -542,6 +546,94 @@ function rows5adv(p,s1){
   return {rows:rows,adds:adds};
 }
 
+/* ---------------- 唯一组合决策契约 PDEC ----------------
+   buildPdec 只做一次适配：calcPort() 的持仓 + rows5adv() 的逐腿动作
+   → WB_DECISION.buildPortfolioDecision（与 Python execution.plan 同语义）。
+   接口缺失时退回旧 simulate()，保证页面不白屏。 */
+function bucketOf(cat){
+  var m=((D&&D.contract&&D.contract.asset_buckets)||{});
+  return m[cat]||'未分类';
+}
+function sigLastOf(x){
+  var l=x&&x.l;
+  if(l){
+    if(l.signal_last!=null) return n(l.signal_last);
+    if(l.last!=null) return n(l.last);
+  }
+  return (x&&x.r&&x.r.last!=null)?n(x.r.last):null;
+}
+function legacyPdec(p,s1,adv){
+  var sim=simulate(p,adv.rows);
+  var trading=['INITIATE','ADD','TRIM','EXIT','CLEAR'];
+  var decisions=sim.rows.map(function(r){
+    var isTrade=trading.indexOf(r.action)>=0;
+    return {code:r.code,name:r.name,action:r.action,
+      current_weight:r.curW,target_weight:r.targetW,draft_target_weight:r.targetW,
+      current_shares:r.curShares,target_shares:r.targetShares,
+      draft_target_shares:r.targetShares,delta_shares:r.delta,
+      price:r.price,notional:r.notional,fee:r.fee,reason_ids:r.rule_ids||[],
+      constraints_applied:r.applied||[],funding_source:null,
+      published:!!(isTrade&&r.delta&&!sim.violations.length),
+      blocked_by:sim.violations.slice()};
+  });
+  var after=sim.after?{
+    total_asset:sim.after.total,cash:sim.after.cash,market_value:sim.after.pos,
+    position_pct:sim.after.positionPct,cash_pct:sim.after.cashPct,
+    risk_position_pct:null,max_single_pct:null,hhi:null,effective_n:null,
+    category_pct:sim.after.catPct,bucket_pct:{},legs:sim.after.legs,
+    filled:false,diagnostic:sim.violations.length>0
+  }:null;
+  return {meta:{contract_version:'0',mode:'legacy'},decisions:decisions,
+    orders:decisions.filter(function(d){ return d.published; }),
+    portfolio_after:after,violations:sim.violations,warnings:[],
+    ok:!sim.violations.length,
+    layers:{price:!!p.complete,technical:false,classification:false,decision:false},
+    audit:{stale_signal:SIGNAL_STALE,legacy:true}};
+}
+function buildPdec(p,s1,adv){
+  p=p||calcPort(); s1=s1||s1Position(p); adv=adv||rows5adv(p,s1);
+  if(!window.WB_DECISION||!D||!D.contract){ return legacyPdec(p,s1,adv); }
+
+  var byCode={};
+  adv.rows.forEach(function(x){ byCode[String(x.code)]=x; });
+  var complete=!!p.complete, missing=[], sigPos=0;
+  p.missing.forEach(function(c){ missing.push(String(c)); });
+  var rows=p.rows.map(function(r){
+    var x=byCode[String(r.code)]||{r:r};
+    var last=sigLastOf(x);
+    if(last==null&&missing.indexOf(String(r.code))<0) missing.push(String(r.code));
+    if(last!=null) sigPos+=last*n(r.shares); else complete=false;
+    return {code:String(r.code),name:r.name,category:r.category||'未分类',
+      bucket:r.bucket||bucketOf(r.category),shares:n(r.shares),cost:n(r.cost),
+      last:last,weight:null};
+  });
+  var total=complete?sigPos+n(p.cash):null;
+  rows.forEach(function(r){
+    r.weight=(complete&&total>0)?r.last*r.shares/total*100:null;
+  });
+  var legs=adv.rows.map(function(x){
+    return {code:String(x.code),name:x.name,
+      category:x.r.category||'未分类',bucket:x.r.bucket||bucketOf(x.r.category),
+      action:(x.a&&x.a.action)||'ABSTAIN',last:sigLastOf(x),
+      rule_ids:(x.a&&x.a.rule_ids)||[]};
+  });
+  var unclassified=rows.filter(function(r){
+    return r.category==='未分类'||r.bucket==='未分类';
+  }).map(function(r){ return r.code; });
+  var snap={complete:complete,cash:n(p.cash),total_asset:total,rows:rows,
+    missing:missing,unclassified:unclassified,
+    regime:{lo:s1.lo,hi:s1.hi}};
+
+  var out=null;
+  try{ out=window.WB_DECISION.buildPortfolioDecision({legs:legs,snap:snap,cfg:D.contract}); }
+  catch(e){ return legacyPdec(p,s1,adv); }
+  if(!out||!out.decisions) return legacyPdec(p,s1,adv);
+  out.audit=out.audit||{};
+  out.audit.stale_signal=SIGNAL_STALE;
+  out.audit.signal_date=(D.meta&&(D.meta.data_date||D.meta.as_of))||null;
+  return out;
+}
+
 /* 证据卡：事实 / 比较 / 规则 / 组合含义 / 反证 / 未知项 / 失效条件 */
 function evidenceHtml(l,x){
   if(!l||!l.evidence) return '';
@@ -560,15 +652,56 @@ function evidenceHtml(l,x){
   return h;
 }
 
+function feeTotal(pdec){
+  return ((pdec&&pdec.orders)||[]).reduce(function(s,r){ return s+n(r.fee); },0);
+}
+function staleNotice(){
+  if(!PDEC||!PDEC.audit||!PDEC.audit.stale_signal) return '';
+  var d=PDEC.audit.signal_date||((D&&D.meta&&(D.meta.data_date||D.meta.as_of))||'上一交易日');
+  return '<div class="notice">信号基于 '+esc(d)+' 日收盘，刷新行情不改变日频动作；'+
+    '最新价只用于估值与当日盈亏。</div>';
+}
+/* 零持仓首屏：全现金组合；只给研究候选，绝不生成订单 */
+function page5CashOnly(h,p,s1,adv,pdec){
+  var cash=n(HOLD.cash),asset=(p&&p.totalAsset!=null)?n(p.totalAsset):cash;
+  var orders=pdec?pdec.orders.length:0;
+  h+=sec('① 全现金组合');
+  h+='<div class="grid4">'+
+    kpi('总资产',fy(asset),'当前全部为现金')+
+    kpi('现金',fy(cash),asset>0?'现金占比 100%':'暂无可用资金')+
+    kpi('持仓市值','¥0','无持仓')+
+    kpi('今日待执行',orders+' 笔','无持仓可调整')+
+    '</div>';
+  h+=box('<div class="notice">当前为空仓（全现金），今日无需调整。'+
+    '现金不承担市场风险；需要建仓时请先在「持仓设置」录入持仓，'+
+    '再由执行层按约束生成目标份额。</div>');
+  h+=sec('② 可评估建仓（仅研究，不生成订单）');
+  if(adv&&adv.adds&&adv.adds.length){
+    h+=tbl(['评级','ETF','价位','规则'],adv.adds.map(function(x){
+      return tr([tag(x.level,x.level==='A'?'buy':'hold'),
+        '<b>'+esc(x.code)+'</b> '+esc(x.name),esc(x.price),esc(x.rule)]);
+    }),['','','','']);
+    h+=box('<div class="notice">以上仅为规则与仓位区间的研究候选，不产生订单；'+
+      '建仓需先有持仓快照，再由执行层统一发布目标份额。</div>');
+  }else{
+    h+=box('<div class="notice">当前没有同时满足规则与仓位区间的候选标的；'+
+      '全现金状态不强行建仓。</div>');
+  }
+  return h;
+}
+
 function page5(){
   var h='<div class="pg-h"><h1>持仓分析</h1></div>';
-  if(!HOLD.rows.length) return h+'<div class="notice">暂无持仓数据</div>';
+  var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
+  PDEC=buildPdec(p,s1,adv);
+  h+=staleNotice();
+  if(!HOLD.rows.length) return page5CashOnly(h,p,s1,adv,PDEC);
 
-  var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1),sim=simulate(p,adv.rows);
+  var after=PDEC.portfolio_after;
 
   /* ① 组合层结论（S1 + S5），并在同一处给出执行后视角 */
   h+=sec('① 组合结论与执行后视角');
-  h+='<div id="orderListBox">'+orderList(p,s1,adv,sim)+'</div>';
+  h+='<div id="orderListBox">'+orderList(p,s1,adv,PDEC)+'</div>';
 
   /* ② 组合快照（缺价即 ABSTAIN，不给正常总仓位） */
   h+=sec('② 组合快照');
@@ -588,7 +721,7 @@ function page5(){
     ['仓位区间',s1.lo==null?'—':s1.lo+'~'+s1.hi+'%',s1.action==='ABSTAIN'],
     ['当前总仓位',p.positionPct==null?'—':f2(p.positionPct)+'%',false],
     ['现金占比',p.cashPct==null?'—':f2(p.cashPct)+'%',false],
-    ['今日待执行',sim.rows.filter(function(r){ return r.delta?true:false; }).length+' 笔',false]
+    ['今日待执行',PDEC.orders.length+' 笔',false]
   ].map(function(x){ return '<span class="'+(x[2]?'warn':'')+'">'+x[0]+' <b>'+x[1]+'</b></span>'; }).join('')+'</div>';
 
   /* ③ 四项仪表（分开列示，不合成单一分数） */
@@ -614,15 +747,19 @@ function page5(){
     ['低于MA10',esc(dash.trend.belowMa10.join('、')||'无')]
   ]));
   h+=box(bt('风险与执行')+kv([
-    ['执行后仓位',sim.after&&sim.after.positionPct!=null?f2(sim.after.positionPct)+'%':'—'],
-    ['执行后现金',sim.after&&sim.after.cashPct!=null?f2(sim.after.cashPct)+'%':'—'],
-    ['预计费用','¥'+f2(sim.rows.reduce(function(s,r){ return s+n(r.fee); },0))],
-    ['约束校验',sim.violations.length?('未通过 '+sim.violations.length+' 项'):'通过（静态估算）']
+    ['执行后仓位',after&&after.position_pct!=null?f2(after.position_pct)+'%':'—'],
+    ['执行后现金',after&&after.cash_pct!=null?f2(after.cash_pct)+'%':'—'],
+    ['预计费用','¥'+f2(feeTotal(PDEC))],
+    ['约束校验',PDEC.violations.length?('未通过 '+PDEC.violations.length+' 项'):
+      (PDEC.ok?'通过（静态估算）':'—')]
   ]));
   h+='</div>';
-  if(sim.violations.length){
-    h+=box('<div class="notice warn">执行后校验未通过：'+sim.violations.map(esc).join('；')+
-      '。系统不发布目标份额。</div>');
+  if(PDEC.warnings.length){
+    h+=box('<div class="notice">提示：'+PDEC.warnings.map(esc).join('；')+'</div>');
+  }
+  if(PDEC.violations.length){
+    h+=box('<div class="notice warn">执行后校验未通过：'+PDEC.violations.map(esc).join('；')+
+      '。系统不发布目标份额，仅保留诊断草案。</div>');
   }
 
   /* ④ 持仓明细 */
@@ -673,9 +810,9 @@ function page5(){
 function bRow(k,v){ return '<div class="b-row"><span class="b-k">'+k+'</span><div class="b-v">'+v+'</div></div>'; }
 function tmplFill(t,fmt){ return String(t||'').replace(/\{(\w+)\}/g,function(_,k){ return fmt[k]!=null?fmt[k]:''; }); }
 
-function s5BriefRows(p,s1,adv,sim){
+function s5BriefRows(p,s1,adv,pdec){
   var b=(D.methodology&&D.methodology.brief)||{};
-  var acts=sim.rows.filter(function(r){ return ['CLEAR','TRIM','ADD'].indexOf(r.action)>=0; });
+  var acts=(pdec&&pdec.orders)||[];
   var cnt={};
   acts.forEach(function(r){ cnt[r.action]=(cnt[r.action]||0)+1; });
   var actsTxt=Object.keys(cnt).map(function(k){ return actText(k)+' '+cnt[k]+' 只'; }).join('、')||'无';
@@ -696,14 +833,15 @@ function s5BriefRows(p,s1,adv,sim){
   var h=bRow('现象',esc(tmplFill(b.header_phen,fmt)))+
         bRow('判断',esc(tmplFill(b.header_judge,fmt)))+
         bRow('动作',esc(tmplFill(b.header_act,fmt)));
-  if(sim.after&&sim.after.positionPct!=null){
-    var txt='按当前价格静态估算：仓位 '+f2(sim.after.positionPct)+'%，现金 '+
-      f2(sim.after.cashPct)+'%，预计费用 ¥'+f2(sim.rows.reduce(function(s,r){ return s+n(r.fee); },0))+
+  var after=pdec&&pdec.portfolio_after;
+  if(after&&after.position_pct!=null){
+    var txt='按收盘价静态估算：仓位 '+f2(after.position_pct)+'%，现金 '+
+      f2(after.cash_pct)+'%，预计费用 ¥'+f2(feeTotal(pdec))+
       '。未成交与跳空会使实际值偏离；目标份额不是成交承诺。';
-    if(s1.lo!=null&&sim.after.positionPct<s1.lo){
+    if(s1.lo!=null&&after.position_pct<s1.lo){
       txt+='硬性风险退出优先于原仓位区间：执行后低于区间下沿 '+s1.lo+
         '%，系统不会为回到区间而买入未通过筛选的替代标的。';
-    }else if(s1.hi!=null&&sim.after.positionPct>s1.hi){
+    }else if(s1.hi!=null&&after.position_pct>s1.hi){
       txt+='执行后仍高于区间上沿 '+s1.hi+'%：剩余仓位需在下一次运行重新求值。';
     }
     h+=bRow('执行后',esc(txt));
@@ -711,41 +849,50 @@ function s5BriefRows(p,s1,adv,sim){
   return h;
 }
 
-function orderList(p,s1,adv,sim){
+function orderList(p,s1,adv,pdec){
   var st=stageHint();
   var h='<div class="adv">';
   h+='<div class="adv-h"><b>'+esc(s1.regime)+'</b>'+
     '<span>仓位区间 '+(s1.lo==null?'—':s1.lo+'~'+s1.hi+'%')+'</span>'+
     '<span>当前 '+(s1.pos==null?'—':f2(s1.pos)+'%')+' · '+esc(posTxt(s1))+'</span>'+
     '<span>基准 '+(st.as_of?esc(st.as_of):'—')+'</span></div>';
-  h+='<div class="brief brief-top">'+s5BriefRows(p,s1,adv,sim)+'</div>';
-  var rows=sim.rows.filter(function(r){ return ['CLEAR','TRIM','ADD'].indexOf(r.action)>=0; });
+  h+='<div class="brief brief-top">'+s5BriefRows(p,s1,adv,pdec)+'</div>';
+  /* 风险提示与可执行订单分块：先给阻断原因，再给已发布订单 */
+  if(pdec.violations.length){
+    h+='<div class="notice warn">执行后校验未通过：'+pdec.violations.map(esc).join('；')+
+      '。本次不发布目标份额与订单，仅保留诊断草案。</div>';
+  }
+  var rows=pdec.orders||[];
   if(rows.length){
     h+=tbl(['动作','ETF','当前份额','目标份额','增减','限价（不保证成交）','预计费用','规则'],
       rows.map(function(r){
         var a=(adv.rows.filter(function(x){ return x.code===r.code; })[0]||{}).a||{};
         return tr([tag(actText(r.action),actKind(r.action)),
           '<b>'+esc(r.code)+'</b> '+esc(r.name),
-          String(r.curShares),r.targetShares==null?'—':String(r.targetShares),
-          r.delta==null?'—':(r.delta>0?'+':'')+r.delta,
+          String(r.current_shares),
+          r.target_shares==null?'—':String(r.target_shares),
+          r.delta_shares==null?'—':(r.delta_shares>0?'+':'')+r.delta_shares,
           esc(fmtPrice(a)),r.fee==null?'—':'¥'+f2(r.fee),
-          esc((r.rule_ids||[]).join(' / ')||'—')]);
+          esc((r.reason_ids||[]).join(' / ')||'—')]);
       }),['','','r','r','r','','r','']);
     h+='<div class="b-cap">逐条：事实 → 规则 → 组合影响 → 执行约束（点开下方证据卡可回查）</div>';
     rows.forEach(function(r){
       var x=adv.rows.filter(function(y){ return y.code===r.code; })[0];
       h+='<div class="brief"><div class="b-t"><b>'+esc(r.code)+'</b> '+esc(r.name)+
-        ' <span class="b-src">'+esc((r.rule_ids||[]).join(' / ')||'—')+'</span></div>'+
-        bRow('目标',esc('当前权重 '+(r.curW==null?'—':f2(r.curW)+'%')+' → 目标权重 '+
-          (r.targetW==null?'—':f2(r.targetW)+'%')+'；份额 '+r.curShares+' → '+
-          (r.targetShares==null?'—':r.targetShares)))+
-        bRow('约束',esc((r.applied||[]).join('；')||'—'))+
+        ' <span class="b-src">'+esc((r.reason_ids||[]).join(' / ')||'—')+'</span></div>'+
+        bRow('目标',esc('当前权重 '+(r.current_weight==null?'—':f2(r.current_weight)+'%')+
+          ' → 目标权重 '+(r.target_weight==null?'—':f2(r.target_weight)+'%')+
+          '；份额 '+r.current_shares+' → '+
+          (r.target_shares==null?'—':r.target_shares)))+
+        bRow('约束',esc((r.constraints_applied||[]).join('；')||'—'))+
         (x&&x.a.price_note?bRow('价格口径',esc(x.a.price_note)):'')+
         '</div>';
     });
   }else{
     var nb=(D.methodology&&D.methodology.brief)||{};
-    h+='<div class="mini-2">'+esc(nb.no_action||'今日无触发动作')+'</div>';
+    var txt=(pdec&&!pdec.ok)?'本次未发布订单（执行后约束未通过，仅保留诊断草案）'
+      :(nb.no_action||'今日无触发动作');
+    h+='<div class="mini-2">'+esc(txt)+'</div>';
   }
   if(adv.adds.length){
     h+=bt('可买清单（未持有 · 仅规则通过，不含仓位授权）');
@@ -775,6 +922,7 @@ function fetchBars(code,cb,sym){
     try{ var d=window[vn].data[sym]; arr=d.qfqday||d.day||null; }catch(e){}
     if(!arr){ fin(null); return; }
     fin({
+      dates:arr.map(function(x){ return String(x[0]||''); }),
       opens:arr.map(function(x){ return parseFloat(x[1]); }),
       closes:arr.map(function(x){ return parseFloat(x[2]); }),
       highs:arr.map(function(x){ return parseFloat(x[3]); }),
@@ -798,8 +946,52 @@ function maSeries(a,k){
   for(i=0;i<a.length;i++){ s+=a[i]; if(i>=k) s-=a[i-k]; if(i>=k-1) out[i]=s/k; }
   return out;
 }
+/* 池外 K 线质量门禁：排序、去重、OHLC 关系、未收盘剔除、陈旧判断。
+   任一关键项失败返回 null，调用方按「数据不足」处理，不得继续驱动动作。 */
+function pad2(x){ return (x<10?'0':'')+x; }
+function sanitizeBars(b){
+  if(!b||!b.closes||!b.closes.length||!b.highs||!b.lows) return null;
+  var n=b.closes.length,rows=[],i;
+  var now=new Date();
+  var today=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+  var closed=(now.getHours()*60+now.getMinutes())>=15*60;
+  for(i=0;i<n;i++){
+    var d=b.dates?String(b.dates[i]||''):'';
+    var c=+b.closes[i],o=+b.opens[i],h=+b.highs[i],l=+b.lows[i],v=+b.vols[i];
+    if(!isFinite(c)||c<=0) continue;
+    if(!isFinite(o)||o<=0) o=c;
+    if(!isFinite(h)||h<=0) h=Math.max(o,c);
+    if(!isFinite(l)||l<=0) l=Math.min(o,c);
+    if(h<Math.max(o,c)-1e-9||l>Math.min(o,c)+1e-9) continue;
+    if(!isFinite(v)||v<0) v=0;
+    if(d&&d===today&&!closed) continue;   /* 未收盘 K 线不进入日频信号 */
+    rows.push({d:d,o:o,c:c,h:h,l:l,v:v});
+  }
+  if(rows.length<20) return null;
+  if(rows[0].d){
+    rows.sort(function(x,y){ return x.d<y.d?-1:(x.d>y.d?1:0); });
+    var uniq=[];
+    rows.forEach(function(r){
+      if(uniq.length&&uniq[uniq.length-1].d===r.d) uniq[uniq.length-1]=r;
+      else uniq.push(r);
+    });
+    rows=uniq;
+    var last=rows[rows.length-1].d;
+    var ld=new Date(last+'T00:00:00');
+    if(!isNaN(ld.getTime())&&(now-ld)/86400000>15) return null;  /* 陈旧 */
+    if(rows.length<20) return null;
+  }
+  return {dates:rows.map(function(r){ return r.d; }),
+          opens:rows.map(function(r){ return r.o; }),
+          closes:rows.map(function(r){ return r.c; }),
+          highs:rows.map(function(r){ return r.h; }),
+          lows:rows.map(function(r){ return r.l; }),
+          vols:rows.map(function(r){ return r.v; })};
+}
 /* 与 features.frame 同口径：量比用前 5 日均量；上影线取倒数第三根；假突破=放量+下跌+破MA20 */
 function calcBars(b){
+  b=sanitizeBars(b);
+  if(!b) return null;
   var c=b.closes.filter(function(x){ return isFinite(x)&&x>0; });
   if(c.length<20) return null;
   var off=b.closes.length-c.length;
@@ -885,27 +1077,27 @@ function stageHint(){
           leaders:(rg.leaders||[]).slice(0,4),laggards:(rg.laggards||[]).slice(0,3),
           note:rg.stage_note||'',as_of:rg.as_of||''};
 }
+/* 池外腿取数：计数式刷新，全部完成后重设 #p5 整块，避免同页数据不同步 */
+function renderPage5(){
+  var el=document.getElementById('p5');
+  if(!el) return;
+  el.innerHTML=page5();
+  loadPerf();
+}
 function fillLocalLegs(){
   Object.keys(LBARS).forEach(function(c){
     if(LBARS[c]&&document.getElementById('loc_'+c)) renderLocalLeg(c);
   });
-  refreshOrderListBox();
   var codes=(HOLD.rows||[]).map(function(r){ return String(r.code); })
     .filter(function(c){ return !legOf(c)&&!LBARS[c]; });
   if(!codes.length) return;
+  var pending=codes.length;
   codes.forEach(function(c){
     fetchBars(c,function(o){
       LBARS[c]=o;
-      renderLocalLeg(c);
-      refreshOrderListBox();
+      if(--pending===0) renderPage5();
     });
   });
-}
-function refreshOrderListBox(){
-  var el=document.getElementById('orderListBox');
-  if(!el||!(HOLD.rows||[]).length) return;
-  var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
-  el.innerHTML=orderList(p,s1,adv,simulate(p,adv.rows));
 }
 function heldLegs(p){
   var out=[];
@@ -1037,6 +1229,8 @@ function quickAdd(){
   var co=n((document.getElementById('qCost')||{}).value);
   if(!(sh>0)){ flash('请填写份额',true); return; }
   if(!(co>0)){ flash('请填写成本价',true); return; }
+  var exists=(EDIT||[]).filter(function(x){ return String(x.code)===c; })[0];
+  if(exists){ flash('该代码已在持仓中，请直接修改份额',true); return; }
   var l=legOf(c);
   EDIT.push({code:c,name:l?l.name:c,category:l?l.category:'未分类',
              shares:sh,cost:co,settle:'T+1',note:''});
@@ -1077,28 +1271,63 @@ function exportCsv(){
   setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
   var m=document.getElementById('saveMsg'); if(m) m.textContent='已导出 positions.csv';
 }
+/* RFC4180 CSV 解析：支持引号内逗号、换行与双引号转义 */
+function parseCsvText(text){
+  var s=String(text||''),rows=[],row=[],cur='',q=false,i,ch;
+  for(i=0;i<s.length;i++){
+    ch=s[i];
+    if(q){
+      if(ch==='"'){
+        if(s[i+1]==='"'){ cur+='"'; i++; } else { q=false; }
+      }else cur+=ch;
+    }else{
+      if(ch==='"') q=true;
+      else if(ch===','){ row.push(cur); cur=''; }
+      else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(ch==='\r'){ /* 忽略 */ }
+      else cur+=ch;
+    }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function validateHoldRows(rows,cash){
+  var seen={},errs=[];
+  (rows||[]).forEach(function(r){
+    if(seen[r.code]) errs.push(r.code+' 重复');
+    seen[r.code]=1;
+    if(!isFinite(r.shares)||r.shares<0) errs.push(r.code+' 份额非法');
+    if(!isFinite(r.cost)||r.cost<0) errs.push(r.code+' 成本非法');
+  });
+  if(!isFinite(cash)||cash<0) errs.push('现金非法');
+  return errs;
+}
 function importCsv(input){
   var f=input.files&&input.files[0];
   if(!f) return;
   var rd=new FileReader();
   rd.onload=function(){
     var txt=String(rd.result||'').replace(/^\uFEFF/,'');
-    var lines=txt.split(/\r?\n/).filter(function(x){ return x.trim(); });
-    if(!lines.length){ flash('CSV 是空的',true); return; }
-    var head=lines[0].split(',').map(function(x){ return x.trim().replace(/^"|"$/g,''); });
+    var table=parseCsvText(txt).filter(function(r){
+      return r.some(function(x){ return String(x).trim(); });
+    });
+    if(!table.length){ flash('CSV 是空的',true); return; }
+    var head=table[0].map(function(x){ return String(x).trim(); });
     var idx={}; head.forEach(function(h,i){ idx[h]=i; });
     if(idx.code==null||idx.shares==null){ flash('CSV 缺少 code / shares 列',true); return; }
     var rows=[],cash=0;
-    lines.slice(1).forEach(function(line){
-      var c=line.split(','),o={};
+    table.slice(1).forEach(function(c){
+      var o={};
       Object.keys(idx).forEach(function(k){
-        o[k]=String(c[idx[k]]==null?'':c[idx[k]]).trim().replace(/^"|"$/g,'');
+        o[k]=String(c[idx[k]]==null?'':c[idx[k]]).trim();
       });
       if(!o.code) return;
       if(o.code.toUpperCase()==='CASH'){ cash=n(o.shares); return; }
       rows.push({code:o.code,name:o.name||o.code,category:o.category||'未分类',
                  shares:n(o.shares),cost:n(o.cost),settle:o.settle||'T+1',note:o.note||''});
     });
+    var errs=validateHoldRows(rows,cash);
+    if(errs.length){ flash('CSV 校验未通过：'+errs.slice(0,3).join('；'),true); return; }
     EDIT=rows; CASH_EDIT=cash;
     HOLD={rows:rows.map(function(r){ return Object.assign({},r); }),cash:cash};
     PERF=null;
