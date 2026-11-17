@@ -1,38 +1,40 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261117T124959-5c70a725b747ce40",
+  "run_id": "20261117T162612-c451da4b60004a60",
   "status": "OK",
-  "generated_at": "2026-11-17 12:49:59",
-  "data_date": "2026-11-16",
-  "code_version": "bf5d743",
+  "generated_at": "2026-11-17 16:26:12",
+  "data_date": "2026-11-17",
+  "code_version": "a3a0ed0",
   "config_hash": "7dc121bf9c53564c",
-  "input_hash": "5c70a725b747ce40",
+  "input_hash": "c451da4b60004a60",
   "data_quality": {
     "status": "OK",
     "coverage_pct": 100.0,
     "synthetic_fields": [],
     "stale_fields": [],
-    "conflicts": [],
+    "conflicts": [
+      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
+    ],
     "blockers": [],
-    "premium_ok": true,
+    "premium_ok": false,
     "market_snapshot": true,
-    "checked_at": "2026-11-17 12:51:30"
+    "checked_at": "2026-11-17 16:26:14"
   },
   "regime": {
     "regime": "下行趋势",
     "fit_lo": 30,
     "fit_hi": 40,
-    "as_of": "2026-11-16",
+    "as_of": "2026-11-17",
     "observations": [
-      "基准收盘 3979.80 / MA20 4059.79 / MA60 4340.68",
+      "基准收盘 3976.46 / MA20 4051.00 / MA60 4327.93",
       "MA5 低于 MA20",
-      "20日年化波动 17.12% vs 60日 15.20%（未抬升）"
+      "20日年化波动 17.09% vs 60日 14.70%（未抬升）"
     ]
   },
   "market": {
     "regime": "下行趋势",
-    "data_date": "2026-11-16",
-    "benchmark_date": "2026-11-16",
+    "data_date": "2026-11-17",
+    "benchmark_date": "2026-11-17",
     "market_json_is_synthetic": true
   },
   "portfolio_before": null,
@@ -42,12 +44,12 @@
       "name": "沪深300ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-16",
+      "data_date": "2026-11-17",
       "observations": [
-        "close=4.054",
-        "MA5=4.107 MA10=4.125 MA20=4.133",
-        "vol_ratio=1.8719219514132355",
-        "ret5=-1.84 ret20=-4.39"
+        "close=4.040",
+        "MA5=4.088 MA10=4.120 MA20=4.124",
+        "vol_ratio=1.6006715476219195",
+        "ret5=-2.3 ret20=-4.27"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -57,7 +59,9 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "突破四条仅 1/4"
+        "5 日跑输基准 -0.26pct",
+        "突破四条仅 1/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
@@ -69,12 +73,12 @@
       "name": "中证500ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-16",
+      "data_date": "2026-11-17",
       "observations": [
-        "close=6.334",
-        "MA5=6.575 MA10=6.594 MA20=6.621",
-        "vol_ratio=0.7032204760737201",
-        "ret5=-4.2 ret20=-7.26"
+        "close=6.320",
+        "MA5=6.505 MA10=6.588 MA20=6.594",
+        "vol_ratio=1.1495003566787905",
+        "ret5=-5.25 ret20=-8.02"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -84,7 +88,8 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "突破四条仅 2/4"
+        "突破四条仅 1/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
@@ -96,22 +101,24 @@
       "name": "科创50ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-16",
+      "data_date": "2026-11-17",
       "observations": [
-        "close=1.282",
-        "MA5=1.346 MA10=1.330 MA20=1.338",
-        "vol_ratio=1.0868231928204468",
-        "ret5=-3.39 ret20=-8.75"
+        "close=1.290",
+        "MA5=1.336 MA10=1.337 MA20=1.332",
+        "vol_ratio=0.9717742914036438",
+        "ret5=-3.52 ret20=-8.96"
       ],
-      "signal_id": "R-C2",
-      "signal_state": "REDUCE",
-      "action": "TRIM",
-      "level": "C",
+      "signal_id": "R-D1",
+      "signal_state": "EXIT",
+      "action": "CLEAR",
+      "level": "D",
       "rule_ids": [
-        "R-C2"
+        "R-D1"
       ],
       "counter_evidence": [
-        "突破四条仅 1/4"
+        "5 日跑输基准 -0.06pct",
+        "突破四条仅 1/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
@@ -123,12 +130,12 @@
       "name": "创业板ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-16",
+      "data_date": "2026-11-17",
       "observations": [
-        "close=2.334",
-        "MA5=2.480 MA10=2.490 MA20=2.548",
-        "vol_ratio=1.1567505246149676",
-        "ret5=-5.58 ret20=-15.5"
+        "close=2.310",
+        "MA5=2.440 MA10=2.481 MA20=2.526",
+        "vol_ratio=1.0917370490601113",
+        "ret5=-7.93 ret20=-16.18"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -137,7 +144,10 @@
       "rule_ids": [
         "R-D1"
       ],
-      "counter_evidence": [],
+      "counter_evidence": [
+        "突破四条仅 1/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
+      ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
       ],
@@ -179,18 +189,18 @@
     },
     {
       "code": "588000",
-      "action": "TRIM",
+      "action": "CLEAR",
       "reason_ids": [
-        "R-C2"
+        "R-D1"
       ],
       "current_shares": null,
       "target_shares": null,
       "price_type": {
         "entry": "限价保护价（不保证成交）",
-        "stop": "条件止损触发价（不保证成交价）",
-        "tp": "观察参考阻力（非必到目标价）"
+        "stop": null,
+        "tp": null
       },
-      "price_note": "日频系统无次日盘口，以上均为执行政策而非成交承诺",
+      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
       "constraints_applied": []
     },
     {
@@ -230,11 +240,11 @@
   "methodology_version": "2.0",
   "benchmark": {
     "code": "000300",
-    "as_of": "2026-11-16",
+    "as_of": "2026-11-17",
     "observations": [
-      "基准收盘 3979.80 / MA20 4059.79 / MA60 4340.68",
+      "基准收盘 3976.46 / MA20 4051.00 / MA60 4327.93",
       "MA5 低于 MA20",
-      "20日年化波动 17.12% vs 60日 15.20%（未抬升）"
+      "20日年化波动 17.09% vs 60日 14.70%（未抬升）"
     ]
   }
 }
