@@ -661,6 +661,38 @@ function staleNotice(){
   return '<div class="notice">信号基于 '+esc(d)+' 日收盘，刷新行情不改变日频动作；'+
     '最新价只用于估值与当日盈亏。</div>';
 }
+/* 候选五态：READY / WAIT_CONFIRMATION / WATCH / AVOID / ABSTAIN
+   由 decision.js 按同一门槛评估；不可用时降级为 WATCH，不生成订单。 */
+function candidateRows(adv,p,pdec){
+  var legMap={};
+  (D.legs||[]).forEach(function(l){ legMap[String(l.code)]=l; });
+  var list=((adv&&adv.adds)||[]).map(function(x){
+    var l=legMap[String(x.code)]||{};
+    return {code:x.code,name:x.name,level:x.level,price:x.price,rule:x.rule,
+            category:l.category||'未分类',
+            data_status:l.data_status||'OK',
+            action:l.action||'ADD'};
+  });
+  if(window.WB_DECISION&&WB_DECISION.evaluateCandidates){
+    return WB_DECISION.evaluateCandidates(list,
+      {rows:(p&&p.rows)||[],cash_pct:(p&&p.cashPct)},
+      (D&&D.contract)||{},pdec);
+  }
+  return list.map(function(x){ x.state='WATCH'; x.reason='候选评估不可用'; return x; });
+}
+function stateKind(s){ return s==='READY'?'buy':(s==='AVOID'?'sell':'hold'); }
+function candidateTable(cands){
+  return box(bt('关注方向与建仓候选（五态）')+tbl(
+    ['状态','ETF','类别','价位','执行后门禁'],
+    cands.map(function(x){
+      return tr([tag(x.state,stateKind(x.state)),
+        '<b>'+esc(x.code)+'</b> '+esc(x.name),esc(x.category),esc(x.price),
+        esc(x.reason||'—')]);
+    }),['','','','',''])+
+    '<div class="notice">READY 仅代表通过数据与组合门禁的研究性方案；'+
+    'WAIT_CONFIRMATION 等待现金/条件，WATCH 继续观察，AVOID/ABSTAIN 不参与建仓。'+
+    '所有候选都不会直接生成订单。</div>');
+}
 /* 零持仓首屏：全现金组合；只给研究候选，绝不生成订单 */
 function page5CashOnly(h,p,s1,adv,pdec){
   var cash=n(HOLD.cash),asset=(p&&p.totalAsset!=null)?n(p.totalAsset):cash;
@@ -679,13 +711,11 @@ function page5CashOnly(h,p,s1,adv,pdec){
   h+=box('<div class="notice">当前没有持仓，组合结构、集中度与单 ETF 证据卡暂无可展示内容；'+
     '执行层仍会评估建仓候选，但不会在无持仓快照时发布目标份额。</div>');
   h+=sec('③ 市场变化、关注方向与建仓候选');
-  if(adv&&adv.adds&&adv.adds.length){
-    h+=tbl(['评级','ETF','价位','规则'],adv.adds.map(function(x){
-      return tr([tag(x.level,x.level==='A'?'buy':'hold'),
-        '<b>'+esc(x.code)+'</b> '+esc(x.name),esc(x.price),esc(x.rule)]);
-    }),['','','','']);
-    h+=box('<div class="notice">以上仅为规则与仓位区间的研究候选，不产生订单；'+
-      '建仓需先有持仓快照，再由执行层统一发布目标份额。</div>');
+  var cashCands=candidateRows(adv,p,pdec);
+  if(cashCands.length){
+    h+=candidateTable(cashCands);
+    h+=box('<div class="notice">建仓需先有持仓快照，再由执行层统一发布目标份额；'+
+      '全现金状态不强行建仓。</div>');
   }else{
     h+=box('<div class="notice">当前没有同时满足规则与仓位区间的候选标的；'+
       '全现金状态不强行建仓。</div>');
@@ -819,15 +849,9 @@ function page5(){
     ['仓位区间',(rg.fit_lo==null||rg.fit_hi==null)?'—':rg.fit_lo+'~'+rg.fit_hi+'%'],
     ['主要观察',esc((rg.observations||[]).slice(0,3).join('；')||'—')]
   ])+'<div class="notice">完整市场概况见「市场概况」页；此处只列与组合决策相关的证据，不重复整页。</div>');
-  var cands=(adv&&adv.adds)||[];
+  var cands=candidateRows(adv,p,PDEC);
   if(cands.length){
-    h+=box(bt('关注方向（研究，不生成订单）')+tbl(['评级','ETF','价位','规则'],
-      cands.slice(0,6).map(function(x){
-        return tr([tag(x.level,x.level==='A'?'buy':'hold'),
-          '<b>'+esc(x.code)+'</b> '+esc(x.name),esc(x.price),esc(x.rule)]);
-      }),['','','',''])+
-      '<div class="notice">以上仅为关注方向；建仓需通过数据质量、现金、集中度与相关性门禁，'+
-      '无合格候选时不生成任何订单。</div>');
+    h+=candidateTable(cands);
   }else{
     h+=box('<div class="notice">当前没有满足组合约束的新增方向，继续观察。</div>');
   }

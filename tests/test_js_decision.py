@@ -103,3 +103,52 @@ def test_js_matches_python_plan(tmp_path, name, case):
     for key in ('total_asset', 'cash', 'market_value', 'position_pct', 'cash_pct',
                 'risk_position_pct', 'max_single_pct', 'legs'):
         _same(after.get(key), want['portfolio_after'].get(key), '%s after.%s' % (name, key))
+
+
+@pytest.mark.skipif(NODE is None, reason='未安装 node，跳过浏览器执行层校验')
+def test_js_candidate_states_match_python(tmp_path):
+    """候选五态必须与 Python opportunities.evaluate 一致。"""
+    from etfquant.portfolio import opportunities
+
+    snap = dict(complete=True, cash=50000.0, total_asset=60000.0, total_pos=10000.0,
+                position_pct=10000.0 / 60000.0 * 100, cash_pct=50000.0 / 60000.0 * 100,
+                missing=[], unclassified=[],
+                rows=[dict(code='510300', name='沪深300ETF', category='宽基',
+                           bucket='境内权益', shares=1000, cost=9.0, last=10.0,
+                           weight=10000.0 / 60000.0 * 100)])
+    held = [dict(code='510300', name='沪深300ETF', category='宽基', action='HOLD',
+                 last=10.0, rule_ids=[])]
+    cands = [
+        dict(code='510500', name='中证500ETF', category='宽基', action='ADD',
+             data_status='OK', last=6.0, rule_ids=['R-A1']),
+        dict(code='511010', name='国债ETF', category='债券', action='ABSTAIN',
+             data_status='ABSTAIN', last=100.0, rule_ids=[]),
+        dict(code='518880', name='黄金ETF', category='黄金', action='CLEAR',
+             data_status='OK', last=5.5, rule_ids=['R-D1']),
+        dict(code='159999', name='未知', category='未分类', action='ADD',
+             data_status='OK', last=1.0, rule_ids=['R-A1']),
+    ]
+    plan = execution.plan(held, snap, CFG)
+    want, _ = opportunities.evaluate(cands, snap, CFG, {'510300'}, plan)
+
+    runner = tmp_path / 'cand.js'
+    runner.write_text(
+        'global.window = global;\n'
+        + open(DECISION_JS, encoding='utf-8').read()
+        + '\nconst fs=require("fs");\n'
+        + 'const d=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));\n'
+        + 'const p=window.WB_DECISION.buildPortfolioDecision('
+          '{legs:d.legs,snap:d.snap,cfg:d.cfg});\n'
+        + 'process.stdout.write(JSON.stringify('
+          'window.WB_DECISION.evaluateCandidates(d.cands,d.snap,d.cfg,p)));\n',
+        encoding='utf-8')
+    inp = tmp_path / 'cand_input.json'
+    inp.write_text(json.dumps(dict(legs=held, snap=snap, cands=cands,
+                                   cfg=_contract(CFG)), ensure_ascii=False),
+                   encoding='utf-8')
+    proc = subprocess.run([NODE, str(runner), str(inp)],
+                          capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    got = {x['code']: x['state'] for x in json.loads(proc.stdout)}
+    expected = {x['code']: x['state'] for x in want}
+    assert got == expected

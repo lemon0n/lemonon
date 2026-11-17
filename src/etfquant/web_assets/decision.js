@@ -434,6 +434,60 @@
     };
   }
 
+  /* 候选五态：与 Python opportunities.evaluate 同语义（数据 → 规则方向 → 组合门禁） */
+  function evaluateCandidates(cands, snap, cfg, pdec) {
+    var c = (cfg && cfg.constraints) || {};
+    var ex = (cfg && cfg.execution) || {};
+    var after = (pdec && pdec.portfolio_after) || {};
+    var cashPct = after.cash_pct != null ? after.cash_pct
+      : (snap && snap.cash_pct != null ? snap.cash_pct : null);
+    var legs = after.legs != null ? after.legs
+      : ((snap && snap.rows) || []).length;
+    var target = Number(ex.initiate_target_pct != null ? ex.initiate_target_pct : 5);
+    var decisionReady = !!(pdec && pdec.layers && pdec.layers.decision);
+
+    return (cands || []).map(function (x) {
+      var out = {
+        code: String(x.code), name: x.name || String(x.code),
+        category: x.category || '未分类',
+        level: x.level || '—', price: x.price || '—', rule: x.rule || '',
+        state: 'WATCH', reason: '', target_weight: null
+      };
+      var st = x.data_status || 'OK';
+      var act = x.action || 'ADD';
+      if (st === 'ABSTAIN' || st === 'DEMO') {
+        out.state = 'ABSTAIN'; out.reason = '数据不足或为演示数据'; return out;
+      }
+      if (act === 'CLEAR' || act === 'TRIM' || act === 'EXIT') {
+        out.state = 'AVOID'; out.reason = '规则方向为退出/减仓'; return out;
+      }
+      if (out.category === '未分类') {
+        out.state = 'WATCH'; out.reason = '分类未知，先补齐分类与跟踪指数'; return out;
+      }
+      if (!decisionReady) {
+        out.state = 'ABSTAIN'; out.reason = '综合分析不可用（数据或仓位区间缺失）'; return out;
+      }
+      if (legs >= Number(c.max_legs != null ? c.max_legs : 99)) {
+        out.state = 'AVOID'; out.reason = '执行后腿数已达上限'; return out;
+      }
+      if (cashPct != null &&
+          cashPct < Number(c.min_cash_pct != null ? c.min_cash_pct : 0) + target) {
+        out.state = 'WAIT_CONFIRMATION';
+        out.reason = '现金不足以在保留缓冲后建仓'; return out;
+      }
+      var catPct = (after.category_pct || {})[out.category];
+      if (catPct != null &&
+          catPct + target > Number(c.max_category_weight_pct != null
+            ? c.max_category_weight_pct : 100)) {
+        out.state = 'AVOID'; out.reason = '该类别已接近权重上限'; return out;
+      }
+      out.state = 'READY';
+      out.target_weight = target;
+      out.reason = '通过数据与组合门禁（研究性方案，不生成订单）';
+      return out;
+    });
+  }
+
   root.WB_DECISION = {
     buildPortfolioDecision: function (input) {
       input = input || {};
@@ -446,6 +500,7 @@
     settle: settle,
     portfolioAfter: portfolioAfter,
     validateAfter: validateAfter,
-    buildLayers: buildLayers
+    buildLayers: buildLayers,
+    evaluateCandidates: evaluateCandidates
   };
 })(typeof window !== 'undefined' ? window : this);

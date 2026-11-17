@@ -1,7 +1,7 @@
 {
   "ok": false,
   "status": "DEMO",
-  "ran_at": "2026-11-17 08:48:25",
+  "ran_at": "2026-11-17 08:57:32",
   "mode": "snapshot",
   "data_date": "2026-11-11",
   "degraded": true,
@@ -38,7 +38,7 @@
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261117T084825-a0dd665ef5a25241",
+  "run_id": "20261117T085731-a0dd665ef5a25241",
   "input_hash": "a0dd665ef5a25241",
   "config_hash": "7dc121bf9c53564c",
   "html": "/workspace/web/index.html"

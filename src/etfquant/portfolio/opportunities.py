@@ -60,6 +60,10 @@ def evaluate(candidates, snap, cfg, held_codes, base_plan=None):
             items.append(dict(common, state='AVOID',
                               reasons=['规则方向为退出/减仓，不属于建仓候选']))
             continue
+        if category == '未分类':
+            items.append(dict(common, state='WATCH',
+                              reasons=['分类未知，先补齐分类与跟踪指数映射']))
+            continue
         if action not in ('ADD', 'INITIATE'):
             items.append(dict(common, state='WATCH'))
             continue
