@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261117T103044-5c70a725b747ce40",
+  "run_id": "20261117T124959-5c70a725b747ce40",
   "status": "OK",
-  "generated_at": "2026-11-17 10:30:44",
+  "generated_at": "2026-11-17 12:49:59",
   "data_date": "2026-11-16",
-  "code_version": "9dd8130",
+  "code_version": "bf5d743",
   "config_hash": "7dc121bf9c53564c",
   "input_hash": "5c70a725b747ce40",
   "data_quality": {
@@ -12,13 +12,11 @@
     "coverage_pct": 100.0,
     "synthetic_fields": [],
     "stale_fields": [],
-    "conflicts": [
-      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
-    ],
+    "conflicts": [],
     "blockers": [],
-    "premium_ok": false,
+    "premium_ok": true,
     "market_snapshot": true,
-    "checked_at": "2026-11-17 10:32:01"
+    "checked_at": "2026-11-17 12:51:30"
   },
   "regime": {
     "regime": "下行趋势",
@@ -59,8 +57,7 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "突破四条仅 1/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
+        "突破四条仅 1/4"
       ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
@@ -87,8 +84,7 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "突破四条仅 2/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
+        "突破四条仅 2/4"
       ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
@@ -115,8 +111,7 @@
         "R-C2"
       ],
       "counter_evidence": [
-        "突破四条仅 1/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
+        "突破四条仅 1/4"
       ],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
@@ -142,9 +137,7 @@
       "rule_ids": [
         "R-D1"
       ],
-      "counter_evidence": [
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
-      ],
+      "counter_evidence": [],
       "unknowns": [
         "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
       ],
