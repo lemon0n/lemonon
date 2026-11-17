@@ -829,7 +829,8 @@ function page5(){
       ['权重覆盖',f2(marketCompare.weight_coverage)+'%'],
       ['样本',marketCompare.n_obs+' 个交易日']
     ]):'<div class="notice">'+esc((marketCompare&&marketCompare.reason)||'当前页面没有可对齐的持仓与基准收益数据，无法比较。')+'</div>')+
-    '<div class="evidence-date">数据日期 '+esc(marketCompare&&marketCompare.end_date||'未知')+'；组合比较以共同窗口和覆盖权重为准</div></div>'+box(bt('资金运营结论')+kv([
+    '<div class="evidence-date">数据日期 '+esc(marketCompare&&marketCompare.end_date||'未知')+'；组合比较以共同窗口和覆盖权重为准</div>')+
+    box(bt('资金运营结论')+kv([
       ['组合动作',esc(posTxt(s1))],
       ['逐腿动作',esc(PDEC.orders.length?PDEC.orders.map(function(x){return x.action+' '+x.code;}).join('、'):'无，保持观察')],
       ['执行后模拟',after&&after.position_pct!=null?f2(after.position_pct)+'% 仓位 / '+f2(after.cash_pct)+'% 现金':'不可用']
@@ -902,15 +903,6 @@ function page5(){
   p.rows.forEach(function(r){ if(r.mv!=null){ inv[r.category]=(inv[r.category]||0)+r.mv; invTotal+=r.mv; } });
   var keys=Object.keys(inv);
   Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
-  h+='<div class="grid2">';
-  h+=box(bt('结构占比（分母=已投资市值）')+tbl(['类别','当前','参考','偏离'],
-    keys.map(function(k){
-      var cur=invTotal>0?(inv[k]||0)/invTotal*100:null;
-      return tr([esc(k),cur==null?'—':f2(cur)+'%',tgt[k]==null?'—':tgt[k]+'%',
-        (cur==null||tgt[k]==null)?'—':f2(cur-tgt[k])+'pct']);
-    }),['','r','r','r']));
-  h+='</div></section>';
-
   h+='</section><section class="portfolio-section">';
   var items=heldLegs(p);
   if(items.length){
