@@ -98,6 +98,24 @@ def test_missing_price_fails_price_layer_only():
     assert layers['reasons']['price']
 
 
+def test_unclassified_holdings_block_publishing():
+    """分类缺失 → 综合分析不可用：只降级提示，不发布任何目标份额。"""
+    port = dict(rows=[dict(code='999999', name='未知品种', category='',
+                           shares=1000, cost=1.0, settle='T+1')], cash=5000.0)
+    snap = positions.market_value(port, {'999999': dict(last=1.0, change_pct=0.0)})
+    regime = dict(regime='震荡区间', fit_lo=60, fit_hi=70)
+    res = analysis.analyze(port, snap, {'999999': feat(code='999999', last=1.0)},
+                           regime, CFG,
+                           meta=dict(bars_ok={'999999'},
+                                     quality={'999999': dict(status='OK', blocking=[],
+                                                             warnings=[])}))
+    assert res['status'] == 'DEGRADED'
+    assert res['orders'] == []
+    assert all(d['target_shares'] is None for d in res['decisions'])
+    assert res['decision']['validation']['ok'] is False
+    assert res['decision']['validation']['layers']['classification'] is False
+
+
 def test_analyze_returns_unified_decision_contract():
     snap = _snap()
     regime = dict(regime='震荡区间', fit_lo=60, fit_hi=70)

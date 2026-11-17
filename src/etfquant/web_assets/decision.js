@@ -388,6 +388,13 @@
     checked.violations.forEach(function (v) { violations.push(v); });
     checked.warnings.forEach(function (w) { warnings.push(w); });
 
+    /* 与 Python 一致：综合分析不可用（价格/技术面/分类任意一层缺失）只降级，
+       不发布任何目标份额。 */
+    if (!layers.decision) {
+      ((layers.reasons && layers.reasons.decision) || ['综合分析不可用'])
+        .forEach(function (r) { if (violations.indexOf(r) < 0) violations.push(r); });
+    }
+
     var ok = violations.length === 0;
     var decisions = drafts.map(function (d) {
       var trading = inList(TRADING_ACTIONS, d.action);

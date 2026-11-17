@@ -237,8 +237,11 @@ def _validate_after(drafts, after, snap, cfg):
     return violations, warnings
 
 
-def plan(legs, snap, cfg):
-    """legs: [{code,name,category,bucket,action,last,...}]；snap: positions.market_value 输出。"""
+def plan(legs, snap, cfg, gate=None):
+    """legs: [{code,name,category,bucket,action,last,...}]；snap: positions.market_value 输出。
+
+    gate: {'ok': bool, 'reasons': [...]}；为 False 时只输出诊断，不发布目标份额。
+    """
     c = cfg['risk']['constraints']
     lot = int(c.get('lot_size', 100))
     rows_by_code = {str(r['code']): r for r in (snap.get('rows') or [])}
@@ -267,6 +270,10 @@ def plan(legs, snap, cfg):
     v2, w2 = _validate_after(drafts, after, snap, cfg)
     violations.extend(v2)
     warnings.extend(w2)
+    if gate and not gate.get('ok'):
+        for reason in (gate.get('reasons') or ['综合分析不可用：不发布目标份额']):
+            if reason not in violations:
+                violations.append(reason)
 
     ok = not violations
     decisions = []

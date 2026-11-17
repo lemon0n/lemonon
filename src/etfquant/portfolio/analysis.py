@@ -238,7 +238,10 @@ def analyze(port, snap, features, regime, cfg, meta=None):
             risk_flags.append('%s 数据状态 %s' % (code, leg['data_status']))
 
     # ---- 组合执行闭环 ----
-    plan = execution.plan(legs, snap, cfg)
+    layers = snapshots.layers(snap, legs, regime)
+    plan = execution.plan(legs, snap, cfg,
+                          gate=dict(ok=layers['decision'],
+                                    reasons=layers['reasons']['decision']))
 
     # ---- 建仓候选（READY 才进入方案；失败只降级为等待确认）----
     opportunities, candidates = [], meta.get('candidates') or []
@@ -246,7 +249,9 @@ def analyze(port, snap, features, regime, cfg, meta=None):
         opportunities, ready = opps.evaluate(
             candidates, snap, cfg, {l['code'] for l in legs}, plan)
         if ready:
-            trial = execution.plan(legs + ready, snap, cfg)
+            trial = execution.plan(legs + ready, snap, cfg,
+                                   gate=dict(ok=layers['decision'],
+                                             reasons=layers['reasons']['decision']))
             init = [o for o in trial['orders'] if o['action'] == 'INITIATE']
             if trial['ok'] and init:
                 plan = trial
@@ -293,15 +298,23 @@ def analyze(port, snap, features, regime, cfg, meta=None):
     contrib = prisk.risk_contribution(snap['rows'], corr, vols) if vols else None
 
     # ---- 状态聚合 ----
+    gate_reasons = set(layers['reasons']['decision'] or [])
+    exec_violations = [v for v in plan['violations'] if v not in gate_reasons]
     status = merge_status(
         snap.get('complete') and 'OK' or 'ABSTAIN',
         'ABSTAIN' if s1['position_action'] == 'ABSTAIN' else 'OK',
         *[l['data_status'] for l in legs],
-        'ERROR' if plan['violations'] else 'OK',
+        'ERROR' if exec_violations else 'OK',
     )
     if (meta.get('source') or {}).get('synthetic'):
         status = 'DEMO'
-    if not plan['ok'] and status == 'OK':
+    if not layers['decision']:
+        # 综合分析不可用：只降级，不发布目标份额，也不把整次运行判为 ERROR
+        if not layers['price'] or not layers['technical']:
+            status = 'ABSTAIN'
+        elif status == 'OK':
+            status = 'DEGRADED'
+    elif not plan['ok'] and status == 'OK':
         status = 'ERROR'
 
     brief = s5_brief(snap, s1, s2, legs, regime, m, plan, status)

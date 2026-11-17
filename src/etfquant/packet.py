@@ -184,8 +184,8 @@ def validate_packet(p, snap=None, cfg=None):
                 and dmeta['input_hash'] != p['input_hash']:
             errs.append('决策 input_hash 与数据包不一致')
         dval = dec.get('validation') or {}
-        if dval.get('ok') is False and p.get('status') in ('OK', 'DEGRADED'):
-            errs.append('决策校验未通过，但数据包状态仍为 %s' % p.get('status'))
+        if dval.get('ok') is False and p.get('status') == 'OK':
+            errs.append('决策校验未通过，但数据包状态仍为 OK')
 
     return dict(ok=not errs, errors=errs, warnings=warns)
 
