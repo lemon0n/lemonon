@@ -22,6 +22,9 @@ ENV_KEY = 'POSITIONS_PASSPHRASE'
 
 UNCLASSIFIED = '未分类'
 
+# 可自动判定的类别（与 config/risk.yaml 的 asset_buckets 对齐）
+CATEGORIES = ('货币', '债券', '黄金', '商品', '海外', '宽基', '行业')
+
 # 资产风险桶：与「类别」分开，类别描述产品，桶描述风险属性。
 BUCKETS = ('现金', '货币', '债券', '商品', '境内权益', '海外权益', '未分类')
 
@@ -110,41 +113,77 @@ def _decrypt(blob, passwd):
     return json.loads(raw.decode('utf-8'))
 
 
-def classify(code, name='', category=None):
+# 名称关键词：按顺序匹配，先命中先返回。顺序有意义：
+#   海外先于行业 —— 「港股通医药」「纳指生物科技」属于海外资产，不是 A 股行业；
+#   行业先于黄金 —— 「黄金股ETF」是采矿业权益，不是黄金现货。
+_NAME_RULES = (
+    ('货币', ('货币', '日利', '添益', '保证金', '现金')),
+    ('债券', ('国债', '政金债', '地方债', '信用债', '公司债', '城投债', '金融债',
+              '短融', '转债', '债券', '债ETF', '利率债')),
+    ('海外', ('纳指', '纳斯达克', '标普', '道琼斯', '恒生', '港股', '中概', '日经',
+              '德国', '法国', '东南亚', '越南', '沙特', '印度', '亚太', '全球',
+              '海外', '美国', '中韩', '东证')),
+    ('行业', ('券商', '证券', '银行', '保险', '半导体', '芯片', '算力', '科技',
+              '医药', '医疗', '创新药', '生物', '中药', '养老', '军工', '国防',
+              '消费', '食品', '饮料', '酒', '家电', '汽车', '新能源', '光伏',
+              '电池', '储能', '煤炭', '有色', '稀土', '钢铁', '地产', '房地产',
+              '传媒', '影视', '游戏', '通信', '5G', '计算机', '软件', '云计算',
+              '大数据', '机器人', '人工智能', '农业', '养殖', '化工', '电力',
+              '公用', '建筑', '建材', '机械', '航空', '物流', '港口', '航运',
+              '基建', '环保', '黄金股', '教育', '旅游', '卫星', '航天', '低空')),
+    ('黄金', ('黄金', '上海金', '金ETF')),
+    ('商品', ('豆粕', '原油', '能源化工', '白银', '商品')),
+    ('宽基', ('沪深300', '中证500', '中证1000', '中证2000', '中证A500', '中证A50',
+              '上证50', '上证180', '创业板', '科创50', '科创100', '科创综指',
+              '科创板', '双创', 'A50', 'A500', '全指', '宽基', '红利', '价值',
+              '成长', '低波', '质量', 'ESG', '碳中和')),
+)
+
+# 代码段规则：只在名称无法判定时兜底，覆盖组别稳定的品种。
+_CODE_RULES = (
+    (('5110', '5111', '5112', '5113', '51126', '159926'), '债券'),
+    (('5116', '5118', '5119'), '货币'),
+    (('518',), '黄金'),
+    (('159934', '159937', '159562'), '黄金'),
+    (('159985', '159981'), '商品'),
+    (('513', '159920', '159941', '159866'), '海外'),
+)
+
+# 常见宽基代码：名称缺失（或名称就是代码）时的兜底。
+_BROAD_CODES = {
+    '510050', '510180', '510300', '510500', '510880',
+    '512100', '512500', '159915', '159919', '159922', '159845',
+    '563300', '588000', '588080', '588090', '588180', '588380',
+}
+
+
+def classify(code, name='', category=None, name_map=None):
     """资产分类：能确定的才写类别，绝不猜一个「看起来合理」的类别。
 
-    返回 (category, confidence, basis)。confidence='rule' 表示由明确的代码规则决定，
-    'unknown' 表示无法确定 —— 上层必须显示「未分类」而不是硬塞进宽基/行业。
+    返回 (category, confidence, basis)。
+      confidence='declared' 持仓文件已声明类别；
+      confidence='rule'     由名称关键词或代码段规则决定；
+      confidence='unknown'  无法确定 —— 上层必须显示「未分类」而不是硬塞进宽基/行业。
+
+    name_map: {code: 行情源返回的基金名称}，仅当持仓文件缺名或名称就是代码时使用。
     """
-    if category and str(category).strip() and str(category).strip() != UNCLASSIFIED:
-        return str(category).strip(), 'declared', '持仓文件声明'
-    c = str(code)
-    nm = str(name)
-    # 明确规则：只覆盖可稳定判定的组别；其余保持未分类
-    if c.startswith(('511', '159001', '159003', '159005')) or '货币' in nm:
-        return '货币', 'rule', '代码段/名称'
-    if c.startswith(('5110', '5111', '5112', '5113', '159926')) or '国债' in nm or '债ETF' in nm:
-        return '债券', 'rule', '代码段/名称'
-    if c in ('518880', '518800', '518680', '159934', '159937') or '黄金' in nm:
-        return '黄金', 'rule', '代码段/名称'
-    if c.startswith(('513', '159920', '159941', '159866')) or '纳指' in nm or '恒生' in nm \
-            or '标普' in nm or '海外' in nm or '港股' in nm:
-        return '海外', 'rule', '代码段/名称'
-    # 名称关键词：先判行业（更具体），再判宽基/策略
-    industry_kw = ('券商', '证券', '银行', '保险', '半导体', '芯片', '算力', '科技',
-                   '医药', '医疗', '军工', '消费', '新能源', '光伏', '电池', '煤炭',
-                   '有色', '钢铁', '地产', '房地产', '传媒', '通信', '计算机', '软件',
-                   '机器人', '人工智能', '游戏', '农业', '化工', '电力')
-    if any(k in nm for k in industry_kw):
-        return '行业', 'rule', '名称关键词'
-    broad_kw = ('红利', '价值', '成长', '低波', '质量', '沪深300', '中证500',
-                '中证1000', '创业板', '科创板', '科创50', '上证50', 'A50', '全指',
-                '宽基')
-    if any(k in nm for k in broad_kw):
-        return '宽基', 'rule', '名称关键词'
-    if c.startswith(('510', '1599', '588', '5121', '5125', '563')) and ('300' in nm or '500' in nm
-                                                                     or '50' in nm or '1000' in nm):
-        return '宽基', 'rule', '代码段/名称'
+    declared = str(category or '').strip()
+    if declared and declared != UNCLASSIFIED:
+        return declared, 'declared', '持仓文件声明'
+    c = str(code or '').strip()
+    nm = str(name or '').strip()
+    if (not nm or nm == c) and name_map:
+        nm = str(name_map.get(c) or '').strip()
+    if nm and nm != c:
+        for cat, kws in _NAME_RULES:
+            hit = next((k for k in kws if k in nm), None)
+            if hit:
+                return cat, 'rule', '名称关键词「%s」' % hit
+    for prefixes, cat in _CODE_RULES:
+        if c.startswith(prefixes):
+            return cat, 'rule', '代码段'
+    if c in _BROAD_CODES:
+        return '宽基', 'rule', '常见宽基代码'
     return UNCLASSIFIED, 'unknown', '无匹配规则'
 
 
@@ -191,15 +230,19 @@ def load(cfg=None, env=None):
     return None
 
 
-def market_value(port, last_of):
+def market_value(port, last_of, names=None):
     """按 {code: {last, change_pct}} 计算每腿市值 / 权重 / 盈亏。
 
     关键契约：任一腿部缺有效价格 → complete=False；
     该腿 mv/weight 为 None，绝不按 0 计入总资产与仓位。
+
+    names: {code: 行情源基金名称}。持仓文件缺名（或名称就是代码）时用它补名，
+    再按名称自动分类；这里只补「名称」，不会覆盖持仓文件里已声明的类别。
     """
     rows, missing = [], []
     total_pos, cost_basis = 0.0, 0.0
     complete = True
+    names = names or {}
 
     for r in port.get('rows', []):
         code = str(r['code'])
@@ -216,7 +259,10 @@ def market_value(port, last_of):
         if last is None:
             complete = False
             missing.append(code)
-        cat, conf, basis = classify(code, r.get('name', code), r.get('category'))
+        name = str(r.get('name') or '').strip()
+        if not name or name == code:
+            name = str(names.get(code) or '').strip() or code
+        cat, conf, basis = classify(code, name, r.get('category'), name_map=names)
 
         mv = last * shares if last is not None else None
         if mv is not None:
@@ -225,7 +271,7 @@ def market_value(port, last_of):
             cost_basis += cost * shares
         pnl = (last - cost) * shares if (last is not None and cost > 0) else None
         rows.append(dict(
-            code=code, name=r.get('name', code), category=cat,
+            code=code, name=name, category=cat,
             bucket=asset_bucket(cat),
             category_confidence=conf, category_basis=basis,
             shares=shares, cost=cost, last=last, mv=mv, pnl=pnl,

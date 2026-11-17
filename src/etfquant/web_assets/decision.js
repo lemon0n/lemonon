@@ -298,8 +298,8 @@
       }
     });
     if (snap.unclassified && snap.unclassified.length) {
-      warnings.push('未分类标的（分类缺失，结构核对不完整）：' +
-        snap.unclassified.join('、'));
+      warnings.push('以下持仓未能自动分类，结构核对不完整：' +
+        snap.unclassified.join('、') + '（可在持仓设置里手动指定类别）');
     }
     return { violations: violations, warnings: warnings };
   }

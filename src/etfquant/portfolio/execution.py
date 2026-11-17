@@ -232,7 +232,8 @@ def _validate_after(drafts, after, snap, cfg):
             violations.append('%s 卖出份额 %.0f 超过持有 %.0f'
                               % (d['code'], abs(d['delta_shares']), d['current_shares']))
     if snap.get('unclassified'):
-        warnings.append('未分类标的（分类缺失，结构核对不完整）：%s'
+        warnings.append('以下持仓未能自动分类，结构核对不完整：%s'
+                        '（可在持仓设置里手动指定类别）'
                         % '、'.join(snap['unclassified']))
     return violations, warnings
 

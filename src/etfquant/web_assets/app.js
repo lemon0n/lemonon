@@ -7,6 +7,7 @@ var PASS = '';                    /* 解锁口令，只存在内存 / 当前标�
 var HOLD = {rows: [], cash: 0};   /* 已保存的持仓 */
 var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
 var PQ = {};                      /* 持仓里不在观察池的 ETF 实时价缓存 {last,prev,chg} */
+var QNAME = {};                   /* 行情源返回的基金名称缓存 {code: name}，用于补名与自动分类 */
 var PERF = null, PERF_BUSY = false;
 var ENC = null, ENC_LOADING = null;   /* 云端密文包 */
 var PDEC = null;                  /* 唯一组合决策契约（浏览器执行层） */
@@ -136,9 +137,11 @@ function flash(msg, isErr){
 
 /* ---------------- 手动刷新行情（免费接口 · JSONP） ---------------- */
 function tSym(code){ return (code[0]==='5'||code[0]==='6'||code[0]==='9'?'sh':'sz')+code; }
-function applyQuote(code,last,prev){
+function applyQuote(code,last,prev,name){
   var chg=(isFinite(prev)&&prev>0)?Math.round((last/prev-1)*10000)/100:null;
-  PQ[String(code)]={last:last,prev:prev,chg:chg};   /* 持仓里可能有观察池之外的标的 */
+  code=String(code);
+  PQ[code]={last:last,prev:prev,chg:chg};   /* 持仓里可能有观察池之外的标的 */
+  if(name&&name!==code) QNAME[code]=String(name).trim();
   (D.legs||[]).forEach(function(l){
     if(String(l.code)===code){
       /* 只更新最新价与涨跌幅；日频动作/价位不因盘中价重算。
@@ -172,7 +175,7 @@ function parseTencent(syms){
     if(a.length<38) return;
     var last=parseFloat(a[3]);
     if(!isFinite(last)||last<=0) return;
-    got++; applyQuote(String(a[2]).slice(-6), last, parseFloat(a[4]));
+    got++; applyQuote(String(a[2]).slice(-6), last, parseFloat(a[4]), a[1]);
     var t=String(a[30]||'');
     if(t.length===14 && t>stamp) stamp=t;
   });
@@ -190,7 +193,7 @@ function parseSina(syms){
     if(a.length<6) return;
     var last=parseFloat(a[3]), prev=parseFloat(a[2]);
     if(!isFinite(last)||last<=0) return;
-    got++; applyQuote(sym.slice(-6), last, prev);
+    got++; applyQuote(sym.slice(-6), last, prev, a[0]);
     if(a[30] && a[31] && a[30].length===10){
       var t=a[30]+' '+a[31];
       if(t>stamp) stamp=t;
@@ -246,6 +249,10 @@ function priceOf(code){
 }
 function draftReset(){
   EDIT=(HOLD.rows||[]).map(function(r){ return Object.assign({},r); });
+  (EDIT||[]).forEach(function(r){
+    var c=String(r.code||''), nm=String(r.name||'').trim();
+    if((!nm||nm===c)&&QNAME[c]) r.name=QNAME[c];
+  });
   CASH_EDIT=n(HOLD.cash);
 }
 function calcPort(){
@@ -265,7 +272,7 @@ function calcPort(){
     if(mv!=null) totalPos+=mv;
     if(cost>0&&shares>0) costBasis+=cost*shares;
     if(pnl!=null) sumPnl+=pnl;
-    rows.push({code:String(r.code),name:r.name,category:r.category||'未分类',
+    rows.push({code:String(r.code),name:nameOfRow(r),category:catOfRow(r),
       shares:shares,cost:cost,last:last,mv:mv,pnl:pnl,
       pnl_pct:(last!=null&&cost>0)?(last/cost-1)*100:null,
       day:day,priced:last!=null,settle:r.settle||'T+1',leg:legOf(r.code)});
@@ -312,8 +319,13 @@ function dashboardOf(p){
   };
 }
 function ensureHoldQuotes(done){
-  var codes=(HOLD.rows||[]).map(function(r){ return String(r.code); })
-    .filter(function(c){ return /^\d{6}$/.test(c)&&!priceOf(c); });
+  /* 缺价要取价；名称缺失（或名称就是代码）也要取，因为自动分类依赖名称 */
+  var codes=(HOLD.rows||[]).filter(function(r){
+    var c=String(r.code||'');
+    if(!/^\d{6}$/.test(c)) return false;
+    var nm=String(r.name||'').trim();
+    return !priceOf(c) || !nm || nm===c;
+  }).map(function(r){ return String(r.code); });
   if(!codes.length){ if(done) done(); return; }
   var syms=codes.map(tSym);
   loadScript('https://qt.gtimg.cn/q='+syms.join(','),'gbk',function(ok){
@@ -589,6 +601,65 @@ function bucketOf(cat){
   var m=((D&&D.contract&&D.contract.asset_buckets)||{});
   return m[cat]||'未分类';
 }
+/* ---------------- 资产分类 ----------------
+   与 src/etfquant/portfolio/positions.py 的 classify 保持同一套规则：
+   先名称关键词、再代码段兜底；无法确定就是「未分类」，绝不硬塞。
+   顺序有意义：海外先于行业（港股通医药→海外），行业先于黄金（黄金股→行业）。 */
+var CATS=['货币','债券','黄金','商品','海外','宽基','行业'];
+var CAT_NAME_RULES=[
+  ['货币',['货币','日利','添益','保证金','现金']],
+  ['债券',['国债','政金债','地方债','信用债','公司债','城投债','金融债','短融','转债','债券','债ETF','利率债']],
+  ['海外',['纳指','纳斯达克','标普','道琼斯','恒生','港股','中概','日经','德国','法国',
+           '东南亚','越南','沙特','印度','亚太','全球','海外','美国','中韩','东证']],
+  ['行业',['券商','证券','银行','保险','半导体','芯片','算力','科技','医药','医疗','创新药',
+           '生物','中药','养老','军工','国防','消费','食品','饮料','酒','家电','汽车',
+           '新能源','光伏','电池','储能','煤炭','有色','稀土','钢铁','地产','房地产',
+           '传媒','影视','游戏','通信','5G','计算机','软件','云计算','大数据','机器人',
+           '人工智能','农业','养殖','化工','电力','公用','建筑','建材','机械','航空',
+           '物流','港口','航运','基建','环保','黄金股','教育','旅游','卫星','航天','低空']],
+  ['黄金',['黄金','上海金','金ETF']],
+  ['商品',['豆粕','原油','能源化工','白银','商品']],
+  ['宽基',['沪深300','中证500','中证1000','中证2000','中证A500','中证A50','上证50','上证180',
+           '创业板','科创50','科创100','科创综指','科创板','双创','A50','A500','全指',
+           '宽基','红利','价值','成长','低波','质量','ESG','碳中和']]
+];
+var CAT_CODE_RULES=[
+  [['5110','5111','5112','5113','51126','159926'],'债券'],
+  [['5116','5118','5119'],'货币'],
+  [['518'],'黄金'],
+  [['159934','159937','159562'],'黄金'],
+  [['159985','159981'],'商品'],
+  [['513','159920','159941','159866'],'海外']
+];
+var CAT_BROAD={'510050':1,'510180':1,'510300':1,'510500':1,'510880':1,'512100':1,
+  '512500':1,'159915':1,'159919':1,'159922':1,'159845':1,'563300':1,
+  '588000':1,'588080':1,'588090':1,'588180':1,'588380':1};
+function hasPrefix(c,ps){ for(var i=0;i<ps.length;i++) if(c.indexOf(ps[i])===0) return true; return false; }
+/* 返回 [类别, 依据] */
+function classifyCat(code,name){
+  var c=String(code||'').trim(), nm=String(name||'').trim();
+  if(!nm||nm===c) nm=QNAME[c]||'';
+  var i,j,k;
+  if(nm&&nm!==c){
+    for(i=0;i<CAT_NAME_RULES.length;i++){
+      k=CAT_NAME_RULES[i][1];
+      for(j=0;j<k.length;j++) if(nm.indexOf(k[j])>=0) return [CAT_NAME_RULES[i][0],'名称关键词「'+k[j]+'」'];
+    }
+  }
+  for(i=0;i<CAT_CODE_RULES.length;i++) if(hasPrefix(c,CAT_CODE_RULES[i][0])) return [CAT_CODE_RULES[i][1],'代码段'];
+  if(CAT_BROAD[c]) return ['宽基','常见宽基代码'];
+  return ['未分类','无匹配规则'];
+}
+function nameOfRow(r){
+  var nm=String((r&&r.name)||'').trim(), c=String((r&&r.code)||'');
+  return (nm&&nm!==c)?nm:(QNAME[c]||nm||c);
+}
+/* 已声明类别优先；留空或写「未分类」都按自动识别处理 */
+function catOfRow(r){
+  var d=String((r&&r.category)||'').trim();
+  if(d&&d!=='未分类') return d;
+  return classifyCat(r&&r.code,nameOfRow(r))[0];
+}
 function sigLastOf(x){
   var l=x&&x.l;
   if(l){
@@ -638,8 +709,8 @@ function buildPdec(p,s1,adv){
     var last=sigLastOf(x);
     if(last==null&&missing.indexOf(String(r.code))<0) missing.push(String(r.code));
     if(last!=null) sigPos+=last*n(r.shares); else complete=false;
-    return {code:String(r.code),name:r.name,category:r.category||'未分类',
-      bucket:r.bucket||bucketOf(r.category),shares:n(r.shares),cost:n(r.cost),
+    return {code:String(r.code),name:nameOfRow(r),category:catOfRow(r),
+      bucket:bucketOf(catOfRow(r)),shares:n(r.shares),cost:n(r.cost),
       last:last,weight:null};
   });
   var total=complete?sigPos+n(p.cash):null;
@@ -647,8 +718,8 @@ function buildPdec(p,s1,adv){
     r.weight=(complete&&total>0)?r.last*r.shares/total*100:null;
   });
   var legs=adv.rows.map(function(x){
-    return {code:String(x.code),name:x.name,
-      category:x.r.category||'未分类',bucket:x.r.bucket||bucketOf(x.r.category),
+    return {code:String(x.code),name:nameOfRow(x.r||x),
+      category:catOfRow(x.r||x),bucket:bucketOf(catOfRow(x.r||x)),
       action:(x.a&&x.a.action)||'ABSTAIN',last:sigLastOf(x),
       rule_ids:(x.a&&x.a.rule_ids)||[]};
   });
@@ -879,7 +950,9 @@ function page5(){
     ['综合分析',L.decision?'可用':'不可用'],
     ['缺价标的',esc(dash.dataQuality.missing.join('、')||'无')],
     ['分类未知',esc((p.rows.filter(function(r){ return r.category==='未分类'; })
-      .map(function(r){ return r.code; })).join('、')||'无')]
+      .map(function(r){ return r.code; })).join('、')||'无')+
+      ((p.rows.filter(function(r){ return r.category==='未分类'; }).length)
+        ?'　<span class="muted">可在「持仓设置」手动指定</span>':'')]
   ]));
   h+=box(bt('集中度（名义）')+kv([
     ['单只最大',f2(dash.concentration.maxSingle)+'%'],
@@ -1202,7 +1275,7 @@ function localLeg(code,row){
   var k=calcBars(b);
   if(!k) return null;
   row=row||(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
-  return {code:String(code),name:row.name||code,category:row.category||'未分类',
+  return {code:String(code),name:nameOfRow(row),category:catOfRow(row),
     level:null,local:true,data_status:'DEGRADED',status:'DEGRADED',
     last:k.last,change:k.change,five:k.five,ma_state:k.ma_state,
     ma5:k.ma5,ma10:k.ma10,ma20:k.ma20,ma60:k.ma60,ma120:k.ma120,
@@ -1347,12 +1420,33 @@ function inp(i,k,v,type){
   return '<td><input type="'+type+'"'+step+' value="'+esc(v)+'" title="'+esc(v)+
     '" oninput="editField('+i+',\''+k+'\',this.value)"></td>';
 }
+function catHint(p){
+  var cur=String((p&&p.category)||'').trim();
+  if(cur&&cur!=='未分类') return '手动指定';
+  var g=classifyCat(p&&p.code,nameOfRow(p));
+  return '自动：'+(g[0]==='未分类'?'待确认':g[0])+'（'+g[1]+'）';
+}
+/* 类别单元格：默认「自动」，按名称与代码识别；识别不准再手动指定 */
+function catCell(i,p){
+  var cur=String((p&&p.category)||'').trim();
+  var auto=!cur||cur==='未分类';
+  var h='<td class="cat-cell"><select title="留「自动」按基金名称与代码识别；识别不准再手动指定"'+
+    ' onchange="editField('+i+',\'category\',this.value)">'+
+    '<option value=""'+(auto?' selected':'')+'>自动</option>'+
+    CATS.map(function(c){ return '<option value="'+c+'"'+(cur===c?' selected':'')+'>'+c+'</option>'; }).join('')+
+    '</select><div class="cat-hint" id="cat_'+i+'">'+esc(catHint(p))+'</div></td>';
+  return h;
+}
+function updateCatHint(i){
+  var el=document.getElementById('cat_'+i), p=(EDIT||[])[i];
+  if(el&&p) el.textContent=catHint(p);
+}
 function posRows(){
   var s=draftCalc();
   return (EDIT||[]).map(function(p,i){
     return '<tr>'+
       inp(i,'code',p.code,'text')+inp(i,'name',p.name,'text')+
-      inp(i,'category',p.category||'', 'text')+
+      catCell(i,p)+
       inp(i,'shares',p.shares,'number')+inp(i,'cost',p.cost,'number')+
       '<td class="r">'+f2(s.rows[i].last)+'</td>'+
       '<td class="r" id="mv_'+i+'">'+fy(s.rows[i].mv)+'</td>'+
@@ -1376,10 +1470,15 @@ function refreshDerived(){
   if(B) B.textContent=f2(s.positionPct)+'%';
   if(C) C.innerHTML=col(s.pnlPct)+'　'+fy(s.sumPnl);
 }
-function editField(i,k,v){ if(!EDIT[i]) return; EDIT[i][k]=v; refreshDerived(); }
+function editField(i,k,v){
+  if(!EDIT[i]) return;
+  EDIT[i][k]=v;
+  refreshDerived();
+  if(k==='category'||k==='name'||k==='code') updateCatHint(i);
+}
 function editCash(v){ CASH_EDIT=n(v); refreshDerived(); }
 function addRow(){
-  EDIT.push({code:'',name:'',category:'行业',shares:0,cost:0,settle:'T+1',note:''});
+  EDIT.push({code:'',name:'',category:'',shares:0,cost:0,settle:'T+1',note:''});
   document.getElementById('p7').innerHTML=page7();
   refreshDerived();
 }
@@ -1403,7 +1502,7 @@ function quickAdd(){
   var exists=(EDIT||[]).filter(function(x){ return String(x.code)===c; })[0];
   if(exists){ flash('该代码已在持仓中，请直接修改份额',true); return; }
   var l=legOf(c);
-  EDIT.push({code:c,name:l?l.name:c,category:l?l.category:'未分类',
+  EDIT.push({code:c,name:l?l.name:c,category:'',
              shares:sh,cost:co,settle:'T+1',note:''});
   document.getElementById('p7').innerHTML=page7();
   refreshDerived();

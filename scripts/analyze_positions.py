@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from etfquant import config, packet, quality, universe
 from etfquant.datasource import loader
+from etfquant.datasource import akshare_adapter as live
 from etfquant.indicators import analyze
 from etfquant.signals import market_regime, relative_strength
 from etfquant.portfolio import positions, analysis
@@ -41,6 +42,43 @@ def fetch_bars(code):
         return None, False
     is_syn = (loader.source_report().get('channels', {}).get('daily') or {}).get(code) != 'live'
     return df, is_syn
+
+
+def _names_from_df(df, want):
+    if df is None or getattr(df, 'empty', True):
+        return {}
+    cols = getattr(df, 'columns', [])
+    if 'code' not in cols or 'name' not in cols:
+        return {}
+    out = {}
+    for code, name in zip(df['code'].astype(str).str.zfill(6), df['name'].astype(str)):
+        nm = (name or '').strip()
+        if code in want and nm and nm != code:
+            out[code] = nm
+    return out
+
+
+def fetch_names(codes):
+    """行情源基金名称映射：只用于给缺名的持仓补名并自动分类。
+
+    先取全量行情表；仍缺的代码再用腾讯/新浪按代码补取（离线快照只覆盖观察池）。
+    取不到就返回空字典，绝不编造名称。
+    """
+    want = {str(c).strip() for c in codes if c}
+    if not want:
+        return {}
+    out = {}
+    try:
+        out.update(_names_from_df(loader.spot(), want))
+    except Exception:
+        pass
+    missing = want - set(out)
+    if missing:
+        try:
+            out.update(_names_from_df(live.fetch_spot(sorted(missing)), missing))
+        except Exception:
+            pass
+    return out
 
 
 def rmb(x):
@@ -109,7 +147,14 @@ def main():
                 date=bdf['date'].astype(str).str[:10]).set_index('date')['close'].astype(float).pct_change().dropna().tail(120)
         rs_map[code] = relative_strength.compute(f, bdf, cfg, uni)
 
-    snap = positions.market_value(port, last_of)
+    names = fetch_names([r.get('code') for r in port['rows']])
+    for r in port['rows']:
+        c = str(r.get('code') or '')
+        cur = str(r.get('name') or '').strip()
+        if (not cur or cur == c) and names.get(c):
+            r['name'] = names[c]
+
+    snap = positions.market_value(port, last_of, names=names)
     snap['as_of'] = max([q['last_date'] for q in qmap.values() if q['last_date']] or [''])
 
     run_id = now.strftime('%Y%m%dT%H%M%S') + '-pos'
