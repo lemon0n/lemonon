@@ -168,8 +168,13 @@ def test_dashboard_contract(demo_page):
     if d['market']['heat']:
         assert {'name', 'cap', 'chg', 'v'} <= set(d['market']['heat'][0])
     assert d['market']['regime']['observations']
+    assert d['market']['as_of']
     assert d['packet']['schema_version'] == '2.0'
     assert d['packet']['validation']['ok'] is True
+    assert 'extras' in d['packet']
+    dq = d['packet']['data_quality']
+    assert dq['market_snapshot'] is True
+    assert 'sector_snapshot' in dq
     for l in d['legs']:
         assert l['data_status'] in ('OK', 'DEGRADED', 'ABSTAIN', 'DEMO')
         assert l['price']['note']
@@ -194,6 +199,35 @@ def test_tabs_are_simple(demo_page):
         assert ('id="%s"' % p) in s, p
     for t in ('市场概况', '持仓分析', '持仓设置'):
         assert t in s, t
+
+
+def test_portfolio_page_has_section_nav(demo_page):
+    """持仓页四个分区锚点与页内导航必须存在，空仓/有仓共用同一结构。"""
+    d, s = demo_page
+    for anchor in ('portfolio-overview', 'portfolio-holdings',
+                   'portfolio-drivers', 'portfolio-structure'):
+        assert 'id="%s"' % anchor in s, anchor
+    assert 'portfolio-nav' in s
+    assert '市场与外部驱动' in s
+
+
+def test_portfolio_report_is_loaded_locally_not_inlined(demo_page):
+    """持仓分析 packet 含账户信息，只能解锁后按数据日读取，不能内嵌公开 HTML。"""
+    d, s = demo_page
+    assert 'data/packets/positions_packet.json' in s
+    assert 'loadPositionPacket' in s
+    assert 'weighted_returns' not in d
+
+
+def test_long_static_notices_replaced_by_info_hints(demo_page):
+    """固定长提示改为 i 悬浮说明；动态数据状态提示保留。"""
+    d, s = demo_page
+    removed = ['完整市场概况见「市场概况」页',
+               'READY 仅代表通过数据与组合门禁的研究性方案',
+               '建仓需先有持仓快照，再由执行层统一发布目标份额']
+    left = [x for x in removed if x in s]
+    assert not left, left
+    assert 'macro' in s and 'policy_heat' in s
 
 
 def test_disclaimer_and_degraded_notice(demo_page):

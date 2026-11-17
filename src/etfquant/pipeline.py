@@ -154,7 +154,8 @@ def run(use_live=True, strict=False, write_packet=True):
         conflicts=list(src.get('fallback') or []),
         blockers=[b for l in legs for b in l['quality']['blocking']],
         premium_ok=bool(src.get('premium_ok')),
-        market_snapshot=True,
+        market_snapshot=bool(src.get('market_snapshot', True)),
+        sector_snapshot=bool(src.get('sector_snapshot', True)),
         checked_at=src.get('checked_at'),
     )
     pkt = packet.build(

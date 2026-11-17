@@ -777,19 +777,23 @@ function page5CashOnly(h,p,s1,adv,pdec){
     kpi('今日待执行',orders+' 笔','无持仓可调整')+
     '</div>';
   h+=box('<div class="portfolio-empty">全现金 · 今日无持仓调整</div>');
-  h+='</section><section id="portfolio-holdings" class="portfolio-section">'+
-    sec('逐仓分析')+'<div class="portfolio-empty">当前无持仓。建仓候选仍按市场证据和组合门禁独立评估。</div></section>';
+  h+='</section>';
+
+  h+='<section id="portfolio-holdings" class="portfolio-section">'+sec('逐仓分析')+
+    '<div class="portfolio-empty">当前无持仓。建仓候选仍按市场证据和组合门禁独立评估。</div></section>';
+
   h+='<section id="portfolio-drivers" class="portfolio-section">'+sec('市场与外部驱动')+
-    marketEvidenceSection();
-  h+=sec('建仓候选');
+    marketEvidenceSection()+sec('建仓候选');
   var cashCands=candidateRows(adv,p,pdec);
   if(cashCands.length){
     h+=candidateTable(cashCands);
   }else{
     h+=box('<div class="portfolio-empty">当前无符合条件的候选，继续观察。</div>');
   }
-  h+='</section><section id="portfolio-structure" class="portfolio-section">'+
-    sec('结构与回溯')+'<div class="portfolio-empty">空仓时无持仓结构与历史持仓回溯。</div></section>';
+  h+='</section>';
+
+  h+='<section id="portfolio-structure" class="portfolio-section">'+sec('结构与回溯')+
+    '<div class="portfolio-empty">空仓时无持仓结构与历史持仓回溯。</div></section>';
   setTimeout(observePortfolioSections,0);
   return h;
 }
@@ -884,7 +888,10 @@ function page5(){
       '。系统不发布目标份额，仅保留诊断草案。</div>');
   }
 
-  h+='</section><section id="portfolio-holdings" class="portfolio-section">'+sec('逐仓分析');
+  h+='</section>';
+
+  /* 逐仓分析：持仓明细 + 逐只证据卡 */
+  h+='<section id="portfolio-holdings" class="portfolio-section">'+sec('逐仓分析');
   h+='<div class="sec-sub">持仓明细</div>';
   var head=['代码','名称','类别','份额','成本','最新价','市值','权重','浮动盈亏','今日动作','价位','等级','数据'];
   var al=['','','','r','r','r','r','r','r','','','',''];
@@ -896,14 +903,6 @@ function page5(){
       tag(a.action_text,actKind(a.action)),esc(fmtPrice(a)),
       '<span class="dg">'+esc(a.level)+'</span>',esc(a.data_status)]);
   }),al));
-
-  h+='</section>';
-  var tgt=(D&&D.targets)||{};
-  var inv={},invTotal=0;
-  p.rows.forEach(function(r){ if(r.mv!=null){ inv[r.category]=(inv[r.category]||0)+r.mv; invTotal+=r.mv; } });
-  var keys=Object.keys(inv);
-  Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
-  h+='</section><section class="portfolio-section">';
   var items=heldLegs(p);
   if(items.length){
     h+='<div class="sec-sub">逐只证据卡 · '+items.length+' 只</div>';
@@ -912,8 +911,11 @@ function page5(){
       h+=evidenceHtml(it.l,{a:adv.rows.filter(function(x){ return x.code===it.l.code; })[0].a});
     });
   }
-  h+='</section><section id="portfolio-drivers" class="portfolio-section">'+
-    sec('市场与外部驱动')+marketEvidenceSection();
+  h+='</section>';
+
+  /* 市场与外部驱动：组合级证据 + 候选 */
+  h+='<section id="portfolio-drivers" class="portfolio-section">'+sec('市场与外部驱动')+
+    marketEvidenceSection();
   var rg=(D.market||{}).regime||{};
   var dataDate=(D.meta&&(D.meta.data_date||D.meta.as_of))||'—';
   h+=box(bt('市场状态与候选观察 · '+dataDate)+kv([
@@ -928,7 +930,14 @@ function page5(){
   }else{
     h+=box('<div class="notice">当前没有满足组合约束的新增方向，继续观察。</div>');
   }
-  h+='</section></section></section></section>';
+  h+='</section>';
+
+  /* 结构与回溯 */
+  var tgt=(D&&D.targets)||{};
+  var inv={},invTotal=0;
+  p.rows.forEach(function(r){ if(r.mv!=null){ inv[r.category]=(inv[r.category]||0)+r.mv; invTotal+=r.mv; } });
+  var keys=Object.keys(inv);
+  Object.keys(tgt).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
   h+='<section id="portfolio-structure" class="portfolio-section">'+sec('结构与回溯')+
     '<div class="sec-sub">持仓结构</div><div class="grid2">'+box(bt('结构占比（分母=已投资市值）')+
       tbl(['类别','当前','参考','偏离'],keys.map(function(k){
