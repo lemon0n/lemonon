@@ -224,10 +224,33 @@ def test_long_static_notices_replaced_by_info_hints(demo_page):
     d, s = demo_page
     removed = ['完整市场概况见「市场概况」页',
                'READY 仅代表通过数据与组合门禁的研究性方案',
-               '建仓需先有持仓快照，再由执行层统一发布目标份额']
+               '建仓需先有持仓快照，再由执行层统一发布目标份额',
+               '该判定是风险过滤器，不是方向预测',
+               '信号基于 ',
+               '本次未发布订单',
+               '仅保留诊断草案']
     left = [x for x in removed if x in s]
     assert not left, left
     assert 'macro' in s and 'policy_heat' in s
+
+
+def test_market_section_titles_and_hints(demo_page):
+    """板块概况用可展开 i；持仓页分区不使用①②③编号。"""
+    d, s = demo_page
+    assert '板块概况' in s
+    assert '申万一级行业 · 面积=流通市值 · 颜色=涨跌幅' in s
+    assert 'sec-details' in s
+    assert 'sec-lg' in s
+    for mark in ('①', '②', '③', '④', '⑤', '⑥'):
+        assert mark not in s, mark
+
+
+def test_friendly_issue_text_is_human_readable(demo_page):
+    """内部门禁字段在页面上有易懂映射，不直接暴露给用户。"""
+    d, s = demo_page
+    assert 'function friendlyIssue(' in s
+    assert '本次无法完成组合执行校验' in s
+    assert '以下持仓缺少分类映射，结构核对不完整' in s
 
 
 def test_disclaimer_and_degraded_notice(demo_page):
