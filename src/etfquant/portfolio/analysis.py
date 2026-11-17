@@ -214,7 +214,8 @@ def _market_links(code, rs, entry, regime, market):
                 relative_strength=dict(known=bool((rs or {}).get('is_known')),
                                       label=(rs or {}).get('rs_label') or '未知',
                                       excess5=(rs or {}).get('excess5'),
-                                      excess20=(rs or {}).get('excess20')),
+                                      excess20=(rs or {}).get('excess20'),
+                                      benchmark_date=(rs or {}).get('benchmark_date')),
                 theme=dict(available=bool(theme), name=track if theme else None,
                            data=theme if theme else None,
                            reason=None if theme else '无与跟踪主题完全匹配的市场概况映射'))
