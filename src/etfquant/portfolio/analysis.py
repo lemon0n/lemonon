@@ -11,6 +11,8 @@
 """
 import math
 
+import pandas as pd
+
 from .. import methodology as M
 from .. import pricing as P
 from ..portfolio import decision as pdecision
@@ -156,6 +158,68 @@ def evidence_card(f, rs, dec, snap_row, regime):
                 unknowns=unknowns, invalidation=invalid)
 
 
+def weighted_return_comparison(rows, returns_by_code, benchmark_returns_by_code):
+    """按持仓市值权重对齐日期后比较持仓与各自映射基准收益。"""
+    aligned = {}
+    for row in rows:
+        code = str(row['code'])
+        weight = row.get('weight')
+        asset, benchmark = (returns_by_code or {}).get(code), (benchmark_returns_by_code or {}).get(code)
+        if weight is None or asset is None or benchmark is None:
+            continue
+        pair = pd.concat(
+            [asset.rename('asset'), benchmark.rename('benchmark')], axis=1).dropna()
+        if len(pair):
+            aligned[code] = (float(weight), pair)
+    if not aligned:
+        return dict(available=False, reason='缺少可对齐的持仓或基准收益数据',
+                    n_obs=0, portfolio_return=None, benchmark_return=None, excess_return=None)
+    dates = set.intersection(*(set(frame.index) for _, frame in aligned.values()))
+    if not dates:
+        return dict(available=False, reason='持仓与基准收益没有共同日期',
+                    n_obs=0, portfolio_return=None, benchmark_return=None, excess_return=None)
+    total_weight = sum(weight for weight, _ in aligned.values())
+    if total_weight <= 0:
+        return dict(available=False, reason='可用持仓权重无效',
+                    n_obs=len(dates), portfolio_return=None, benchmark_return=None, excess_return=None)
+    ordered_dates = sorted(dates)
+    by_code = {}
+    for code, (weight, frame) in aligned.items():
+        asset = float((1.0 + frame.loc[ordered_dates, 'asset']).prod() - 1.0)
+        benchmark = float((1.0 + frame.loc[ordered_dates, 'benchmark']).prod() - 1.0)
+        by_code[code] = dict(weight=round(weight, 4),
+                              asset_return=round(asset * 100, 4),
+                              benchmark_return=round(benchmark * 100, 4),
+                              excess_return=round((asset - benchmark) * 100, 4))
+    portfolio = sum(weight * by_code[code]['asset_return']
+                    for code, (weight, _) in aligned.items()) / total_weight
+    benchmark = sum(weight * by_code[code]['benchmark_return']
+                    for code, (weight, _) in aligned.items()) / total_weight
+    return dict(available=True, reason=None, n_obs=len(ordered_dates),
+                start_date=str(ordered_dates[0])[:10], end_date=str(ordered_dates[-1])[:10],
+                portfolio_return=round(portfolio, 4),
+                benchmark_return=round(benchmark, 4),
+                excess_return=round(portfolio - benchmark, 4),
+                weight_coverage=round(total_weight, 4), by_code=by_code)
+
+
+def _market_links(code, rs, entry, regime, market):
+    track = (entry or {}).get('track')
+    themes = (market or {}).get('policy_heat') or []
+    theme = next((item for item in themes
+                  if track and item.get('theme') == track), None)
+    return dict(market_regime=regime.get('regime') or '未知',
+                regime_as_of=regime.get('as_of'),
+                benchmark=(rs or {}).get('benchmark') or (entry or {}).get('benchmark'),
+                relative_strength=dict(known=bool((rs or {}).get('is_known')),
+                                      label=(rs or {}).get('rs_label') or '未知',
+                                      excess5=(rs or {}).get('excess5'),
+                                      excess20=(rs or {}).get('excess20')),
+                theme=dict(available=bool(theme), name=track if theme else None,
+                           data=theme if theme else None,
+                           reason=None if theme else '无与跟踪主题完全匹配的市场概况映射'))
+
+
 def _instrument_status(f, bars_ok, rs, quality=None):
     """逐腿数据状态：优先采用上游 quality.check_bars 的结论，再补充技术面判断。
 
@@ -190,6 +254,8 @@ def analyze(port, snap, features, regime, cfg, meta=None):
     bars_ok = set(meta.get('bars_ok') or features.keys())
     rs_map = meta.get('rs') or {}
     quality_map = meta.get('quality') or {}
+    entry_by_code = meta.get('universe') or {}
+    market = meta.get('market') or {}
 
     s1 = s1_position(snap, regime, cfg)
     targets = (cfg.get('risk') or {}).get('structure_target_of_invested', {})
@@ -230,6 +296,7 @@ def analyze(port, snap, features, regime, cfg, meta=None):
             vol20=(f or {}).get('vol20'), vol60=(f or {}).get('vol60'),
             signal_date=(f or {}).get('signal_date'),
             evidence=cards[code],
+            links=_market_links(code, rs, entry_by_code.get(code), regime, market),
         )
         legs.append(leg)
         if leg['level'] == 'D':
@@ -288,7 +355,8 @@ def analyze(port, snap, features, regime, cfg, meta=None):
         risk_flags.extend(plan['violations'])
 
     # ---- 组合风险（名义 / 底层 / 相关性）----
-    entry_by_code = meta.get('universe') or {}
+    weighted_returns = weighted_return_comparison(
+        snap['rows'], meta.get('returns') or {}, meta.get('benchmark_returns') or {})
     nominal = prisk.nominal(snap['rows'])
     lookthrough = prisk.lookthrough(snap['rows'], entry_by_code)
     corr = prisk.correlation(meta.get('returns') or {})
@@ -337,7 +405,8 @@ def analyze(port, snap, features, regime, cfg, meta=None):
         portfolio_after=plan['portfolio_after'],
         constraint_violations=plan['violations'], warnings=plan['warnings'],
         risk=dict(nominal=nominal, lookthrough=lookthrough,
-                  correlation=corr, risk_contribution=contrib),
+                  correlation=corr, risk_contribution=contrib,
+                  weighted_returns=weighted_returns),
         dashboard=dashboard(snap, legs, plan, corr, regime),
         brief=brief, risk_flags=risk_flags or ['无'], pipeline=m['pipeline'],
     )

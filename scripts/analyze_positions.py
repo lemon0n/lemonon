@@ -78,7 +78,8 @@ def main():
     regime = market_regime.compute(bench, loader.market(), cfg)
     uni = universe.load()
 
-    features, rs_map, bars_ok, returns, last_of, qmap = {}, {}, set(), {}, {}, {}
+    market = loader.market()
+    features, rs_map, bars_ok, returns, benchmark_returns, last_of, qmap = {}, {}, set(), {}, {}, {}, {}
     for r in port['rows']:
         code = str(r['code'])
         df, is_syn = fetch_bars(code)
@@ -95,12 +96,17 @@ def main():
             continue
         features[code] = f
         last_of[code] = dict(last=f['last'], change_pct=f.get('change_pct') or 0.0)
-        returns[code] = df['close'].astype(float).pct_change().dropna().tail(120)
+        etf_returns = df.assign(date=df['date'].astype(str).str[:10]).set_index('date')['close'].astype(float).pct_change().dropna().tail(120)
+        returns[code] = etf_returns
         bdf = None
+        benchmark_code = universe.benchmark(code, uni)
         try:
-            bdf = loader.index_daily(universe.benchmark(code, uni))
+            bdf = loader.index_daily(benchmark_code)
         except Exception:
             pass
+        if bdf is not None and len(bdf):
+            benchmark_returns[code] = bdf.assign(
+                date=bdf['date'].astype(str).str[:10]).set_index('date')['close'].astype(float).pct_change().dropna().tail(120)
         rs_map[code] = relative_strength.compute(f, bdf, cfg, uni)
 
     snap = positions.market_value(port, last_of)
@@ -109,7 +115,8 @@ def main():
     run_id = now.strftime('%Y%m%dT%H%M%S') + '-pos'
     res = analysis.analyze(port, snap, features, regime, cfg,
                            meta=dict(bars_ok=bars_ok, rs=rs_map, returns=returns,
-                                     universe=uni, quality=qmap,
+                                     benchmark_returns=benchmark_returns,
+                                     universe=uni, market=market, quality=qmap,
                                      run_id=run_id, mode='python',
                                      data_date=snap.get('as_of'),
                                      generated_at=now.strftime('%Y-%m-%d %H:%M:%S'),
@@ -155,6 +162,15 @@ def main():
         lines.append('组合快照不完整：%s 缺少有效价格，总资产与总仓位不计算。\n\n'
                      % '、'.join(snap.get('missing') or []))
 
+    wr = res['risk'].get('weighted_returns') or {}
+    if wr.get('available'):
+        lines.append('| 按持仓基准加权（%s~%s） | 持仓 %s / 对应基准 %s / 超额 %s（覆盖 %.1f%%，%d 个交易日） |\n'
+                     % (wr['start_date'], wr['end_date'], pct(wr['portfolio_return']),
+                        pct(wr['benchmark_return']), pct(wr['excess_return']),
+                        wr['weight_coverage'], wr['n_obs']))
+    else:
+        lines.append('| 按持仓基准加权 | 不可比较：%s |\n' % wr.get('reason'))
+
     lines.append('\n| 代码 | 名称 | 类别 | 份额 | 成本 | 最新价 | 市值 | 权重% | 浮动盈亏% | 数据 |\n')
     lines.append('|---|---|---|---:|---:|---:|---:|---:|---:|---|\n')
     for r in snap['rows']:
@@ -187,6 +203,13 @@ def main():
     if rc:
         lines.append('- 成分风险贡献：%s\n'
                      % '、'.join('%s %.1f%%' % (x['code'], x['pct']) for x in rc))
+    wr = res['risk'].get('weighted_returns') or {}
+    if wr.get('available'):
+        lines.append('- 按持仓权重同窗收益：持仓 %+.2f%%，对应基准 %+.2f%%，超额 %+.2f%%（%s~%s，共 %d 个交易日）\n'
+                     % (wr['portfolio_return'], wr['benchmark_return'], wr['excess_return'],
+                        wr['start_date'], wr['end_date'], wr['n_obs']))
+    else:
+        lines.append('- 按持仓权重同窗收益：不可用（%s）\n' % wr.get('reason'))
 
     # ---- 逐标的证据卡 ----
     lines.append('\n## 三、逐标的证据卡\n')
@@ -197,6 +220,11 @@ def main():
                         l['data_status']))
         lines.append('| 模块 | 内容 |\n|---|---|\n')
         lines.append('| 可观测事实 | %s |\n' % '<br>'.join(e.get('facts') or ['—']))
+        link = l.get('links') or {}
+        lines.append('| 市场关联 | 状态 %s；基准 %s；相对强弱 %s；主题 %s |\n' % (
+            link.get('market_regime') or '未知', link.get('benchmark') or '未映射',
+            (link.get('relative_strength') or {}).get('label') or '未知',
+            ((link.get('theme') or {}).get('name') or (link.get('theme') or {}).get('reason') or '不可用')))
         lines.append('| 比较 | %s |\n' % '<br>'.join(e.get('comparisons') or ['—']))
         lines.append('| 规则结果 | %s → %s（%s） |\n'
                      % ('、'.join(l['rule_ids']) or '—', l['action_text'], l['level']))
@@ -313,7 +341,9 @@ def main():
                         decision_consistency_ok=True,
                         post_trade_ok=not res['constraint_violations']),
         orders=res['orders'],
-        extras=dict(decision=res['decision']),
+        extras=dict(decision=res['decision'],
+                    weighted_returns=res['risk'].get('weighted_returns'),
+                    links={l['code']: l.get('links') for l in res['legs']}),
     )
     chk = packet.validate_packet(pkt, cfg=cfg)
     pkt['validation'].update(ok=chk['ok'], errors=chk['errors'], warnings=chk['warnings'])
