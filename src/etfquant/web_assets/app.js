@@ -1,7 +1,6 @@
 /* 中国 ETF 量化观察台 · 前端渲染（公开版：不含任何持仓 / 成本 / 资金数据） */
 'use strict';
 var D = null;
-var POSITION_PACKET = null;
 
 /* 持仓只保存在云端密文文件，本机不留明文；页面产物里没有任何持仓数据 */
 var PASS = '';                    /* 解锁口令，只存在内存 / 当前标签页会话 */
@@ -823,7 +822,7 @@ function page5(){
       kpi('当日盈亏',p.dayPnl==null?'—':col(p.dayPnl/p.totalAsset*100)+'　'+fy(p.dayPnl),'按最新价估算')+
       '</div>';
   }
-  var marketCompare=(POSITION_PACKET&&POSITION_PACKET.extras&&POSITION_PACKET.extras.weighted_returns)||null;
+  var marketCompare=null;
   h+='<div class="grid2">'+box(btInfo('持仓与对应基准比较','逐只使用映射基准，在共同日期窗口按当前持仓权重加权；该比较不是账户真实累计绩效。')+
     (marketCompare&&marketCompare.available?kv([
       ['共同区间',esc(marketCompare.start_date)+' 至 '+esc(marketCompare.end_date)],
@@ -1844,18 +1843,9 @@ function fetchEnc(){
    .catch(function(){ ENC_LOADING=null; return null; });
   return ENC_LOADING;
 }
-function loadPositionPacket(){
-  return fetch('data/packets/positions_packet.json',{cache:'no-store'}).then(function(r){
-    return r.ok?r.json():null;
-  }).then(function(p){
-    var run=(p&&p.extras&&p.extras.decision&&p.extras.decision.meta)||{};
-    POSITION_PACKET=run.data_date===D.meta.data_date?p:null;
-  }).catch(function(){ POSITION_PACKET=null; });
-}
 function applyHold(obj){
   HOLD={rows:(obj&&obj.rows)||[],cash:n(obj&&obj.cash)};
   EDIT=null; draftReset(); PERF=null;
-  loadPositionPacket();
 }
 function unlock(pass,quiet){
   if(!cryptoReady()){

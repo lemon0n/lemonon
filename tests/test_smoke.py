@@ -211,11 +211,11 @@ def test_portfolio_page_has_section_nav(demo_page):
     assert '市场与外部驱动' in s
 
 
-def test_portfolio_report_is_loaded_locally_not_inlined(demo_page):
-    """持仓分析 packet 含账户信息，只能解锁后按数据日读取，不能内嵌公开 HTML。"""
+def test_public_page_never_references_private_portfolio_packet(demo_page):
+    """公开网页不得读取或内嵌含持仓账户数据的 packet。"""
     d, s = demo_page
-    assert 'data/packets/positions_packet.json' in s
-    assert 'loadPositionPacket' in s
+    assert 'positions_packet.json' not in s
+    assert 'loadPositionPacket' not in s
     assert 'weighted_returns' not in d
 
 
