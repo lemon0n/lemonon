@@ -1,63 +1,41 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261117T085731-a0dd665ef5a25241",
-  "status": "DEMO",
-  "generated_at": "2026-11-17 08:57:31",
-  "data_date": "2026-11-11",
-  "code_version": "1851702",
+  "run_id": "20261117T091758-5c70a725b747ce40",
+  "status": "OK",
+  "generated_at": "2026-11-17 09:17:58",
+  "data_date": "2026-11-16",
+  "code_version": "c7722b6",
   "config_hash": "7dc121bf9c53564c",
-  "input_hash": "a0dd665ef5a25241",
+  "input_hash": "5c70a725b747ce40",
   "data_quality": {
-    "status": "DEMO",
-    "coverage_pct": 0.0,
-    "synthetic_fields": [
-      "510300",
-      "510500",
-      "588000",
-      "159915"
-    ],
-    "stale_fields": [
-      "510300",
-      "510500",
-      "588000",
-      "159915"
-    ],
+    "status": "OK",
+    "coverage_pct": 100.0,
+    "synthetic_fields": [],
+    "stale_fields": [],
     "conflicts": [
-      "实时行情降级离线合成快照",
-      "基准 000300 日线降级离线快照",
-      "510300 日线降级离线合成快照",
-      "510500 日线降级离线合成快照",
-      "基准 000905 日线降级离线快照",
-      "588000 日线降级离线合成快照",
-      "基准 000688 日线降级离线快照",
-      "159915 日线降级离线合成快照",
-      "基准 399006 日线降级离线快照"
+      "板块资金流降级离线快照",
+      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ],
-    "blockers": [
-      "510300 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）",
-      "510500 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）",
-      "588000 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）",
-      "159915 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
-    ],
+    "blockers": [],
     "premium_ok": false,
     "market_snapshot": true,
-    "checked_at": "2026-11-17 08:57:31"
+    "checked_at": "2026-11-17 09:18:31"
   },
   "regime": {
     "regime": "下行趋势",
     "fit_lo": 30,
     "fit_hi": 40,
-    "as_of": "2026-11-13",
+    "as_of": "2026-11-16",
     "observations": [
-      "基准收盘 4016.29 / MA20 4069.52 / MA60 4352.11",
+      "基准收盘 3979.80 / MA20 4059.79 / MA60 4340.68",
       "MA5 低于 MA20",
-      "20日年化波动 16.97% vs 60日 15.16%（未抬升）"
+      "20日年化波动 17.12% vs 60日 15.20%（未抬升）"
     ]
   },
   "market": {
     "regime": "下行趋势",
-    "data_date": "2026-11-11",
-    "benchmark_date": "2026-11-13",
+    "data_date": "2026-11-16",
+    "benchmark_date": "2026-11-16",
     "market_json_is_synthetic": true
   },
   "portfolio_before": null,
@@ -66,159 +44,153 @@
       "code": "510300",
       "name": "沪深300ETF",
       "category": "宽基",
-      "data_status": "ABSTAIN",
-      "data_date": "2026-11-11",
+      "data_status": "OK",
+      "data_date": "2026-11-16",
       "observations": [
-        "close=4.052",
-        "MA5=4.048 MA10=4.047 MA20=4.045",
-        "vol_ratio=0.7",
-        "ret5=0.32 ret20=0.17"
+        "close=4.054",
+        "MA5=4.107 MA10=4.125 MA20=4.133",
+        "vol_ratio=1.8719219514132355",
+        "ret5=-1.84 ret20=-4.39"
       ],
-      "signal_id": null,
-      "signal_state": "NEUTRAL",
-      "action": "ABSTAIN",
-      "level": "—",
-      "rule_ids": [],
+      "signal_id": "R-D1",
+      "signal_state": "EXIT",
+      "action": "CLEAR",
+      "level": "D",
+      "rule_ids": [
+        "R-D1"
+      ],
       "counter_evidence": [
-        "突破四条仅 3/4"
+        "突破四条仅 1/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
-        "关键数据缺失或陈旧，禁止输出交易动作",
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入",
-        "行情质量检查未通过：510300 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
+        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
       ],
-      "quality_blocking": [
-        "510300 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
-      ]
+      "quality_blocking": []
     },
     {
       "code": "510500",
       "name": "中证500ETF",
       "category": "宽基",
-      "data_status": "ABSTAIN",
-      "data_date": "2026-11-11",
+      "data_status": "OK",
+      "data_date": "2026-11-16",
       "observations": [
-        "close=6.318",
-        "MA5=6.323 MA10=6.325 MA20=6.308",
-        "vol_ratio=0.95",
-        "ret5=-0.32 ret20=0.6"
+        "close=6.334",
+        "MA5=6.575 MA10=6.594 MA20=6.621",
+        "vol_ratio=0.7032204760737201",
+        "ret5=-4.2 ret20=-7.26"
       ],
-      "signal_id": null,
-      "signal_state": "NEUTRAL",
-      "action": "ABSTAIN",
-      "level": "—",
-      "rule_ids": [],
+      "signal_id": "R-D1",
+      "signal_state": "EXIT",
+      "action": "CLEAR",
+      "level": "D",
+      "rule_ids": [
+        "R-D1"
+      ],
       "counter_evidence": [
-        "5 日跑输基准 -1.70pct",
-        "突破四条仅 1/4"
+        "突破四条仅 2/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
-        "关键数据缺失或陈旧，禁止输出交易动作",
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入",
-        "行情质量检查未通过：510500 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
+        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
       ],
-      "quality_blocking": [
-        "510500 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
-      ]
+      "quality_blocking": []
     },
     {
       "code": "588000",
       "name": "科创50ETF",
       "category": "宽基",
-      "data_status": "ABSTAIN",
-      "data_date": "2026-11-11",
+      "data_status": "OK",
+      "data_date": "2026-11-16",
       "observations": [
-        "close=1.284",
-        "MA5=1.324 MA10=1.310 MA20=1.258",
-        "vol_ratio=1.6115702479338843",
-        "ret5=-2.83 ret20=10.58"
+        "close=1.282",
+        "MA5=1.346 MA10=1.329 MA20=1.338",
+        "vol_ratio=1.0868231928204468",
+        "ret5=-3.39 ret20=-8.75"
       ],
-      "signal_id": null,
-      "signal_state": "NEUTRAL",
-      "action": "ABSTAIN",
-      "level": "—",
-      "rule_ids": [],
+      "signal_id": "R-C2",
+      "signal_state": "REDUCE",
+      "action": "TRIM",
+      "level": "C",
+      "rule_ids": [
+        "R-C2"
+      ],
       "counter_evidence": [
-        "5 日跑输基准 -5.59pct",
-        "突破四条仅 1/4"
+        "突破四条仅 1/4",
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
-        "关键数据缺失或陈旧，禁止输出交易动作",
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入",
-        "行情质量检查未通过：588000 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
+        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
       ],
-      "quality_blocking": [
-        "588000 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
-      ]
+      "quality_blocking": []
     },
     {
       "code": "159915",
       "name": "创业板ETF",
       "category": "宽基",
-      "data_status": "ABSTAIN",
-      "data_date": "2026-11-11",
+      "data_status": "OK",
+      "data_date": "2026-11-16",
       "observations": [
-        "close=2.156",
-        "MA5=2.154 MA10=2.153 MA20=2.152",
-        "vol_ratio=0.7",
-        "ret5=0.32 ret20=0.17"
+        "close=2.334",
+        "MA5=2.480 MA10=2.490 MA20=2.548",
+        "vol_ratio=1.1567505246149676",
+        "ret5=-5.58 ret20=-15.5"
       ],
-      "signal_id": null,
-      "signal_state": "NEUTRAL",
-      "action": "ABSTAIN",
-      "level": "—",
-      "rule_ids": [],
+      "signal_id": "R-D1",
+      "signal_state": "EXIT",
+      "action": "CLEAR",
+      "level": "D",
+      "rule_ids": [
+        "R-D1"
+      ],
       "counter_evidence": [
-        "5 日跑输基准 -0.75pct",
-        "突破四条仅 3/4"
+        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
-        "关键数据缺失或陈旧，禁止输出交易动作",
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入",
-        "行情质量检查未通过：159915 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
+        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
       ],
-      "quality_blocking": [
-        "159915 行情最后交易日 2026-11-11 距 2026-11-17 已 6 个自然日（阈值 5）"
-      ]
+      "quality_blocking": []
     }
   ],
   "decisions": [
     {
       "code": "510300",
-      "action": "ABSTAIN",
-      "reason_ids": [],
+      "action": "CLEAR",
+      "reason_ids": [
+        "R-D1"
+      ],
       "current_shares": null,
       "target_shares": null,
       "price_type": {
         "entry": "限价保护价（不保证成交）",
-        "stop": "条件止损触发价（不保证成交价）",
-        "tp": "观察参考阻力（非必到目标价）"
+        "stop": null,
+        "tp": null
       },
-      "price_note": "日频系统无次日盘口，以上均为执行政策而非成交承诺",
-      "constraints_applied": [
-        "O-4"
-      ]
+      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
+      "constraints_applied": []
     },
     {
       "code": "510500",
-      "action": "ABSTAIN",
-      "reason_ids": [],
+      "action": "CLEAR",
+      "reason_ids": [
+        "R-D1"
+      ],
       "current_shares": null,
       "target_shares": null,
       "price_type": {
         "entry": "限价保护价（不保证成交）",
-        "stop": "条件止损触发价（不保证成交价）",
-        "tp": "观察参考阻力（非必到目标价）"
+        "stop": null,
+        "tp": null
       },
-      "price_note": "日频系统无次日盘口，以上均为执行政策而非成交承诺",
-      "constraints_applied": [
-        "O-4"
-      ]
+      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
+      "constraints_applied": []
     },
     {
       "code": "588000",
-      "action": "ABSTAIN",
-      "reason_ids": [],
+      "action": "TRIM",
+      "reason_ids": [
+        "R-C2"
+      ],
       "current_shares": null,
       "target_shares": null,
       "price_type": {
@@ -227,25 +199,23 @@
         "tp": "观察参考阻力（非必到目标价）"
       },
       "price_note": "日频系统无次日盘口，以上均为执行政策而非成交承诺",
-      "constraints_applied": [
-        "O-4"
-      ]
+      "constraints_applied": []
     },
     {
       "code": "159915",
-      "action": "ABSTAIN",
-      "reason_ids": [],
+      "action": "CLEAR",
+      "reason_ids": [
+        "R-D1"
+      ],
       "current_shares": null,
       "target_shares": null,
       "price_type": {
         "entry": "限价保护价（不保证成交）",
-        "stop": "条件止损触发价（不保证成交价）",
-        "tp": "观察参考阻力（非必到目标价）"
+        "stop": null,
+        "tp": null
       },
-      "price_note": "日频系统无次日盘口，以上均为执行政策而非成交承诺",
-      "constraints_applied": [
-        "O-4"
-      ]
+      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
+      "constraints_applied": []
     }
   ],
   "orders": [],
@@ -268,11 +238,11 @@
   "methodology_version": "2.0",
   "benchmark": {
     "code": "000300",
-    "as_of": "2026-11-13",
+    "as_of": "2026-11-16",
     "observations": [
-      "基准收盘 4016.29 / MA20 4069.52 / MA60 4352.11",
+      "基准收盘 3979.80 / MA20 4059.79 / MA60 4340.68",
       "MA5 低于 MA20",
-      "20日年化波动 16.97% vs 60日 15.16%（未抬升）"
+      "20日年化波动 17.12% vs 60日 15.20%（未抬升）"
     ]
   }
 }

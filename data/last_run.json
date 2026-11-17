@@ -1,45 +1,38 @@
 {
-  "ok": false,
-  "status": "DEMO",
-  "ran_at": "2026-11-17 08:57:32",
-  "mode": "snapshot",
-  "data_date": "2026-11-11",
-  "degraded": true,
-  "synthetic": true,
+  "ok": true,
+  "status": "OK",
+  "ran_at": "2026-11-17 09:18:31",
+  "mode": "live",
+  "data_date": "2026-11-16",
+  "degraded": false,
+  "synthetic": false,
   "levels": 4,
   "level_count": {
     "A": 0,
     "B": 0,
-    "C": 0,
-    "D": 0
+    "C": 1,
+    "D": 3
   },
   "action_count": {
-    "CLEAR": 0,
-    "TRIM": 0,
+    "CLEAR": 3,
+    "TRIM": 1,
     "ADD": 0,
     "HOLD": 0,
-    "ABSTAIN": 4
+    "ABSTAIN": 0
   },
-  "orders": 0,
+  "orders": 4,
   "skipped": [],
   "fallback": [
-    "实时行情降级离线合成快照",
-    "基准 000300 日线降级离线快照",
-    "510300 日线降级离线合成快照",
-    "510500 日线降级离线合成快照",
-    "基准 000905 日线降级离线快照",
-    "588000 日线降级离线合成快照",
-    "基准 000688 日线降级离线快照",
-    "159915 日线降级离线合成快照",
-    "基准 399006 日线降级离线快照"
+    "板块资金流降级离线快照",
+    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
   ],
   "validation": {
     "ok": true,
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261117T085731-a0dd665ef5a25241",
-  "input_hash": "a0dd665ef5a25241",
+  "run_id": "20261117T091758-5c70a725b747ce40",
+  "input_hash": "5c70a725b747ce40",
   "config_hash": "7dc121bf9c53564c",
-  "html": "/workspace/web/index.html"
+  "html": "/home/runner/work/lemonon/lemonon/web/index.html"
 }
