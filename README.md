@@ -1,48 +1,27 @@
 # 中国 ETF 量化观察台
 
-在线地址：**https://lemon0n.github.io/lemonon/**
+在线页面：[lemon0n.github.io/lemonon](https://lemon0n.github.io/lemonon/)
 
-一个轻量的公开 ETF 观察工具：跑一次，产出一个**自包含页面** `web/index.html`（CSS / JS / 数据全部内嵌），双击即可打开，不需要本地服务。
+公开 ETF 观察与组合研究工具。生成的 `web/index.html` 为自包含页面，可直接打开。规则动作由确定性模型计算；离线合成数据仅用于演示。每日操作见[运行说明](docs/每日运行说明.md)，个人 LLM 工作流见[持仓分析指导](docs/持仓分析每日运行指导.md)。
 
-> **当前版本 v3（正确性优先）**：数据质量熔断 + 唯一决策契约 + 执行后组合复核 + 与生产同源的回测。
-> 每日运行请看 [docs/每日运行说明.md](docs/每日运行说明.md)。
->
-> **旧结论已冻结**：此前 `docs/回测报告.md` 中的「样本外年化 6.04% / 胜率 74.7% / 独立验证集」等表述
-> 已撤回（样本重叠、口径错误、样本外被用于选参），不得再引用。
-
-## 这个系统能回答什么、不能回答什么
-
-| 能 | 不能 |
-|---|---|
-| 当前位置与趋势：收盘 / MA5·10·20·60·120、站上 MA5 天数、连续低于 MA10 天数 | 预测明天涨跌 |
-| 量能特征：量比、放量 / 缩量（只描述成交，不代表资金净流入） | 判断「主力」在做什么 |
-| 相对基准：与同日基准指数比较的 5/20 日超额（基准缺失则为未知） | 跨资产统一相对沪深 300 解释 alpha |
-| 规则求值：命中哪条规则、目标权重与目标份额、预计费用、执行后仓位与约束校验 | 保证成交价、保证收益、保证回撤上限 |
-| 数据可信度：覆盖、陈旧、合成标记、`OK/DEGRADED/ABSTAIN/DEMO/ERROR` | 冒充个性化最优配置 |
-
-## 运行
+## 快速开始
 
 ```bash
 python3.11 -m pip install -r requirements.txt
-
-python3.11 scripts/run_update.py            # 实时取数 → 重写 web/index.html + analysis_packet.json
-python3.11 scripts/run_update.py --snapshot # 不联网，用离线快照（结果状态为 DEMO，仅演示）
-python3.11 scripts/run_update.py --push     # 生成后自动 commit + push
-python3.11 scripts/run_update.py --strict   # 状态非 OK 即退出码 1（适合 CI 报警）
-python3.11 scripts/run_update.py --verify   # 只做发布前校验
-python3.11 -m pytest tests/ -q              # 60 项测试，不触网（含 Python↔JS 决策契约对拍）
-
-# 持仓专业分析（S1–S5 + 执行后模拟 → Markdown + 数据包）
-POSITIONS_PASSPHRASE='口令' python3.11 scripts/analyze_positions.py \
-  --out docs/当前持仓分析报告.md --packet data/packets/positions_packet.json
-
-# 回测（固定池 + 时间隔离；最终测试只允许看一次）
-python3.11 scripts/run_backtest.py --stage train
-python3.11 scripts/run_backtest.py --stage validate
-python3.11 scripts/run_backtest.py --stage test
+python3.11 scripts/run_update.py
+python3.11 -m pytest tests/ -q
 ```
 
-退出码：`0` 正常 · `1` strict 下状态非 OK · `2` 运行异常 · `3` 推送/校验失败 · `4` 发布前校验失败。
+离线预览使用 `python3.11 scripts/run_update.py --snapshot`，输出状态为 `DEMO`，不作交易依据。
+
+持仓分析在本机解密并生成报告和私有数据包。口令只通过环境变量传入，输出路径建议放在仓库外：
+
+```bash
+POSITIONS_PASSPHRASE="$POSITIONS_PASSPHRASE" python3.11 scripts/analyze_positions.py \
+  --out /tmp/持仓分析报告.md --packet /tmp/positions_packet.json
+```
+
+模型不承诺收益或成交；无有效证据时应保持观察。不要将明文持仓或私有分析数据包放入公开网页或提交到仓库。
 
 ## 架构（单一事实源）
 
@@ -68,12 +47,10 @@ python3.11 scripts/run_backtest.py --stage test
 
 硬约束：
 
-1. 只有一个权威决策结果，网页不得自行推导第二套动作（`web_assets/rules.js` 与 Python 逐字段对拍）；
-2. 先有结构化结果，再有报告；
-3. 关键数据失败 → `ABSTAIN`，不退回合成快照继续给单；
-4. 回测与实盘共用 `features.frame` + `methodology.decide` + 费用定义；
-5. LLM 不参与数值与交易决策；
-6. 每次运行写 `data/runs/<run_id>.json`，可重放。
+1. 规则决策由 `methodology.decide()` 生成；页面不自行推导另一套动作；
+2. 关键数据失败时输出 `ABSTAIN`，不以合成快照继续给交易动作；
+3. 回测与生产共用特征、规则和费用定义；
+4. 应用内不调用 LLM；个人 LLM 分析规范见[持仓分析指导](docs/持仓分析每日运行指导.md)。
 
 ## 页面「刷新行情」
 
@@ -101,8 +78,8 @@ python3.11 scripts/run_backtest.py --stage test
 config/         methodology（规则卡 v2.0）/ risk（组合约束与执行政策）/ strategy / universe / schedule
 data/snapshot/  离线快照（ETF 日线、指数日线、spot、板块、market.json）
 data/runs/      每次运行的不可变数据包归档
-data/packets/   持仓分析数据包（含目标份额与执行后校验）
-docs/           方法论蒸馏 / 回测报告（已冻结旧结论）/ 每日运行说明 / 持仓分析报告（归档）
+data/packets/   本地持仓分析数据包（不要提交）
+docs/           方法论蒸馏 / 回测报告 / 每日运行说明 / 持仓分析指导
 src/etfquant/   features / quality / methodology / pricing / packet / datasource / indicators /
                 signals / portfolio（positions, execution, risk, analysis）/ backtest / webgen
 scripts/        run_update（唯一入口）/ analyze_positions / run_backtest / gen_snapshot / positions_crypto
