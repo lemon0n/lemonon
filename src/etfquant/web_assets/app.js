@@ -1744,7 +1744,7 @@ function page1(){
   h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅');
   h+=heatMap(m.heat);
   var flow=(m.flow||[]).slice().sort(function(a,b){ return b.turnover-a.turnover; });
-  h+=box(bt('行业成交额与占比（31 个申万一级 · 合计占比 100%）')+
+  h+=box(bt('行业成交额与占比')+
     tbl(['行业','成交额','占比','涨跌幅','流通市值'],flow.map(function(x){
       return tr([esc(x.sector), f2(x.turnover)+' 亿', f2(x.share)+'%', col(x.chg),
                  Math.round(n(x.cap)).toLocaleString()+' 亿']);
