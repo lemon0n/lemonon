@@ -1,21 +1,16 @@
 name: 每日更新
 
-# 每个交易日北京 06:50 自动跑一版（UTC 22:50 前一天），
-# 也支持在 GitHub 页面点「Run workflow」立即跑一版。
-# 说明：GitHub 免费版 cron 在高峰期可能延迟 10~30 分钟；06:50 触发是为了
-# 在 09:30 开盘前留足余量。失败会自动重试 3 次。
+# 日常更新由 Trae 定时任务（工作日 07:00 北京时间）执行 `bash scripts/daily.sh`，
+# 直接推送产物到 main 并触发 Pages 部署。
+# 本 workflow 仅保留手动触发（workflow_dispatch），用于调试或手动补跑。
 
 on:
-  schedule:
-    - cron: '50 22 * * 0-4'
   workflow_dispatch:
     inputs:
       strict:
         description: '严格模式：状态非 OK（降级/弃权/演示）就判失败'
         required: false
         default: 'false'
-  push:
-    branches: [main]
 
 concurrency:
   group: etf-daily-update
