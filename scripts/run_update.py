@@ -51,9 +51,17 @@ def git_push(r):
         return 3
     p = run('git', 'push')
     if p.returncode != 0:
-        # 生成期间远端可能被每日流水线推进过，拉一次再推
+        # 生成期间远端被每日流水线推进过：拉一次再推。
+        # -X ours 表示冲突时保留远端版本 —— 远端也是同一流程生成的产物，
+        # 取哪份数据等价；这样产物冲突不会把仓库留在 rebase 中间态。
         print('推送被拒，拉取远端后重试')
-        run('git', 'pull', '--rebase', '--autostash', 'origin', 'main')
+        run('git', 'fetch', 'origin', 'main')
+        rb = run('git', 'rebase', '-X', 'ours', 'origin/main')
+        if rb.returncode != 0:
+            run('git', 'rebase', '--abort')
+            print('与远端产物冲突且无法自动合并：%s'
+                  % (rb.stderr or rb.stdout).strip(), file=sys.stderr)
+            return 3
         p = run('git', 'push')
     if p.returncode != 0:
         print('推送失败：%s' % (p.stderr or p.stdout).strip(), file=sys.stderr)

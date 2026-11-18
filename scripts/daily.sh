@@ -51,8 +51,11 @@ if [ "${SKIP_PULL:-0}" != "1" ]; then
       || die "切换到 main 失败：可能有未提交改动，请先处理后再重跑"
   fi
   say "拉取远端 main"
-  if ! git pull --rebase --autostash origin main; then
-    die "拉取失败：请先处理本地未提交改动或分支分叉，再重跑"
+  # -X ours：冲突时保留远端版本。远端产物与本地产物同源同流程，取哪份等价；
+  # 这样即使每日流水线刚提交过页面，也不会把仓库留在 rebase 冲突状态。
+  if ! git pull --rebase -X ours --autostash origin main; then
+    git rebase --abort >/dev/null 2>&1
+    die "拉取失败：远端与本地改动冲突，请手动处理后重跑"
   fi
 fi
 
