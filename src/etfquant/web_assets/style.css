@@ -354,3 +354,5 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
   .rs-detail-grid{grid-template-columns:1fr}
 }
 @media (max-width:520px){.rs-funding{grid-template-columns:1fr}}
+.rs-scroll{overflow-x:auto}
+.rs-scroll .tbl{min-width:560px}
