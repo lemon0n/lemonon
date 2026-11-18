@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261118T172001-d59d3ad506cb293e",
+  "run_id": "20261118T172940-d59d3ad506cb293e",
   "status": "OK",
-  "generated_at": "2026-11-18 17:20:01",
+  "generated_at": "2026-11-18 17:29:40",
   "data_date": "2026-11-18",
-  "code_version": "d2f265d",
+  "code_version": "683f4bf",
   "config_hash": "7dc121bf9c53564c",
   "input_hash": "d59d3ad506cb293e",
   "data_quality": {
@@ -19,7 +19,7 @@
     "premium_ok": false,
     "market_snapshot": true,
     "sector_snapshot": false,
-    "checked_at": "2026-11-18 17:20:29"
+    "checked_at": "2026-11-18 17:29:43"
   },
   "regime": {
     "regime": "下行趋势",
@@ -47,10 +47,10 @@
       "data_status": "OK",
       "data_date": "2026-11-18",
       "observations": [
-        "close=4.058",
-        "MA5=4.070 MA10=4.109 MA20=4.118",
+        "close=4.060",
+        "MA5=4.071 MA10=4.109 MA20=4.118",
         "vol_ratio=1.3313949664788876",
-        "ret5=-2.22 ret20=-3.03"
+        "ret5=-2.17 ret20=-2.99"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -75,10 +75,10 @@
       "data_status": "OK",
       "data_date": "2026-11-18",
       "observations": [
-        "close=6.309",
+        "close=6.310",
         "MA5=6.417 MA10=6.553 MA20=6.566",
         "vol_ratio=0.5957033939863975",
-        "ret5=-6.51 ret20=-8.09"
+        "ret5=-6.49 ret20=-8.07"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -88,7 +88,7 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "5 日跑输基准 -0.09pct",
+        "5 日跑输基准 -0.07pct",
         "突破四条仅 2/4",
         "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
