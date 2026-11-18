@@ -14,14 +14,16 @@ python3.11 -m pytest tests/ -q
 
 离线预览：`python3.11 scripts/run_update.py --snapshot`。结果标记为 `DEMO`，不可作为交易依据。
 
-本机持仓分析示例：
+本机持仓分析（需要口令环境变量）：
 
 ```bash
 POSITIONS_PASSPHRASE="$POSITIONS_PASSPHRASE" python3.11 scripts/analyze_positions.py \
-  --out /tmp/持仓分析报告.md --packet /tmp/positions_packet.json
+  --out docs/持仓分析报告.md --packet data/packets/positions_packet.json
 ```
 
-持仓报告和数据包可能包含个人资产信息，请保存在仓库外，不要提交或放入公开网页。口令仅通过环境变量提供。
+设置了 `POSITIONS_PASSPHRASE` 时，`scripts/daily.sh` 会自动生成这两份文件，并与市场页产物一起提交推送。
+**报告与数据包包含个人持仓、成本、份额，会随仓库公开发布**；不接受公开就取消该环境变量。
+口令本身只从环境变量读取，不写入仓库。
 
 ## 指导文件
 

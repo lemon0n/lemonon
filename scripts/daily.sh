@@ -69,7 +69,20 @@ fi
 
 say "使用解释器 $("$PY_BIN" -V 2>&1)"
 
-# ---------- 4. 生成 + 校验 + 推送 ----------
+# ---------- 4. 持仓分析（可选，需要口令） ----------
+# 报告与数据包随同一次提交一起推送；没有口令就跳过，不影响市场页更新。
+if [ -n "${POSITIONS_PASSPHRASE:-}" ] && [ -f web/positions.enc.json ]; then
+  say "生成持仓分析报告"
+  if ! "$PY_BIN" scripts/analyze_positions.py \
+        --out docs/持仓分析报告.md \
+        --packet data/packets/positions_packet.json; then
+    printf '\n[警告] 持仓分析失败，本次只更新市场页，继续。\n' >&2
+  fi
+else
+  say "跳过持仓分析（未设置 POSITIONS_PASSPHRASE）"
+fi
+
+# ---------- 5. 生成 + 校验 + 推送 ----------
 say "取数并生成页面（实时源失败会自动降级）"
 "$PY_BIN" scripts/run_update.py --json --push
 code=$?

@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from etfquant import config, packet, pipeline  # noqa: E402
 
 PRODUCTS = ['web/index.html', 'web/analysis_packet.json', 'data/last_run.json']
+# 持仓分析产物：只有本地跑过 analyze_positions.py 才存在，存在才纳入同一次提交
+OPTIONAL_PRODUCTS = ['docs/持仓分析报告.md', 'data/packets/positions_packet.json']
 
 
 def git_push(r):
@@ -31,7 +33,8 @@ def git_push(r):
     if not run('git', 'remote').stdout.strip():
         print('未配置 git remote，跳过推送。', file=sys.stderr)
         return 3
-    run('git', 'add', *PRODUCTS)
+    extra = [p for p in OPTIONAL_PRODUCTS if os.path.exists(os.path.join(config.ROOT, p))]
+    run('git', 'add', *PRODUCTS, *extra)
     if run('git', 'diff', '--cached', '--quiet').returncode == 0:
         print('产物与上次一致，跳过提交')
         return 0

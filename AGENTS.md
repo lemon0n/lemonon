@@ -13,9 +13,12 @@ bash scripts/daily.sh
 
 1. `git pull --rebase --autostash origin main` —— 同步远端最新代码；
 2. 检查依赖，缺失时按 `requirements.txt` 安装；
-3. `scripts/run_update.py --json --push` —— 实时取数、计算、生成页面、发布前校验、
-   提交并推送 `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`；
-4. 打印状态、数据日、降级明细。
+3. 若设置了 `POSITIONS_PASSPHRASE`，生成持仓分析：
+   `docs/持仓分析报告.md` 与 `data/packets/positions_packet.json`；
+4. `scripts/run_update.py --json --push` —— 实时取数、计算、生成页面、发布前校验、
+   提交并推送 `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`，
+   以及第 3 步生成的两份持仓文件；
+5. 打印状态、数据日、降级明细。
 
 推送后 GitHub Actions 会自动部署 Pages，通常几分钟内生效。
 
@@ -31,21 +34,17 @@ bash scripts/daily.sh
 ## 硬性约束
 
 - **不要加 `--snapshot`**。它用离线演示数据，会把线上页面覆盖成 `DEMO`。
-- **不要手动提交** `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`。
-  它们是生成产物，只由本命令产出，手动改动会和每日流水线冲突。
+- **不要手动提交** `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`、
+  `docs/持仓分析报告.md`、`data/packets/positions_packet.json`。
+  它们都是生成产物，只由本命令产出，手动改动会和每日流水线冲突。
 - **不要修改阈值、规则或 `config/` 下的参数**来让校验通过。校验未通过是要报告的问题，
   不是要绕过的障碍。
 - 需要离线调试时用 `SKIP_PULL=1 bash scripts/daily.sh`，其余步骤不变。
 
-## 持仓分析（不在本流程内）
+## 持仓分析同步说明
 
-持仓分析含个人资产信息，不进入公开仓库，也不由本命令生成。需要时单独执行：
+持仓报告和数据包会随仓库公开发布，含持仓代码、份额、成本、浮动盈亏。
+口令只从 `POSITIONS_PASSPHRASE` 环境变量读取，绝不写入任何文件。
 
-```bash
-POSITIONS_PASSPHRASE="$POSITIONS_PASSPHRASE" python3.11 scripts/analyze_positions.py \
-  --out /tmp/持仓分析报告.md --packet /tmp/positions_packet.json
-```
-
-解读方法见 [持仓分析每日运行指导](docs/持仓分析每日运行指导.md)；
-故障处理细节见 [每日运行说明](docs/每日运行说明.md)；
-生产规则只认 `config/methodology.yaml`。
+没有该环境变量时自动跳过持仓分析，只更新市场页，退出码不受影响。
+持仓分析单独失败时只告警，不阻断市场页更新。
