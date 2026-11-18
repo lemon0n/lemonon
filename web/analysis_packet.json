@@ -1,12 +1,12 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261118T115504-c451da4b60004a60",
+  "run_id": "20261118T172001-d59d3ad506cb293e",
   "status": "OK",
-  "generated_at": "2026-11-18 11:55:04",
-  "data_date": "2026-11-17",
-  "code_version": "4f3af3f",
+  "generated_at": "2026-11-18 17:20:01",
+  "data_date": "2026-11-18",
+  "code_version": "d2f265d",
   "config_hash": "7dc121bf9c53564c",
-  "input_hash": "c451da4b60004a60",
+  "input_hash": "d59d3ad506cb293e",
   "data_quality": {
     "status": "OK",
     "coverage_pct": 100.0,
@@ -19,23 +19,23 @@
     "premium_ok": false,
     "market_snapshot": true,
     "sector_snapshot": false,
-    "checked_at": "2026-11-18 11:56:40"
+    "checked_at": "2026-11-18 17:20:29"
   },
   "regime": {
     "regime": "下行趋势",
     "fit_lo": 30,
     "fit_hi": 40,
-    "as_of": "2026-11-17",
+    "as_of": "2026-11-18",
     "observations": [
-      "基准收盘 3976.46 / MA20 4051.00 / MA60 4327.93",
+      "基准收盘 3983.77 / MA20 4044.60 / MA60 4315.56",
       "MA5 低于 MA20",
-      "20日年化波动 17.09% vs 60日 14.70%（未抬升）"
+      "20日年化波动 16.90% vs 60日 14.73%（未抬升）"
     ]
   },
   "market": {
     "regime": "下行趋势",
-    "data_date": "2026-11-17",
-    "benchmark_date": "2026-11-17",
+    "data_date": "2026-11-18",
+    "benchmark_date": "2026-11-18",
     "market_json_is_synthetic": true
   },
   "portfolio_before": null,
@@ -45,12 +45,12 @@
       "name": "沪深300ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-17",
+      "data_date": "2026-11-18",
       "observations": [
-        "close=4.042",
-        "MA5=4.089 MA10=4.120 MA20=4.124",
-        "vol_ratio=1.6006715476219193",
-        "ret5=-2.25 ret20=-4.22"
+        "close=4.058",
+        "MA5=4.070 MA10=4.109 MA20=4.118",
+        "vol_ratio=1.3313949664788876",
+        "ret5=-2.22 ret20=-3.03"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -60,7 +60,6 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "5 日跑输基准 -0.21pct",
         "突破四条仅 1/4",
         "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
@@ -74,12 +73,12 @@
       "name": "中证500ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-17",
+      "data_date": "2026-11-18",
       "observations": [
-        "close=6.317",
-        "MA5=6.504 MA10=6.588 MA20=6.594",
-        "vol_ratio=1.1495003566787905",
-        "ret5=-5.29 ret20=-8.06"
+        "close=6.309",
+        "MA5=6.417 MA10=6.553 MA20=6.566",
+        "vol_ratio=0.5957033939863975",
+        "ret5=-6.51 ret20=-8.09"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -89,7 +88,8 @@
         "R-D1"
       ],
       "counter_evidence": [
-        "突破四条仅 1/4",
+        "5 日跑输基准 -0.09pct",
+        "突破四条仅 2/4",
         "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
       "unknowns": [
@@ -102,12 +102,12 @@
       "name": "科创50ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-17",
+      "data_date": "2026-11-18",
       "observations": [
-        "close=1.294",
-        "MA5=1.337 MA10=1.337 MA20=1.332",
-        "vol_ratio=0.9717742914036438",
-        "ret5=-3.22 ret20=-8.68"
+        "close=1.320",
+        "MA5=1.326 MA10=1.335 MA20=1.327",
+        "vol_ratio=0.8758679984141139",
+        "ret5=-4.0 ret20=-6.91"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -130,12 +130,12 @@
       "name": "创业板ETF",
       "category": "宽基",
       "data_status": "OK",
-      "data_date": "2026-11-17",
+      "data_date": "2026-11-18",
       "observations": [
-        "close=2.310",
-        "MA5=2.440 MA10=2.481 MA20=2.526",
-        "vol_ratio=1.0917370490601113",
-        "ret5=-7.93 ret20=-16.18"
+        "close=2.330",
+        "MA5=2.388 MA10=2.458 MA20=2.507",
+        "vol_ratio=1.2809937622125993",
+        "ret5=-10.04 ret20=-14.12"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -240,11 +240,11 @@
   "methodology_version": "2.0",
   "benchmark": {
     "code": "000300",
-    "as_of": "2026-11-17",
+    "as_of": "2026-11-18",
     "observations": [
-      "基准收盘 3976.46 / MA20 4051.00 / MA60 4327.93",
+      "基准收盘 3983.77 / MA20 4044.60 / MA60 4315.56",
       "MA5 低于 MA20",
-      "20日年化波动 17.09% vs 60日 14.70%（未抬升）"
+      "20日年化波动 16.90% vs 60日 14.73%（未抬升）"
     ]
   }
 }
