@@ -2320,6 +2320,21 @@ function rsTechPill(code){
   var l=rsLabel(rsScore(c).comp);
   return '<span class="rs-pill '+l.cls+'">'+l.label+'</span>';
 }
+/* 代码后面统一补名称，避免只看到 6 位数字 */
+function rsName(code){
+  code=String(code);
+  var r=(HOLD.rows||[]).filter(function(x){ return String(x.code)===code; })[0];
+  if(r&&r.name&&String(r.name)!==code) return String(r.name);
+  var l=legOf(code);
+  if(l&&l.name&&String(l.name)!==code) return String(l.name);
+  if(QNAME[code]) return QNAME[code];
+  var it=RS_IDEAS.filter(function(x){ return String(x.code)===code; })[0];
+  return it?it.name:'';
+}
+function rsCodeName(code){
+  var nm=rsName(code);
+  return '<b>'+esc(code)+'</b>'+(nm?' '+esc(nm):'');
+}
 function rsDimRow(name,score,desc){
   var pos=score>=0, pct=Math.round(Math.abs(score)*100);
   return '<div class="rs-dim"><div class="rs-dim-h"><span class="rs-dim-n">'+esc(name)+'</span>'+
@@ -2446,7 +2461,7 @@ function rsPageHTML(p,s1,adv){
     '</div><div class="rs-note">按当前价格静态估算，不是成交回报；未成交与跳空会使实际值偏离。</div></div>'+
     '<div class="box"><div class="bt">今日建议</div><div class="rs-advice">'+
       '<div class="ar"><span class="k">组合</span><span class="v">'+esc(posTxt(s1))+'</span></div>'+
-      '<div class="ar"><span class="k">逐腿</span><span class="v">'+esc(PDEC&&PDEC.orders&&PDEC.orders.length?PDEC.orders.map(function(o){return o.action+' '+o.code;}).join('、'):'无，保持观察')+'</span></div>'+
+      '<div class="ar"><span class="k">逐腿</span><span class="v">'+(PDEC&&PDEC.orders&&PDEC.orders.length?PDEC.orders.map(function(o){return esc(actText(o.action))+' '+rsCodeName(o.code);}).join('、'):'无，保持观察')+'</span></div>'+
       '<div class="ar"><span class="k">原则</span><span class="v">先降风险，再调结构；不追高，不抄底。</span></div>'+
     '</div></div></div>';
 
@@ -2585,7 +2600,7 @@ function rsRenderDetail(){
   var h='<div class="rs-verdict" style="border-top-color:'+vcolor+'"><div class="vh">'+
     '<span class="rs-pill '+lb.cls+'">结论：'+lb.label+'</span>'+
     '<span class="rs-pill warn">信心 '+f2(sc.conf)+' / 10</span>'+
-    '<span class="rs-pill">'+esc(code)+' · 日线 · '+esc((D.meta&&D.meta.data_date)||'—')+'</span>'+
+    '<span class="rs-pill">'+esc(code)+(rsName(code)?' '+esc(rsName(code)):'')+' · 日线 · '+esc((D.meta&&D.meta.data_date)||'—')+'</span>'+
     (a?'<span class="rs-pill">风控动作：'+esc(a.action_text)+'</span>':'')+
     (f&&f.d5?'<span class="rs-pill">5日上涨占比 '+f2(f.d5.p)+'%</span>':'')+
     '</div><div class="big" style="color:'+vcolor+'">'+lb.label+'</div>'+
