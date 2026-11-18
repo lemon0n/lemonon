@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "OK",
-  "ran_at": "2026-11-18 18:17:13",
+  "ran_at": "2026-11-18 22:51:22",
   "mode": "live",
   "data_date": "2026-11-18",
   "degraded": false,
@@ -30,7 +30,7 @@
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261118T181708-d59d3ad506cb293e",
+  "run_id": "20261118T225120-d59d3ad506cb293e",
   "input_hash": "d59d3ad506cb293e",
   "config_hash": "7dc121bf9c53564c",
   "html": "/workspace/web/index.html"
