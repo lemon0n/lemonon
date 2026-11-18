@@ -356,3 +356,5 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 @media (max-width:520px){.rs-funding{grid-template-columns:1fr}}
 .rs-scroll{overflow-x:auto}
 .rs-scroll .tbl{min-width:560px}
+.rs-pill.sell{background:#e8f6ef;border-color:#bfe6d2;color:var(--down)}
+.rs-pill.buy{background:#fdecea;border-color:#f3c6c0;color:var(--up)}
