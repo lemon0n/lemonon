@@ -2158,13 +2158,16 @@ function rsStrokes(fx){
   }
   return st;
 }
-/* 中枢：连续三笔的重叠区间，取最近一个 */
-function rsPivot(st){
+/* 中枢：连续三笔的重叠区间，取最近一个；结束太早的中枢视为历史结构，不再参与当前判断 */
+function rsPivot(st,n){
   if(st.length<3) return null;
   for(var k=st.length-1;k>=2;k--){
     var a=st[k-2],b=st[k-1],c=st[k];
     var zg=Math.min(a.hi,b.hi,c.hi), zd=Math.max(a.lo,b.lo,c.lo);
-    if(zg>zd) return {zg:zg,zd:zd,start:a.from.bar,end:c.to.bar,at:k};
+    if(zg>zd){
+      if(n!=null&&c.to.bar<n-46) return null;
+      return {zg:zg,zd:zd,start:a.from.bar,end:c.to.bar,at:k};
+    }
   }
   return null;
 }
@@ -2209,7 +2212,7 @@ function rsChan(bars){
   var m=rsMergeBars(arr);
   var fx=rsFractals(m);
   var st=rsStrokes(fx);
-  var pv=rsPivot(st);
+  var pv=rsPivot(st,arr.length);
   var last=closes[arr.length-1];
   var direction=st.length?st[st.length-1].dir:(last>closes[0]?'up':'down');
   var pos=pv?(last>pv.zg?'above':(last<pv.zd?'below':'inside')):'none';
