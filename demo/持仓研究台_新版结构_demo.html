@@ -27,7 +27,8 @@ body{margin:0}
 .tabs button.on{border-bottom-color:var(--blue);color:var(--navy);font-weight:750;background:var(--blue2)}
 .wrap{max-width:1280px;margin:0 auto;padding:16px 22px 70px}
 .demo{background:#fff7e6;border:1px solid #f0d9ac;color:#7a5a12;padding:7px 10px;font-size:10.8px;line-height:1.6;margin-bottom:12px}
-.page{display:none}.page.on{display:block}
+.page{display:block}
+.page + .page{border-top:2px solid var(--line);margin-top:26px;padding-top:6px}
 .pg-h{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:13px}
 .pg-h h1{font-size:19px;margin:0;color:var(--navy)}
 .pg-h .sub{font-size:10.5px;color:var(--muted);margin-left:auto;text-align:right;line-height:1.5}
@@ -102,14 +103,10 @@ body{margin:0}
 .advice .v b{color:var(--navy)}
 .weekly td:first-child{color:var(--muted);white-space:nowrap}
 .weekly td:last-child{font-variant-numeric:tabular-nums;color:var(--navy)}
-.sector-health{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.sector{border:1px solid var(--line);background:#fff;padding:9px 10px}
-.sector .sh{display:flex;justify-content:space-between;gap:5px;align-items:baseline}
-.sector .sn{font-weight:750;color:var(--navy);font-size:11px}
-.sector .sv{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
-.sector .sd{font-size:9.5px;color:var(--muted);line-height:1.55;margin-top:3px;min-height:30px}
-.sector .bar{height:5px;background:#eef2f7;margin-top:5px}
-.sector .bar i{display:block;height:100%;background:var(--blue)}
+.grid4.funding-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.funding-grid .kpi{padding:8px 9px}
+.funding-grid .kpi .v{font-size:16.5px}
+.funding-grid .kpi .d{font-size:9px}
 .temp{border:1px solid var(--line);background:#fff;padding:13px 15px}
 .temp .th{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
 .temp .tv{font-size:34px;font-weight:850;color:var(--blue);line-height:1}
@@ -123,13 +120,14 @@ body{margin:0}
 .dir .d .v{font-size:14px;font-weight:750;color:var(--navy);margin:3px 0}
 .dir .d .x{font-size:10px;line-height:1.65;color:#475569}
 .footer{font-size:10px;color:var(--muted);border-top:1px solid var(--line);margin-top:22px;padding-top:8px;line-height:1.7}
-@media(max-width:1080px){.grid4,.sector-health{grid-template-columns:1fr 1fr}.verdict .kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:1080px){.grid4{grid-template-columns:1fr 1fr}.verdict .kpis{grid-template-columns:1fr 1fr}}
 @media(max-width:820px){
   .grid2,.grid3,.grid4,.dir{grid-template-columns:1fr}
-  .sector-health{grid-template-columns:1fr 1fr}
-  .wrap{padding:12px 12px 60px}.tabs-in{padding:0 10px}
+  .grid4.funding-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .wrap{padding:12px 12px 60px}
   .top .meta{text-align:left;margin-left:0}.verdict .kpis{grid-template-columns:1fr 1fr}
 }
+@media(max-width:520px){.grid4.funding-grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -142,26 +140,18 @@ body{margin:0}
   </div>
 </header>
 
-<div class="tabs">
-  <div class="tabs-in" id="tabs">
-    <button class="on" data-p="p1">一、持仓概况</button>
-    <button data-p="p2">二、持仓分析</button>
-    <button data-p="p3">三、市场洞察及方向</button>
-  </div>
-</div>
-
 <main class="wrap">
   <div class="demo"><b>Demo 说明：</b>按你给的三部分结构制作；数值为模拟数据，不接入真实持仓与行情，不构成投资建议。</div>
 
   <!-- ================= 一、持仓概况 ================= -->
-  <section class="page on" id="p1">
+  <section class="page" id="p1">
     <div class="pg-h">
       <h1>一、持仓概况</h1>
       <div class="sub">资金概况 · 持仓结构 · 持仓建议<br>先看钱在哪里，再看该不该动</div>
     </div>
 
     <div class="sec"><span class="bar"></span>资金概况</div>
-    <div class="grid4">
+    <div class="grid4 funding-grid">
       <div class="kpi"><div class="k">总资产</div><div class="v">¥1,000,000</div><div class="d">现金 ¥376,000</div></div>
       <div class="kpi"><div class="k">持仓市值</div><div class="v">¥624,000</div><div class="d">4 只 ETF</div></div>
       <div class="kpi"><div class="k">浮动盈亏</div><div class="v bad">-¥42,545</div><div class="d">-6.39%（按成本价）</div></div>
@@ -185,15 +175,15 @@ body{margin:0}
       </div>
     </div>
 
-    <div class="sec"><span class="bar"></span>持仓建议 <span class="hint">结合趋势、规则与多周期概率</span></div>
+    <div class="sec"><span class="bar"></span>持仓建议</div>
     <div class="box tight">
       <table class="tbl">
-        <thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本</th><th class="r">现价</th><th class="r">浮动盈亏</th><th>建议</th><th>理由</th><th class="r">5日上涨概率</th><th class="r">20日上涨概率</th></tr></thead>
+        <thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本 → 现价</th><th class="r">浮动盈亏</th><th>建议</th><th>理由</th><th class="r">5/20日概率</th></tr></thead>
         <tbody>
-          <tr><td>510300</td><td>沪深300ETF</td><td>银行 / 食品饮料</td><td class="r">22.0%</td><td class="r">4.180</td><td class="r">4.042</td><td class="r down">-3.30%</td><td><span class="tag sell">清仓</span></td><td>连续 2 日低于 MA10，趋势未修复</td><td class="r">40%</td><td class="r">44%</td></tr>
-          <tr><td>510500</td><td>中证500ETF</td><td>医药 / 电子</td><td class="r">16.0%</td><td class="r">6.750</td><td class="r">6.317</td><td class="r down">-6.41%</td><td><span class="tag sell">减仓</span></td><td>未站上 MA5 且放量，先减一半</td><td class="r">36%</td><td class="r">41%</td></tr>
-          <tr><td>588000</td><td>科创50ETF</td><td>电子 / 计算机</td><td class="r">12.0%</td><td class="r">1.380</td><td class="r">1.294</td><td class="r down">-6.23%</td><td><span class="tag warn">观望</span></td><td>基准缺失，相对强弱看不清；不加仓</td><td class="r">42%</td><td class="r">47%</td></tr>
-          <tr><td>159915</td><td>创业板ETF</td><td>电力设备 / 医药</td><td class="r">12.4%</td><td class="r">2.610</td><td class="r">2.310</td><td class="r down">-11.49%</td><td><span class="tag sell">清仓</span></td><td>20 日新低，且低于 MA10</td><td class="r">30%</td><td class="r">35%</td></tr>
+          <tr><td>510300</td><td>沪深300ETF</td><td>银行 / 食品饮料</td><td class="r">22.0%</td><td class="r">4.180 → 4.042</td><td class="r down">-3.30%</td><td><span class="tag sell">清仓</span></td><td>连续 2 日低于 MA10</td><td class="r">40% / 44%</td></tr>
+          <tr><td>510500</td><td>中证500ETF</td><td>医药 / 电子</td><td class="r">16.0%</td><td class="r">6.750 → 6.317</td><td class="r down">-6.41%</td><td><span class="tag sell">减仓</span></td><td>未站上 MA5 且放量</td><td class="r">36% / 41%</td></tr>
+          <tr><td>588000</td><td>科创50ETF</td><td>电子 / 计算机</td><td class="r">12.0%</td><td class="r">1.380 → 1.294</td><td class="r down">-6.23%</td><td><span class="tag warn">观望</span></td><td>基准缺失，不加仓</td><td class="r">42% / 47%</td></tr>
+          <tr><td>159915</td><td>创业板ETF</td><td>电力设备 / 医药</td><td class="r">12.4%</td><td class="r">2.610 → 2.310</td><td class="r down">-11.49%</td><td><span class="tag sell">清仓</span></td><td>20 日新低，破 MA10</td><td class="r">30% / 35%</td></tr>
         </tbody>
       </table>
       <div class="note" style="padding:0 9px 8px">上涨概率来自历史相似条件的统计（5 日 / 20 日），不是保证；样本不足时不显示。建议顺序：先降风险，再调结构。</div>
@@ -232,7 +222,7 @@ body{margin:0}
       <div class="sub">先看组合结构，再看单只走势<br>板块用申万口径，个股用缠论结构</div>
     </div>
 
-    <div class="sec"><span class="bar"></span>持仓组合 <span class="hint">按跟踪指数成分估算板块暴露</span></div>
+    <div class="sec"><span class="bar"></span>持仓组合</div>
     <div class="grid2">
       <div class="box">
         <div class="bt">组合板块结构</div>
@@ -254,13 +244,19 @@ body{margin:0}
       </div>
     </div>
 
-    <div class="sec"><span class="bar"></span>申万板块健康度 <span class="hint">趋势 / 资金 / 估值 / 景气四项综合</span></div>
-    <div class="sector-health">
-      <div class="sector"><div class="sh"><span class="sn">银行</span><span class="sv up">72</span></div><div class="sd">趋势上行，资金净流入；估值分位 35%，不贵。</div><div class="bar"><i style="width:72%"></i></div></div>
-      <div class="sector"><div class="sh"><span class="sn">食品饮料</span><span class="sv">48</span></div><div class="sd">震荡偏弱，估值分位 25%；等需求端信号。</div><div class="bar"><i style="width:48%"></i></div></div>
-      <div class="sector"><div class="sh"><span class="sn">电子</span><span class="sv bad">35</span></div><div class="sd">下行趋势，资金净流出；估值分位 62%，不便宜。</div><div class="bar"><i style="width:35%"></i></div></div>
-      <div class="sector"><div class="sh"><span class="sn">电力设备</span><span class="sv bad">30</span></div><div class="sd">下行趋势，5 日 -6.2%；产能与价格压力未解。</div><div class="bar"><i style="width:30%"></i></div></div>
-      <div class="sector"><div class="sh"><span class="sn">医药</span><span class="sv warn">42</span></div><div class="sd">震荡偏弱，估值分位 30%；缺催化。</div><div class="bar"><i style="width:42%"></i></div></div>
+    <div class="sec"><span class="bar"></span>申万板块健康度</div>
+    <div class="box tight">
+      <table class="tbl">
+        <thead><tr><th>板块</th><th class="r">健康度</th><th>趋势</th><th>资金</th><th class="r">估值分位</th><th>组合关系</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>银行</td><td class="r"><b class="up">72</b></td><td><span class="tag buy">上行</span></td><td>净流入</td><td class="r">35%</td><td>低配 12.7%</td><td>主线方向，估值不高</td></tr>
+          <tr><td>食品饮料</td><td class="r"><b>48</b></td><td><span class="tag warn">震荡</span></td><td>小幅流出</td><td class="r">25%</td><td>约 10%</td><td>等需求端信号</td></tr>
+          <tr><td>电子</td><td class="r"><b class="bad">35</b></td><td><span class="tag sell">下行</span></td><td>净流出</td><td class="r">62%</td><td class="bad">超配且逆风</td><td>估值不便宜，趋势偏弱</td></tr>
+          <tr><td>电力设备</td><td class="r"><b class="bad">30</b></td><td><span class="tag sell">下行</span></td><td>净流出</td><td class="r">40%</td><td class="bad">超配且逆风</td><td>5 日 -6.2%，产能压力未解</td></tr>
+          <tr><td>医药</td><td class="r"><b class="warn">42</b></td><td><span class="tag warn">震荡偏弱</span></td><td>小幅流出</td><td class="r">30%</td><td>约 10%</td><td>估值不高，缺催化</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="padding:0 9px 8px">健康度由趋势、资金、估值、景气四项合成；只描述板块状态，不是买卖信号。</div>
     </div>
 
     <div class="grid2" style="margin-top:11px">
@@ -294,7 +290,7 @@ body{margin:0}
       </div>
     </div>
 
-    <div class="sec"><span class="bar"></span>持仓个股 <span class="hint">缠论多维：结论速览 → 操作建议 → K 线 → 日线/周线</span></div>
+    <div class="sec"><span class="bar"></span>持仓个股</div>
     <div class="stockpick" id="stockpick">
       <button class="on" data-code="510300">510300 沪深300ETF</button>
       <button data-code="510500">510500 中证500ETF</button>
@@ -317,6 +313,16 @@ body{margin:0}
         <div class="kpi"><div class="k">结构失效</div><div class="v" id="kpiInvalid">4.15</div><div class="d">站上则空头结构失效</div></div>
         <div class="kpi"><div class="k">建议止损</div><div class="v" id="kpiStop">4.16</div><div class="d">结构失效位上方</div></div>
       </div>
+    </div>
+
+    <div class="box" style="border-left:3px solid var(--blue)">
+      <div class="bt">给 LLM 的写作方向</div>
+      <div class="grid3">
+        <div><div class="bt" style="font-size:11px">先写结论</div><div class="note" style="margin-top:0">用一句话说清“现在该做什么”，不要先讲指标。</div></div>
+        <div><div class="bt" style="font-size:11px">再讲三条理由</div><div class="note" style="margin-top:0">分别从走势、量能、与市场主线的关系展开，每条都指向具体价位或数据。</div></div>
+        <div><div class="bt" style="font-size:11px">最后写改变条件</div><div class="note" style="margin-top:0">写清“什么情况下这个判断要改”，不写目标价和保证收益。</div></div>
+      </div>
+      <div class="note">可结合市场概况：大盘在 MA20/MA60 下方，上涨行业占比 25%，主线在银行/红利。让 LLM 围绕“这只持仓和主线的关系”展开，而不是复述指标。</div>
     </div>
 
     <div class="grid2">
@@ -402,14 +408,14 @@ body{margin:0}
       </div>
     </div>
 
-    <div class="sec"><span class="bar"></span>后续路径 <span class="hint">三种情形与触发条件</span></div>
+    <div class="sec"><span class="bar"></span>后续路径</div>
     <div class="dir">
       <div class="d"><div class="k">偏弱延续</div><div class="v">跌破 3900</div><div class="x">成交放大、下跌家数增加；先降仓位，不抄底。</div></div>
       <div class="d"><div class="k">震荡修复</div><div class="v">3900 ~ 4051</div><div class="x">成交缩量、扩散度回升；结构机会，不追高。</div></div>
       <div class="d"><div class="k">转强确认</div><div class="v">站上 4051</div><div class="x">MA5 上穿 MA20，扩散度 > 50%；再谈加仓。</div></div>
     </div>
 
-    <div class="sec"><span class="bar"></span>新板块 / 新基推荐 <span class="hint">多周期概率来自历史相似条件</span></div>
+    <div class="sec"><span class="bar"></span>新板块 / 新基推荐</div>
     <div class="box tight">
       <table class="tbl">
         <thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日概率</th><th class="r">20日概率</th><th class="r">20日中位收益</th><th>建议</th><th>推荐理由</th><th>风险</th></tr></thead>
@@ -453,14 +459,16 @@ body{margin:0}
 
   /* tabs */
   var tabs = document.getElementById('tabs');
-  tabs.addEventListener('click', function(e){
-    var b = e.target.closest('button[data-p]');
-    if(!b) return;
-    tabs.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
-    document.querySelectorAll('.page').forEach(function(p){ p.classList.toggle('on', p.id === b.dataset.p); });
-    if(b.dataset.p === 'p2') setTimeout(draw, 40);
-    window.scrollTo({top:0, behavior:'smooth'});
-  });
+  if(tabs){
+    tabs.addEventListener('click', function(e){
+      var b = e.target.closest('button[data-p]');
+      if(!b) return;
+      tabs.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+      document.querySelectorAll('.page').forEach(function(p){ p.classList.toggle('on', p.id === b.dataset.p); });
+      if(b.dataset.p === 'p2') setTimeout(draw, 40);
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  }
 
   /* stock data */
   var STOCKS = {
@@ -469,7 +477,7 @@ body{margin:0}
       verdict:'看空', conf:'6.2 / 10', advice:'减仓 / 观望', pos:'20–30%（概率推演）',
       buy:'等待站上 MA5，且回抽不破 4.06', sell:'反弹 4.15–4.18 不过，或跌破 3.98',
       stop:'收盘站上 4.15 且 MACD 金叉',
-      text:'日线仍在下行笔中，价格位于中枢下方，MACD 柱为负且未出现底背驰；周线方向向下，未出现底分型。短期跌幅较大，但结构未完成转折，反弹只能按“中枢回抽”处理。',
+      text:'一句话：现在不是买点，先减仓。理由有三点：①收盘连续两天低于 MA10，短期趋势没有修复；②价格在 MA20 和 MA60 下方，中期也偏弱；③大盘上涨行业只有 25%，主线在银行和红利，这只持仓代表的是大盘成长，和当前主线不一致。关键价位：3.98 是前低支撑，4.15 是结构失效位；如果收盘站上 4.15 并且 MACD 金叉，这个判断要改。',
       weekly:[['收盘','4.042','4.042'],['MA5 / MA20','4.089 / 4.124','4.106 / 4.168'],['MACD','柱负，未金叉','柱负，死叉后延续'],['RSI14','42','39'],['结构','下行笔，中枢下方','向下，未出底分型']],
       indicators:[['MACD','DIF -0.018 / DEA -0.012 / 柱 -0.012','偏空'],['KDJ','K 28 / D 35 / J 14','低位'],['RSI','RSI14 42','中性偏弱'],['OBV','近 5 日下行','偏空'],['BOLL','价格贴近下轨','弱势'],['均线','MA5 < MA10 < MA20','空头排列']],
       compare:[['收盘','4.042'],['MA5/10/20','4.089 / 4.120 / 4.124'],['MA60/120','4.310 / 4.268'],['量比','1.60（放量）'],['5/20 日收益','-2.25% / -4.22%'],['相对基准','5 日 -0.21pct / 20 日 +0.35pct']]
@@ -479,7 +487,7 @@ body{margin:0}
       verdict:'看空', conf:'5.8 / 10', advice:'减仓', pos:'10–20%（概率推演）',
       buy:'站上 MA5 满 2 日再考虑', sell:'反弹 6.55–6.60 不过，或跌破 6.20',
       stop:'收盘站上 6.60 且 MACD 金叉',
-      text:'价格低于 MA5 与 MA20，尚未触发清仓级条件，但趋势没有修复。量比 1.15，属于温和放量下跌；周线仍向下。减半是对“趋势未修复”的折中，不是抄底。',
+      text:'一句话：先减一半，不急着清仓。理由：①没有站上 MA5，短期趋势偏弱；②量比 1.15，属于放量下跌，不是缩量回踩；③中盘成长和当前银行/红利主线不一致。关键价位：6.20 是前低，6.60 是结构失效位；站上 6.60 再谈修复。',
       weekly:[['收盘','6.317','6.317'],['MA5 / MA20','6.504 / 6.594','6.55 / 6.68'],['MACD','柱负，未金叉','柱负'],['RSI14','38','36'],['结构','下行笔，中枢下方','向下，未出底分型']],
       indicators:[['MACD','DIF -0.032 / DEA -0.021 / 柱 -0.022','偏空'],['KDJ','K 22 / D 30 / J 6','低位'],['RSI','RSI14 38','偏弱'],['OBV','近 5 日下行','偏空'],['BOLL','贴近下轨','弱势'],['均线','MA5 < MA10 < MA20','空头排列']],
       compare:[['收盘','6.317'],['MA5/10/20','6.504 / 6.588 / 6.594'],['MA60/120','6.702 / 6.611'],['量比','1.15'],['5/20 日收益','-5.29% / -8.06%'],['相对基准','5 日 -0.8pct / 20 日 -1.9pct']]
@@ -489,7 +497,7 @@ body{margin:0}
       verdict:'中性偏空', conf:'4.6 / 10', advice:'观望', pos:'0–10%（概率推演）',
       buy:'基准恢复且站上 MA10 连续 2 日', sell:'跌破 1.27 且放量',
       stop:'收盘站上 1.36 且 MACD 金叉',
-      text:'价格低于 MA5、MA10、MA20，20 日收益 -8.68%；但量比 0.97，没有明显放量。对应基准缺失，相对强弱看不清，今天不加仓，也不急着砍。',
+      text:'一句话：先观望，不加仓。理由：①价格低于 MA5、MA10、MA20，走势偏弱；②量比 0.97，没有明显放量，暂时看不到恐慌盘；③对应基准缺失，相对强弱看不清。关键价位：1.27 是前低，1.36 是结构失效位；等基准恢复、并且站上 MA10 再看。',
       weekly:[['收盘','1.294','1.294'],['MA5 / MA20','1.337 / 1.332','1.34 / 1.36'],['MACD','柱负，未金叉','柱负'],['RSI14','41','40'],['结构','下行笔，中枢下方','方向不明']],
       indicators:[['MACD','DIF -0.008 / DEA -0.006 / 柱 -0.004','偏空'],['KDJ','K 35 / D 42 / J 21','低位'],['RSI','RSI14 41','中性偏弱'],['OBV','近 5 日走平','中性'],['BOLL','中轨下方','偏弱'],['均线','MA5 < MA10 < MA20','空头排列']],
       compare:[['收盘','1.294'],['MA5/10/20','1.337 / 1.337 / 1.332'],['MA60/120','1.351 / 1.318'],['量比','0.97（平量）'],['5/20 日收益','-3.22% / -8.68%'],['相对基准','基准缺失，不可比较']]
@@ -499,7 +507,7 @@ body{margin:0}
       verdict:'看空', conf:'6.8 / 10', advice:'清仓', pos:'0–10%（概率推演）',
       buy:'等站上 MA10 且不再创新低', sell:'反弹 2.48 不过，或跌破 2.28',
       stop:'收盘站上 2.50 且 MACD 金叉',
-      text:'收盘 2.310，创 20 日新低，同时低于 MA10 2.481；20 日收益 -16.18%，为组合中最弱。周线向下，未出底分型。新低 + 均线下方是规则定义的退出条件，跌幅大不是持有理由。',
+      text:'一句话：先清仓，不抄底。理由：①创 20 日新低；②收盘低于 MA10；③20 日跌 16.18%，是组合里最弱的一只；大盘主线在银行/红利，成长方向仍在退潮。关键价位：2.28 是前低，2.50 是结构失效位；站上 2.50 再重新评估。',
       weekly:[['收盘','2.310','2.310'],['MA5 / MA20','2.440 / 2.526','2.47 / 2.58'],['MACD','柱负，未金叉','柱负，死叉后延续'],['RSI14','30','31'],['结构','下行笔，创新低','向下，未出底分型']],
       indicators:[['MACD','DIF -0.042 / DEA -0.030 / 柱 -0.024','偏空'],['KDJ','K 18 / D 26 / J 2','超卖'],['RSI','RSI14 30','接近超卖'],['OBV','近 5 日下行','偏空'],['BOLL','跌破下轨','极弱'],['均线','MA5 < MA10 < MA20','空头排列']],
       compare:[['收盘','2.310'],['MA5/10/20','2.440 / 2.481 / 2.526'],['MA60/120','2.602 / 2.540'],['量比','1.09'],['5/20 日收益','-7.93% / -16.18%'],['相对基准','5 日 -1.3pct / 20 日 -3.2pct']]
