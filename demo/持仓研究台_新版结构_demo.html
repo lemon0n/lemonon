@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>持仓研究台 · 新版结构 Demo</title>
+<style>
+:root{
+  --navy:#1e3a8a;--blue:#1d4ed8;--blue2:#eef4ff;--blue3:#f7faff;
+  --line:#d8e2f0;--bg:#f6f8fc;--text:#1f2d3d;--muted:#66758c;
+  --up:#c0392b;--down:#148f5b;--warn:#b45309;--bad:#b91c1c;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;color:var(--text);background:var(--bg)
+}
+*{box-sizing:border-box;border-radius:0!important}
+[hidden]{display:none!important}
+body{margin:0}
+.top{background:#fff;border-bottom:2px solid var(--blue);position:sticky;top:0;z-index:40}
+.top-in{max-width:1280px;margin:0 auto;padding:10px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mark{background:var(--navy);color:#fff;font-weight:800;font-size:12px;padding:4px 7px}
+.top h1{font-size:16px;margin:0;color:var(--navy);font-weight:750}
+.top .meta{font-size:10.5px;color:var(--muted);margin-left:auto;line-height:1.6;text-align:right}
+.tabs{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:55px;z-index:35}
+.tabs-in{max-width:1280px;margin:0 auto;display:flex;gap:2px;padding:0 22px;overflow-x:auto}
+.tabs button{border:0;border-bottom:3px solid transparent;background:transparent;padding:10px 15px;font-size:12.5px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+.tabs button:hover{background:var(--blue3);color:var(--navy)}
+.tabs button.on{border-bottom-color:var(--blue);color:var(--navy);font-weight:750;background:var(--blue2)}
+.wrap{max-width:1280px;margin:0 auto;padding:16px 22px 70px}
+.demo{background:#fff7e6;border:1px solid #f0d9ac;color:#7a5a12;padding:7px 10px;font-size:10.8px;line-height:1.6;margin-bottom:12px}
+.page{display:none}.page.on{display:block}
+.pg-h{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:13px}
+.pg-h h1{font-size:19px;margin:0;color:var(--navy)}
+.pg-h .sub{font-size:10.5px;color:var(--muted);margin-left:auto;text-align:right;line-height:1.5}
+.sec{display:flex;align-items:center;gap:8px;margin:21px 0 9px;font-size:13px;font-weight:750;color:var(--navy)}
+.sec .bar{width:3px;height:14px;background:var(--blue)}
+.sec .hint{font-size:10px;color:var(--muted);font-weight:400;margin-left:3px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.box{background:#fff;border:1px solid var(--line);padding:12px 14px;margin-bottom:11px;overflow-x:auto}
+.box.tight{padding:0}
+.bt{font-weight:700;color:var(--navy);margin-bottom:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bt .sp{font-size:10px;color:var(--muted);font-weight:400}
+.kpi{background:#fff;border:1px solid var(--line);padding:10px 12px}
+.kpi .k{font-size:10px;color:var(--muted)}
+.kpi .v{font-size:20px;font-weight:780;color:var(--navy);font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .d{font-size:10px;color:var(--muted);margin-top:1px}
+.kpi .v.warn{color:var(--warn)}.kpi .v.bad{color:var(--bad)}.kpi .v.ok{color:var(--down)}
+.up{color:var(--up)}.down{color:var(--down)}.warn{color:var(--warn)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse;font-size:10.8px;background:#fff}
+.tbl th{background:var(--blue2);color:var(--navy);text-align:left;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;font-weight:700}
+.tbl td{padding:5px 8px;border:1px solid var(--line);vertical-align:top;line-height:1.5}
+.tbl tr:nth-child(even) td{background:var(--blue3)}
+.tbl td.r,.tbl th.r{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:1px 5px;font-size:9.5px;font-weight:700;border:1px solid var(--line);background:var(--blue2);color:var(--navy);white-space:nowrap}
+.tag.sell{background:#e8f6ef;color:var(--down);border-color:#bfe6d2}
+.tag.buy{background:#fdecea;color:var(--up);border-color:#f3c6c0}
+.tag.warn{background:#fff5e6;color:var(--warn);border-color:#f0d9ac}
+.tag.bad{background:#fdecea;color:var(--bad);border-color:#f3c6c0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:10.8px}
+.kv .k{color:var(--muted);white-space:nowrap}
+.kv .v{text-align:right;color:var(--navy);font-variant-numeric:tabular-nums}
+.note{font-size:10px;line-height:1.65;color:var(--muted);margin-top:6px}
+.notice{font-size:10.5px;line-height:1.65;color:#7a5a12;background:#fffdf5;border:1px solid #f0d9ac;padding:7px 9px;margin-top:7px}
+.bar-row{display:grid;grid-template-columns:78px 1fr 58px;gap:7px;align-items:center;font-size:10px;margin:5px 0}
+.bar-row .n{color:var(--muted)}
+.bar-row .t{height:9px;background:var(--blue2);position:relative}
+.bar-row .t i{display:block;height:100%;background:var(--blue)}
+.bar-row .t i.pos{background:var(--up)}.bar-row .t i.neg{background:var(--down)}
+.bar-row .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--navy)}
+.pill{display:inline-block;padding:2px 6px;font-size:9.5px;font-weight:700;border:1px solid var(--line);background:var(--blue2);color:var(--navy)}
+.pill.bad{background:#fdecea;border-color:#f3c6c0;color:var(--bad)}
+.pill.warn{background:#fff5e6;border-color:#f0d9ac;color:var(--warn)}
+.pill.ok{background:#e8f6ef;border-color:#bfe6d2;color:var(--down)}
+.stockpick{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.stockpick button{border:1px solid var(--line);background:#fff;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;color:var(--muted)}
+.stockpick button:hover{background:var(--blue3);color:var(--navy)}
+.stockpick button.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+.verdict{border:1px solid var(--line);border-top:4px solid var(--bad);background:#fff;padding:14px 16px;margin-bottom:11px}
+.verdict .vh{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px}
+.verdict .big{font-size:28px;font-weight:850;color:var(--bad);line-height:1.1}
+.verdict .scale{display:flex;gap:3px;margin:9px 0 7px;max-width:520px}
+.verdict .scale span{flex:1;text-align:center;font-size:9.5px;padding:5px 2px;border:1px solid var(--line);color:var(--muted);background:#f8fafc}
+.verdict .scale span.on{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:750}
+.verdict p{margin:0;font-size:11.5px;line-height:1.8;color:#334155}
+.verdict .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.verdict .kpi{border:1px solid var(--line);background:#f8fafc;padding:7px 9px}
+.verdict .kpi .k{font-size:9.5px;color:var(--muted)}
+.verdict .kpi .v{font-size:13px;font-weight:750;color:var(--navy);margin-top:2px;font-variant-numeric:tabular-nums}
+.verdict .kpi .d{font-size:9.5px;color:var(--muted);margin-top:1px}
+.chartcard{background:#fff;border:1px solid var(--line);padding:10px 11px}
+.chartcard .ch{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.chartcard .ct{font-weight:750;color:var(--navy);font-size:12px}
+.legend{display:flex;gap:9px;flex-wrap:wrap;font-size:9.5px;color:var(--muted);margin-left:auto}
+.legend i{display:inline-block;width:13px;height:3px;vertical-align:middle;margin-right:3px}
+#kline{width:100%;height:360px;display:block}
+#macd{width:100%;height:120px;display:block;margin-top:3px}
+.advice .ar{display:flex;gap:7px;padding:5px 0;border-bottom:1px dotted var(--line);font-size:10.8px;line-height:1.6}
+.advice .ar:last-child{border-bottom:0}
+.advice .k{flex:0 0 49px;color:var(--muted)}
+.advice .v{color:#334155}
+.advice .v b{color:var(--navy)}
+.weekly td:first-child{color:var(--muted);white-space:nowrap}
+.weekly td:last-child{font-variant-numeric:tabular-nums;color:var(--navy)}
+.sector-health{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.sector{border:1px solid var(--line);background:#fff;padding:9px 10px}
+.sector .sh{display:flex;justify-content:space-between;gap:5px;align-items:baseline}
+.sector .sn{font-weight:750;color:var(--navy);font-size:11px}
+.sector .sv{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.sector .sd{font-size:9.5px;color:var(--muted);line-height:1.55;margin-top:3px;min-height:30px}
+.sector .bar{height:5px;background:#eef2f7;margin-top:5px}
+.sector .bar i{display:block;height:100%;background:var(--blue)}
+.temp{border:1px solid var(--line);background:#fff;padding:13px 15px}
+.temp .th{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.temp .tv{font-size:34px;font-weight:850;color:var(--blue);line-height:1}
+.temp .tl{font-size:11px;color:var(--muted)}
+.temp .bar{height:12px;background:linear-gradient(90deg,#148f5b,#eab308,#c0392b);position:relative;margin:13px 0 6px}
+.temp .bar i{position:absolute;top:-4px;width:2px;height:20px;background:var(--navy)}
+.temp .marks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--muted)}
+.dir{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.dir .d{border:1px solid var(--line);background:#fff;padding:10px 11px}
+.dir .d .k{font-size:10px;color:var(--muted)}
+.dir .d .v{font-size:14px;font-weight:750;color:var(--navy);margin:3px 0}
+.dir .d .x{font-size:10px;line-height:1.65;color:#475569}
+.footer{font-size:10px;color:var(--muted);border-top:1px solid var(--line);margin-top:22px;padding-top:8px;line-height:1.7}
+@media(max-width:1080px){.grid4,.sector-health{grid-template-columns:1fr 1fr}.verdict .kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:820px){
+  .grid2,.grid3,.grid4,.dir{grid-template-columns:1fr}
+  .sector-health{grid-template-columns:1fr 1fr}
+  .wrap{padding:12px 12px 60px}.tabs-in{padding:0 10px}
+  .top .meta{text-align:left;margin-left:0}.verdict .kpis{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <span class="mark">ETF</span>
+    <h1>持仓研究台</h1>
+    <div class="meta">数据日 2026-11-17 · 本机持仓 · 仅供研究参考</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tabs-in" id="tabs">
+    <button class="on" data-p="p1">一、持仓概况</button>
+    <button data-p="p2">二、持仓分析</button>
+    <button data-p="p3">三、市场洞察及方向</button>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="demo"><b>Demo 说明：</b>按你给的三部分结构制作；数值为模拟数据，不接入真实持仓与行情，不构成投资建议。</div>
+
+  <!-- ================= 一、持仓概况 ================= -->
+  <section class="page on" id="p1">
+    <div class="pg-h">
+      <h1>一、持仓概况</h1>
+      <div class="sub">资金概况 · 持仓结构 · 持仓建议<br>先看钱在哪里，再看该不该动</div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>资金概况</div>
+    <div class="grid4">
+      <div class="kpi"><div class="k">总资产</div><div class="v">¥1,000,000</div><div class="d">现金 ¥376,000</div></div>
+      <div class="kpi"><div class="k">持仓市值</div><div class="v">¥624,000</div><div class="d">4 只 ETF</div></div>
+      <div class="kpi"><div class="k">浮动盈亏</div><div class="v bad">-¥42,545</div><div class="d">-6.39%（按成本价）</div></div>
+      <div class="kpi"><div class="k">当日盈亏</div><div class="v bad">-¥9,860</div><div class="d">-0.99%（按最新价估算）</div></div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>持仓结构</div>
+    <div class="grid2">
+      <div class="box">
+        <div class="bt">仓位与现金</div>
+        <div class="bar-row"><span class="n">持仓 62.4%</span><span class="t"><i class="pos" style="width:62.4%"></i></span><span class="v">¥624,000</span></div>
+        <div class="bar-row"><span class="n">现金 37.6%</span><span class="t"><i style="width:37.6%"></i></span><span class="v">¥376,000</span></div>
+        <div class="note">当前仓位高于“下行趋势”对应的 30~40% 区间，先降风险，再谈结构调整。</div>
+      </div>
+      <div class="box">
+        <div class="bt">持仓类别</div>
+        <div class="bar-row"><span class="n">宽基 100%</span><span class="t"><i class="pos" style="width:100%"></i></span><span class="v">4 只</span></div>
+        <div class="bar-row"><span class="n">行业 0%</span><span class="t"><i style="width:0%"></i></span><span class="v">0 只</span></div>
+        <div class="bar-row"><span class="n">债券 / 黄金 / 海外 0%</span><span class="t"><i style="width:0%"></i></span><span class="v">0 只</span></div>
+        <div class="note">名义上有 4 只，实际上全部是境内宽基，分散效果有限。</div>
+      </div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>持仓建议 <span class="hint">结合趋势、规则与多周期概率</span></div>
+    <div class="box tight">
+      <table class="tbl">
+        <thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本</th><th class="r">现价</th><th class="r">浮动盈亏</th><th>建议</th><th>理由</th><th class="r">5日上涨概率</th><th class="r">20日上涨概率</th></tr></thead>
+        <tbody>
+          <tr><td>510300</td><td>沪深300ETF</td><td>银行 / 食品饮料</td><td class="r">22.0%</td><td class="r">4.180</td><td class="r">4.042</td><td class="r down">-3.30%</td><td><span class="tag sell">清仓</span></td><td>连续 2 日低于 MA10，趋势未修复</td><td class="r">40%</td><td class="r">44%</td></tr>
+          <tr><td>510500</td><td>中证500ETF</td><td>医药 / 电子</td><td class="r">16.0%</td><td class="r">6.750</td><td class="r">6.317</td><td class="r down">-6.41%</td><td><span class="tag sell">减仓</span></td><td>未站上 MA5 且放量，先减一半</td><td class="r">36%</td><td class="r">41%</td></tr>
+          <tr><td>588000</td><td>科创50ETF</td><td>电子 / 计算机</td><td class="r">12.0%</td><td class="r">1.380</td><td class="r">1.294</td><td class="r down">-6.23%</td><td><span class="tag warn">观望</span></td><td>基准缺失，相对强弱看不清；不加仓</td><td class="r">42%</td><td class="r">47%</td></tr>
+          <tr><td>159915</td><td>创业板ETF</td><td>电力设备 / 医药</td><td class="r">12.4%</td><td class="r">2.610</td><td class="r">2.310</td><td class="r down">-11.49%</td><td><span class="tag sell">清仓</span></td><td>20 日新低，且低于 MA10</td><td class="r">30%</td><td class="r">35%</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="padding:0 9px 8px">上涨概率来自历史相似条件的统计（5 日 / 20 日），不是保证；样本不足时不显示。建议顺序：先降风险，再调结构。</div>
+    </div>
+
+    <div class="grid2">
+      <div class="box">
+        <div class="bt">换仓思路</div>
+        <div class="advice">
+          <div class="ar"><span class="k">减</span><span class="v"><b>510300、159915</b>：趋势最弱，先降低风险敞口。</span></div>
+          <div class="ar"><span class="k">减半</span><span class="v"><b>510500</b>：未站上 MA5，先减一半，保留观察仓。</span></div>
+          <div class="ar"><span class="k">观察</span><span class="v"><b>588000</b>：数据不完整，不加仓，等基准恢复。</span></div>
+          <div class="ar"><span class="k">换入</span><span class="v">红利、黄金、债券各分批关注，先建观察仓，不一次打满。</span></div>
+        </div>
+      </div>
+      <div class="box">
+        <div class="bt">新增关注 <span class="sp">多周期概率为历史相似条件统计</span></div>
+        <table class="tbl">
+          <thead><tr><th>代码</th><th>名称</th><th class="r">5日概率</th><th class="r">20日概率</th><th>建议</th><th>理由</th></tr></thead>
+          <tbody>
+            <tr><td>512890</td><td>红利低波ETF</td><td class="r">54%</td><td class="r">58%</td><td><span class="tag buy">分批关注</span></td><td>主线在银行/红利，组合暴露为 0</td></tr>
+            <tr><td>518880</td><td>黄金ETF</td><td class="r">52%</td><td class="r">56%</td><td><span class="tag buy">分批关注</span></td><td>与权益相关性低，补分散</td></tr>
+            <tr><td>511010</td><td>国债ETF</td><td class="r">55%</td><td class="r">57%</td><td><span class="tag buy">分批关注</span></td><td>现金之外的稳健缓冲</td></tr>
+            <tr><td>513180</td><td>恒生科技ETF</td><td class="r">46%</td><td class="r">49%</td><td><span class="tag warn">观察</span></td><td>波动大，等趋势确认</td></tr>
+            <tr><td>159995</td><td>芯片ETF</td><td class="r">44%</td><td class="r">48%</td><td><span class="tag warn">观察</span></td><td>板块仍在走弱，不追</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 二、持仓分析 ================= -->
+  <section class="page" id="p2">
+    <div class="pg-h">
+      <h1>二、持仓分析</h1>
+      <div class="sub">先看组合结构，再看单只走势<br>板块用申万口径，个股用缠论结构</div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>持仓组合 <span class="hint">按跟踪指数成分估算板块暴露</span></div>
+    <div class="grid2">
+      <div class="box">
+        <div class="bt">组合板块结构</div>
+        <div class="bar-row"><span class="n">科技 33.0%</span><span class="t"><i class="pos" style="width:66%"></i></span><span class="v">超配</span></div>
+        <div class="bar-row"><span class="n">制造 24.3%</span><span class="t"><i class="pos" style="width:49%"></i></span><span class="v">超配</span></div>
+        <div class="bar-row"><span class="n">金融 12.7%</span><span class="t"><i style="width:25%"></i></span><span class="v">低配</span></div>
+        <div class="bar-row"><span class="n">医药 10.4%</span><span class="t"><i style="width:21%"></i></span><span class="v">中性</span></div>
+        <div class="bar-row"><span class="n">消费 10.2%</span><span class="t"><i style="width:20%"></i></span><span class="v">低配</span></div>
+        <div class="bar-row"><span class="n">其他 9.4%</span><span class="t"><i style="width:19%"></i></span><span class="v">—</span></div>
+        <div class="note">组合的主要矛盾：科技 + 制造合计约 57%，而今天的主线在银行/红利；成长暴露偏高，且与市场方向不一致。</div>
+      </div>
+      <div class="box">
+        <div class="bt">组合健康度 <span class="sp">42 / 100</span></div>
+        <div class="bar-row"><span class="n">结构分散</span><span class="t"><i class="neg" style="width:25%"></i></span><span class="v">偏弱</span></div>
+        <div class="bar-row"><span class="n">风格匹配</span><span class="t"><i class="neg" style="width:20%"></i></span><span class="v">偏弱</span></div>
+        <div class="bar-row"><span class="n">趋势一致</span><span class="t"><i class="neg" style="width:30%"></i></span><span class="v">偏弱</span></div>
+        <div class="bar-row"><span class="n">现金弹性</span><span class="t"><i class="pos" style="width:76%"></i></span><span class="v">较好</span></div>
+        <div class="note">健康度不是买卖信号，只说明组合当前“结构、风格、趋势、现金”四件事是否协调。</div>
+      </div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>申万板块健康度 <span class="hint">趋势 / 资金 / 估值 / 景气四项综合</span></div>
+    <div class="sector-health">
+      <div class="sector"><div class="sh"><span class="sn">银行</span><span class="sv up">72</span></div><div class="sd">趋势上行，资金净流入；估值分位 35%，不贵。</div><div class="bar"><i style="width:72%"></i></div></div>
+      <div class="sector"><div class="sh"><span class="sn">食品饮料</span><span class="sv">48</span></div><div class="sd">震荡偏弱，估值分位 25%；等需求端信号。</div><div class="bar"><i style="width:48%"></i></div></div>
+      <div class="sector"><div class="sh"><span class="sn">电子</span><span class="sv bad">35</span></div><div class="sd">下行趋势，资金净流出；估值分位 62%，不便宜。</div><div class="bar"><i style="width:35%"></i></div></div>
+      <div class="sector"><div class="sh"><span class="sn">电力设备</span><span class="sv bad">30</span></div><div class="sd">下行趋势，5 日 -6.2%；产能与价格压力未解。</div><div class="bar"><i style="width:30%"></i></div></div>
+      <div class="sector"><div class="sh"><span class="sn">医药</span><span class="sv warn">42</span></div><div class="sd">震荡偏弱，估值分位 30%；缺催化。</div><div class="bar"><i style="width:42%"></i></div></div>
+    </div>
+
+    <div class="grid2" style="margin-top:11px">
+      <div class="box">
+        <div class="bt">宏观经济背景</div>
+        <table class="tbl">
+          <thead><tr><th>指标</th><th class="r">最新</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td>制造业 PMI</td><td class="r">49.8</td><td>低于荣枯线，需求偏弱</td></tr>
+            <tr><td>CPI 同比</td><td class="r">+0.3%</td><td>通胀温和，内需不强</td></tr>
+            <tr><td>10Y 国债</td><td class="r">2.18%</td><td>利率偏低，流动性偏松</td></tr>
+            <tr><td>社融增速</td><td class="r">8.1%</td><td>信用扩张一般</td></tr>
+            <tr><td>人民币</td><td class="r">7.12</td><td>汇率稳定，外部压力可控</td></tr>
+          </tbody>
+        </table>
+        <div class="note">宏观结论：经济偏弱、流动性偏松、风险偏好低。对银行/红利/债券相对有利，对高估值成长不利。</div>
+      </div>
+      <div class="box">
+        <div class="bt">板块与组合的关系</div>
+        <table class="tbl">
+          <thead><tr><th>板块</th><th class="r">组合暴露</th><th>板块状态</th><th>关系</th></tr></thead>
+          <tbody>
+            <tr><td>银行 / 红利</td><td class="r">0.0%</td><td><span class="tag buy">走强</span></td><td class="bad">主线低配</td></tr>
+            <tr><td>电子</td><td class="r">约 20%</td><td><span class="tag sell">走弱</span></td><td class="bad">超配且逆风</td></tr>
+            <tr><td>电力设备</td><td class="r">约 14%</td><td><span class="tag sell">走弱</span></td><td class="bad">超配且逆风</td></tr>
+            <tr><td>医药</td><td class="r">约 10%</td><td><span class="tag warn">震荡</span></td><td>中性</td></tr>
+            <tr><td>食品饮料</td><td class="r">约 10%</td><td><span class="tag warn">震荡</span></td><td>中性</td></tr>
+          </tbody>
+        </table>
+        <div class="note">结论：组合不是“分散的 4 只”，而是“成长为主、金融低配”的一个方向。先降成长暴露，再补红利/债券/黄金。</div>
+      </div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>持仓个股 <span class="hint">缠论多维：结论速览 → 操作建议 → K 线 → 日线/周线</span></div>
+    <div class="stockpick" id="stockpick">
+      <button class="on" data-code="510300">510300 沪深300ETF</button>
+      <button data-code="510500">510500 中证500ETF</button>
+      <button data-code="588000">588000 科创50ETF</button>
+      <button data-code="159915">159915 创业板ETF</button>
+    </div>
+
+    <div class="verdict">
+      <div class="vh">
+        <span class="pill bad" id="stockVerdictPill">结论：看空</span>
+        <span class="pill warn" id="stockConfidence">信心 6.2 / 10</span>
+        <span class="pill" id="stockMeta">510300 · 日线 · 2026-11-17</span>
+      </div>
+      <div class="big" id="verdictBig">看空</div>
+      <div class="scale" id="verdictScale"></div>
+      <p id="verdictText"></p>
+      <div class="kpis">
+        <div class="kpi"><div class="k">中枢 ZD / ZG</div><div class="v" id="kpiZd">4.06 / 4.18</div><div class="d">价格在中枢下方</div></div>
+        <div class="kpi"><div class="k">关键支撑</div><div class="v" id="kpiSupport">3.98</div><div class="d">前低附近</div></div>
+        <div class="kpi"><div class="k">结构失效</div><div class="v" id="kpiInvalid">4.15</div><div class="d">站上则空头结构失效</div></div>
+        <div class="kpi"><div class="k">建议止损</div><div class="v" id="kpiStop">4.16</div><div class="d">结构失效位上方</div></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="chartcard">
+        <div class="ch">
+          <span class="ct">K 线主图 · 笔 / 中枢 / 买卖点</span>
+          <div class="legend">
+            <span><i style="background:#1d4ed8"></i>MA5</span>
+            <span><i style="background:#d97706"></i>MA10</span>
+            <span><i style="background:#7c3aed"></i>MA20</span>
+            <span><i style="background:#94a3b8"></i>中枢</span>
+            <span style="color:#c0392b">▲ 卖点</span>
+          </div>
+        </div>
+        <canvas id="kline"></canvas>
+        <canvas id="macd"></canvas>
+        <div class="note">红涨绿跌；中枢与买卖点为演示标注，按日线结构简化绘制。</div>
+      </div>
+
+      <div>
+        <div class="box">
+          <div class="bt">量化操作建议</div>
+          <div class="advice">
+            <div class="ar"><span class="k">动作</span><span class="v"><b id="adviceAction">减仓 / 观望</b></span></div>
+            <div class="ar"><span class="k">仓位</span><span class="v" id="advicePos">20–30%（概率推演）</span></div>
+            <div class="ar"><span class="k">买点</span><span class="v" id="adviceBuy">等待站上 MA5，且回抽不破 4.06</span></div>
+            <div class="ar"><span class="k">卖点</span><span class="v" id="adviceSell">反弹 4.15–4.18 不过，或跌破 3.98</span></div>
+            <div class="ar"><span class="k">失效</span><span class="v" id="adviceStop">收盘站上 4.15 且 MACD 金叉</span></div>
+          </div>
+        </div>
+        <div class="box">
+          <div class="bt">日线 ↔ 周线联动</div>
+          <table class="tbl weekly">
+            <thead><tr><th>观察</th><th>日线</th><th>周线</th></tr></thead>
+            <tbody id="weeklyBody"></tbody>
+          </table>
+          <div class="note">周线定方向，日线找点位；周线只做参考，不改变日线结论。</div>
+        </div>
+      </div>
+    </div>
+
+    <details class="box">
+      <summary style="cursor:pointer;font-weight:700;color:var(--navy);font-size:11.5px">展开：单指标读数</summary>
+      <div class="detail-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">
+        <table class="tbl"><tbody id="indicatorBody"></tbody></table>
+        <table class="tbl"><tbody id="compareBody"></tbody></table>
+      </div>
+    </details>
+  </section>
+
+  <!-- ================= 三、市场洞察及方向 ================= -->
+  <section class="page" id="p3">
+    <div class="pg-h">
+      <h1>三、市场洞察及方向</h1>
+      <div class="sub">先判断市场处在什么位置，再看新方向<br>不预测点位，只给条件</div>
+    </div>
+
+    <div class="grid2">
+      <div class="box">
+        <div class="bt">市场整体后续方向</div>
+        <p style="margin:0 0 7px;font-size:12px;line-height:1.8;color:#334155">
+          中期偏弱，短期有修复需求，但还没有确认反转。沪深300 同时低于 MA20 与 MA60，行业扩散度只有 0.25，
+          成交放大但上涨家数少，说明是结构性走弱，不是全面反弹。
+        </p>
+        <div class="advice">
+          <div class="ar"><span class="k">判断</span><span class="v"><b>偏弱震荡</b>，以防守为主，不追高。</span></div>
+          <div class="ar"><span class="k">转强</span><span class="v">收盘站上 4051（MA20），且上涨行业占比回到 50% 以上。</span></div>
+          <div class="ar"><span class="k">转弱</span><span class="v">跌破 3900，且成交继续放大、下跌家数增加。</span></div>
+          <div class="ar"><span class="k">对应</span><span class="v">仓位保持偏低；红利/债券/黄金做防守，成长等右侧。</span></div>
+        </div>
+      </div>
+      <div class="temp">
+        <div class="bt">市场温度</div>
+        <div class="th"><span class="tv">28</span><span class="tl">/ 100 · 偏冷</span></div>
+        <div class="bar"><i style="left:28%"></i></div>
+        <div class="marks"><span>冷 0</span><span>中性 50</span><span>热 100</span></div>
+        <div class="note">温度由趋势、波动、广度、成交四项合成；只描述当前状态，不预测明天。</div>
+        <div class="grid3" style="margin-top:10px">
+          <div class="kpi"><div class="k">趋势</div><div class="v bad">弱</div><div class="d">低于 MA20/60</div></div>
+          <div class="kpi"><div class="k">广度</div><div class="v bad">收缩</div><div class="d">扩散度 0.25</div></div>
+          <div class="kpi"><div class="k">波动</div><div class="v warn">未抬升</div><div class="d">17.1% / 14.7%</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>后续路径 <span class="hint">三种情形与触发条件</span></div>
+    <div class="dir">
+      <div class="d"><div class="k">偏弱延续</div><div class="v">跌破 3900</div><div class="x">成交放大、下跌家数增加；先降仓位，不抄底。</div></div>
+      <div class="d"><div class="k">震荡修复</div><div class="v">3900 ~ 4051</div><div class="x">成交缩量、扩散度回升；结构机会，不追高。</div></div>
+      <div class="d"><div class="k">转强确认</div><div class="v">站上 4051</div><div class="x">MA5 上穿 MA20，扩散度 > 50%；再谈加仓。</div></div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>新板块 / 新基推荐 <span class="hint">多周期概率来自历史相似条件</span></div>
+    <div class="box tight">
+      <table class="tbl">
+        <thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日概率</th><th class="r">20日概率</th><th class="r">20日中位收益</th><th>建议</th><th>推荐理由</th><th>风险</th></tr></thead>
+        <tbody>
+          <tr><td>红利 / 银行</td><td>512890</td><td>红利低波ETF</td><td class="r">54%</td><td class="r">58%</td><td class="r">+1.2%</td><td><span class="tag buy">分批关注</span></td><td>主线方向，组合暴露为 0；波动相对低</td><td>红利拥挤度上升</td></tr>
+          <tr><td>黄金</td><td>518880</td><td>黄金ETF</td><td class="r">52%</td><td class="r">56%</td><td class="r">+0.9%</td><td><span class="tag buy">分批关注</span></td><td>与权益相关性低，补分散</td><td>美元与利率反弹</td></tr>
+          <tr><td>债券</td><td>511010</td><td>国债ETF</td><td class="r">55%</td><td class="r">57%</td><td class="r">+0.4%</td><td><span class="tag buy">分批关注</span></td><td>现金之外的稳健缓冲</td><td>利率下行空间有限</td></tr>
+          <tr><td>港股科技</td><td>513180</td><td>恒生科技ETF</td><td class="r">46%</td><td class="r">49%</td><td class="r">+0.6%</td><td><span class="tag warn">观察</span></td><td>估值低，但趋势未确认</td><td>波动大、汇率与政策</td></tr>
+          <tr><td>半导体</td><td>159995</td><td>芯片ETF</td><td class="r">44%</td><td class="r">48%</td><td class="r">+0.5%</td><td><span class="tag warn">观察</span></td><td>超跌反弹候选，但板块仍在走弱</td><td>景气与外部限制</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="padding:0 9px 8px">概率是历史相似条件下的统计，不是收益保证；样本不足或趋势未确认时只写“观察”，不写“买入”。</div>
+    </div>
+
+    <div class="grid2">
+      <div class="box">
+        <div class="bt">先做什么</div>
+        <div class="advice">
+          <div class="ar"><span class="k">第一步</span><span class="v">降低成长暴露：510300、159915 先减，510500 减半。</span></div>
+          <div class="ar"><span class="k">第二步</span><span class="v">补防守：红利、黄金、债券各建 3~5% 观察仓。</span></div>
+          <div class="ar"><span class="k">第三步</span><span class="v">等市场站上 4051 且扩散度回升，再考虑加成长。</span></div>
+        </div>
+      </div>
+      <div class="box">
+        <div class="bt">不要做什么</div>
+        <div class="advice">
+          <div class="ar"><span class="k">不抄底</span><span class="v">下跌趋势里，跌得多不是买入理由。</span></div>
+          <div class="ar"><span class="k">不追高</span><span class="v">主线已经走强，等回踩，不追当天涨幅。</span></div>
+          <div class="ar"><span class="k">不满仓</span><span class="v">市场温度 28，先留现金，等确认。</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">数据日 2026-11-17；行情、板块与概率为模拟数据，仅用于界面演示，不构成投资建议。</div>
+</main>
+
+<script>
+(function(){
+  'use strict';
+
+  /* tabs */
+  var tabs = document.getElementById('tabs');
+  tabs.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-p]');
+    if(!b) return;
+    tabs.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.toggle('on', p.id === b.dataset.p); });
+    if(b.dataset.p === 'p2') setTimeout(draw, 40);
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+
+  /* stock data */
+  var STOCKS = {
+    '510300': {
+      name:'沪深300ETF', start:4.62, end:4.042, zd:4.06, zg:4.18, seed:20261117,
+      verdict:'看空', conf:'6.2 / 10', advice:'减仓 / 观望', pos:'20–30%（概率推演）',
+      buy:'等待站上 MA5，且回抽不破 4.06', sell:'反弹 4.15–4.18 不过，或跌破 3.98',
+      stop:'收盘站上 4.15 且 MACD 金叉',
+      text:'日线仍在下行笔中，价格位于中枢下方，MACD 柱为负且未出现底背驰；周线方向向下，未出现底分型。短期跌幅较大，但结构未完成转折，反弹只能按“中枢回抽”处理。',
+      weekly:[['收盘','4.042','4.042'],['MA5 / MA20','4.089 / 4.124','4.106 / 4.168'],['MACD','柱负，未金叉','柱负，死叉后延续'],['RSI14','42','39'],['结构','下行笔，中枢下方','向下，未出底分型']],
+      indicators:[['MACD','DIF -0.018 / DEA -0.012 / 柱 -0.012','偏空'],['KDJ','K 28 / D 35 / J 14','低位'],['RSI','RSI14 42','中性偏弱'],['OBV','近 5 日下行','偏空'],['BOLL','价格贴近下轨','弱势'],['均线','MA5 < MA10 < MA20','空头排列']],
+      compare:[['收盘','4.042'],['MA5/10/20','4.089 / 4.120 / 4.124'],['MA60/120','4.310 / 4.268'],['量比','1.60（放量）'],['5/20 日收益','-2.25% / -4.22%'],['相对基准','5 日 -0.21pct / 20 日 +0.35pct']]
+    },
+    '510500': {
+      name:'中证500ETF', start:7.20, end:6.317, zd:6.35, zg:6.55, seed:20261118,
+      verdict:'看空', conf:'5.8 / 10', advice:'减仓', pos:'10–20%（概率推演）',
+      buy:'站上 MA5 满 2 日再考虑', sell:'反弹 6.55–6.60 不过，或跌破 6.20',
+      stop:'收盘站上 6.60 且 MACD 金叉',
+      text:'价格低于 MA5 与 MA20，尚未触发清仓级条件，但趋势没有修复。量比 1.15，属于温和放量下跌；周线仍向下。减半是对“趋势未修复”的折中，不是抄底。',
+      weekly:[['收盘','6.317','6.317'],['MA5 / MA20','6.504 / 6.594','6.55 / 6.68'],['MACD','柱负，未金叉','柱负'],['RSI14','38','36'],['结构','下行笔，中枢下方','向下，未出底分型']],
+      indicators:[['MACD','DIF -0.032 / DEA -0.021 / 柱 -0.022','偏空'],['KDJ','K 22 / D 30 / J 6','低位'],['RSI','RSI14 38','偏弱'],['OBV','近 5 日下行','偏空'],['BOLL','贴近下轨','弱势'],['均线','MA5 < MA10 < MA20','空头排列']],
+      compare:[['收盘','6.317'],['MA5/10/20','6.504 / 6.588 / 6.594'],['MA60/120','6.702 / 6.611'],['量比','1.15'],['5/20 日收益','-5.29% / -8.06%'],['相对基准','5 日 -0.8pct / 20 日 -1.9pct']]
+    },
+    '588000': {
+      name:'科创50ETF', start:1.45, end:1.294, zd:1.30, zg:1.35, seed:20261119,
+      verdict:'中性偏空', conf:'4.6 / 10', advice:'观望', pos:'0–10%（概率推演）',
+      buy:'基准恢复且站上 MA10 连续 2 日', sell:'跌破 1.27 且放量',
+      stop:'收盘站上 1.36 且 MACD 金叉',
+      text:'价格低于 MA5、MA10、MA20，20 日收益 -8.68%；但量比 0.97，没有明显放量。对应基准缺失，相对强弱看不清，今天不加仓，也不急着砍。',
+      weekly:[['收盘','1.294','1.294'],['MA5 / MA20','1.337 / 1.332','1.34 / 1.36'],['MACD','柱负，未金叉','柱负'],['RSI14','41','40'],['结构','下行笔，中枢下方','方向不明']],
+      indicators:[['MACD','DIF -0.008 / DEA -0.006 / 柱 -0.004','偏空'],['KDJ','K 35 / D 42 / J 21','低位'],['RSI','RSI14 41','中性偏弱'],['OBV','近 5 日走平','中性'],['BOLL','中轨下方','偏弱'],['均线','MA5 < MA10 < MA20','空头排列']],
+      compare:[['收盘','1.294'],['MA5/10/20','1.337 / 1.337 / 1.332'],['MA60/120','1.351 / 1.318'],['量比','0.97（平量）'],['5/20 日收益','-3.22% / -8.68%'],['相对基准','基准缺失，不可比较']]
+    },
+    '159915': {
+      name:'创业板ETF', start:2.75, end:2.310, zd:2.35, zg:2.48, seed:20261120,
+      verdict:'看空', conf:'6.8 / 10', advice:'清仓', pos:'0–10%（概率推演）',
+      buy:'等站上 MA10 且不再创新低', sell:'反弹 2.48 不过，或跌破 2.28',
+      stop:'收盘站上 2.50 且 MACD 金叉',
+      text:'收盘 2.310，创 20 日新低，同时低于 MA10 2.481；20 日收益 -16.18%，为组合中最弱。周线向下，未出底分型。新低 + 均线下方是规则定义的退出条件，跌幅大不是持有理由。',
+      weekly:[['收盘','2.310','2.310'],['MA5 / MA20','2.440 / 2.526','2.47 / 2.58'],['MACD','柱负，未金叉','柱负，死叉后延续'],['RSI14','30','31'],['结构','下行笔，创新低','向下，未出底分型']],
+      indicators:[['MACD','DIF -0.042 / DEA -0.030 / 柱 -0.024','偏空'],['KDJ','K 18 / D 26 / J 2','超卖'],['RSI','RSI14 30','接近超卖'],['OBV','近 5 日下行','偏空'],['BOLL','跌破下轨','极弱'],['均线','MA5 < MA10 < MA20','空头排列']],
+      compare:[['收盘','2.310'],['MA5/10/20','2.440 / 2.481 / 2.526'],['MA60/120','2.602 / 2.540'],['量比','1.09'],['5/20 日收益','-7.93% / -16.18%'],['相对基准','5 日 -1.3pct / 20 日 -3.2pct']]
+    }
+  };
+
+  var current = '510300';
+  var pick = document.getElementById('stockpick');
+
+  function fmt(x, d){ return Number(x).toFixed(d == null ? 2 : d); }
+
+  function makeBars(cfg){
+    var n = 90, arr = [], prev = cfg.start, seed = cfg.seed;
+    function rnd(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+    var mid = (cfg.zd + cfg.zg) / 2;
+    for(var i=0;i<n;i++){
+      var base = cfg.start + (cfg.end - cfg.start) * i / (n - 1);
+      var wave = Math.sin(i/4.5) * base * 0.006 + Math.sin(i/11) * base * 0.004;
+      var c = base + wave + (rnd() - 0.5) * base * 0.006;
+      if(i >= 52 && i <= 76){
+        c = c * 0.25 + mid * 0.75 + (rnd() - 0.5) * mid * 0.004;
+      }
+      if(i === n - 1) c = cfg.end;
+      var o = prev;
+      var h = Math.max(o,c) * (1 + rnd() * 0.004);
+      var l = Math.min(o,c) * (1 - rnd() * 0.004);
+      var v = 800000 + rnd() * 600000 + (i > 60 ? 200000 : 0);
+      arr.push({o:o,h:h,l:l,c:c,v:v});
+      prev = c;
+    }
+    return arr;
+  }
+
+  function ma(arr, n){
+    return arr.map(function(_, i){
+      if(i < n-1) return null;
+      var s = 0;
+      for(var j=i-n+1;j<=i;j++) s += arr[j].c;
+      return s / n;
+    });
+  }
+  function ema(vals, n){
+    var k = 2/(n+1), out = [], prev = vals[0];
+    vals.forEach(function(v,i){ prev = i === 0 ? v : v*k + prev*(1-k); out.push(prev); });
+    return out;
+  }
+
+  function fit(canvas, h){
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth || 600;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx:ctx,w:w,h:h};
+  }
+
+  function draw(){
+    var code = current, cfg = STOCKS[code];
+    var bars = makeBars(cfg);
+    var closes = bars.map(function(b){ return b.c; });
+    var ma5 = ma(bars,5), ma10 = ma(bars,10), ma20 = ma(bars,20);
+    var e12 = ema(closes,12), e26 = ema(closes,26);
+    var dif = closes.map(function(_,i){ return e12[i]-e26[i]; });
+    var dea = ema(dif,9);
+    var hist = dif.map(function(v,i){ return 2*(v-dea[i]); });
+
+    drawKline(bars, ma5, ma10, ma20, cfg);
+    drawMacd(hist, dif, dea);
+  }
+
+  function drawKline(bars, ma5, ma10, ma20, cfg){
+    var cv = document.getElementById('kline');
+    if(!cv || !cv.clientWidth) return;
+    var f = fit(cv, 360), ctx = f.ctx, W = f.w, H = f.h;
+    ctx.clearRect(0,0,W,H);
+    var padL = 7, padR = 48, padT = 8, padB = 50, volH = 38, gap = 7;
+    var priceH = H - padT - padB - volH - gap;
+    var plotW = W - padL - padR;
+    var n = bars.length, step = plotW/n;
+    var lo = Math.min.apply(null, bars.map(function(b){ return b.l; }));
+    var hi = Math.max.apply(null, bars.map(function(b){ return b.h; }));
+    var pad = (hi-lo) * 0.08; lo -= pad; hi += pad;
+    function y(p){ return padT + (hi-p)/(hi-lo)*priceH; }
+    function x(i){ return padL + i*step + step/2; }
+
+    ctx.font = '9px ui-monospace,Menlo,monospace';
+    for(var g=0; g<=4; g++){
+      var py = padT + priceH*g/4;
+      ctx.strokeStyle = '#eef2f7'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL,py); ctx.lineTo(padL+plotW,py); ctx.stroke();
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText((hi - (hi-lo)*g/4).toFixed(3), padL+plotW+4, py+3);
+    }
+
+    // 中枢区间
+    var zs = 52, ze = 76;
+    ctx.fillStyle = 'rgba(29,78,216,.07)';
+    ctx.fillRect(x(zs)-step/2, y(cfg.zg), x(ze)-x(zs)+step, y(cfg.zd)-y(cfg.zg));
+    ctx.strokeStyle = 'rgba(29,78,216,.45)'; ctx.setLineDash([4,3]);
+    ctx.strokeRect(x(zs)-step/2, y(cfg.zg), x(ze)-x(zs)+step, y(cfg.zd)-y(cfg.zg));
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillText('中枢 ZG ' + fmt(cfg.zg,3), x(zs), y(cfg.zg)-4);
+    ctx.fillText('ZD ' + fmt(cfg.zd,3), x(zs), y(cfg.zd)+11);
+
+    // K 线
+    bars.forEach(function(b,i){
+      var up = b.c >= b.o;
+      ctx.strokeStyle = up ? '#c0392b' : '#148f5b';
+      ctx.fillStyle = up ? '#c0392b' : '#148f5b';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x(i), y(b.h)); ctx.lineTo(x(i), y(b.l)); ctx.stroke();
+      var bw = Math.max(2, step*0.55);
+      var yo = y(b.o), yc = y(b.c);
+      ctx.fillRect(x(i)-bw/2, Math.min(yo,yc), bw, Math.max(1.5, Math.abs(yc-yo)));
+    });
+
+    // 均线
+    function line(vals,color){
+      ctx.strokeStyle=color; ctx.lineWidth=1.3; ctx.beginPath();
+      var started=false;
+      vals.forEach(function(v,i){
+        if(v == null) return;
+        if(!started){ ctx.moveTo(x(i), y(v)); started=true; }
+        else ctx.lineTo(x(i), y(v));
+      });
+      ctx.stroke();
+    }
+    line(ma5,'#1d4ed8'); line(ma10,'#d97706'); line(ma20,'#7c3aed');
+
+    // 卖点标记
+    function marker(i,label){
+      var b = bars[i], px=x(i), py=y(b.h)-11;
+      ctx.fillStyle='#c0392b';
+      ctx.beginPath(); ctx.moveTo(px,py+7); ctx.lineTo(px-5,py); ctx.lineTo(px+5,py); ctx.closePath(); ctx.fill();
+      ctx.font='bold 9px ui-monospace,Menlo,monospace'; ctx.textAlign='center';
+      ctx.fillStyle='#c0392b'; ctx.fillText(label,px,py-3); ctx.textAlign='left';
+    }
+    marker(18,'1S'); marker(44,'2S'); marker(68,'3S');
+
+    // 成交量
+    var vmax = Math.max.apply(null, bars.map(function(b){ return b.v; }));
+    var vBase = H - padB + 12;
+    bars.forEach(function(b,i){
+      var hh = b.v/vmax*volH;
+      ctx.fillStyle = b.c >= b.o ? 'rgba(192,57,43,.5)' : 'rgba(20,143,91,.5)';
+      ctx.fillRect(x(i)-Math.max(1,step*0.35), vBase+volH-hh, Math.max(1,step*0.7), hh);
+    });
+    ctx.fillStyle='#94a3b8'; ctx.font='9px ui-monospace,Menlo,monospace';
+    ctx.fillText('VOL', padL, vBase+9);
+
+    // 当前价
+    var last = bars[bars.length-1].c;
+    ctx.strokeStyle='#1e3a8a'; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(padL,y(last)); ctx.lineTo(padL+plotW,y(last)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#1e3a8a'; ctx.fillText(fmt(last,3), padL+plotW+4, y(last)+3);
+  }
+
+  function drawMacd(hist, dif, dea){
+    var cv = document.getElementById('macd');
+    if(!cv || !cv.clientWidth) return;
+    var f = fit(cv, 120), ctx = f.ctx, W = f.w, H = f.h;
+    ctx.clearRect(0,0,W,H);
+    var padL=7, padR=48, padT=7, padB=10;
+    var plotW=W-padL-padR, plotH=H-padT-padB, n=hist.length, step=plotW/n;
+    var maxAbs = Math.max.apply(null, hist.concat(dif).concat(dea).map(function(v){ return Math.abs(v); })) || 0.05;
+    function y(v){ return padT + plotH/2 - v/maxAbs*plotH/2; }
+    ctx.strokeStyle='#e2e8f0'; ctx.beginPath(); ctx.moveTo(padL,y(0)); ctx.lineTo(padL+plotW,y(0)); ctx.stroke();
+    hist.forEach(function(v,i){
+      ctx.fillStyle = v >= 0 ? 'rgba(192,57,43,.55)' : 'rgba(20,143,91,.55)';
+      var yy=y(v), y0=y(0);
+      ctx.fillRect(padL+i*step+step*0.15, Math.min(yy,y0), Math.max(1,step*0.7), Math.abs(yy-y0));
+    });
+    function line(vals,color){
+      ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.beginPath();
+      vals.forEach(function(v,i){ if(i===0) ctx.moveTo(padL+i*step+step/2,y(v)); else ctx.lineTo(padL+i*step+step/2,y(v)); });
+      ctx.stroke();
+    }
+    line(dif,'#1d4ed8'); line(dea,'#d97706');
+    ctx.font='9px ui-monospace,Menlo,monospace'; ctx.fillStyle='#94a3b8';
+    ctx.fillText('MACD  DIF',padL,padT+8);
+    ctx.fillText('DEA',padL+62,padT+8);
+    ctx.fillStyle='#64748b'; ctx.fillText('0',padL+plotW+4,y(0)+3);
+  }
+
+  function selectStock(code){
+    if(!STOCKS[code]) return;
+    current = code;
+    var s = STOCKS[code];
+    document.querySelectorAll('#stockpick button').forEach(function(b){ b.classList.toggle('on', b.dataset.code === code); });
+    document.getElementById('stockVerdictPill').textContent = '结论：' + s.verdict;
+    document.getElementById('stockConfidence').textContent = '信心 ' + s.conf;
+    document.getElementById('stockMeta').textContent = code + ' · 日线 · 2026-11-17';
+    document.getElementById('verdictBig').textContent = s.verdict;
+    document.getElementById('verdictText').textContent = s.text;
+    document.getElementById('kpiZd').textContent = fmt(s.zd,2) + ' / ' + fmt(s.zg,2);
+    document.getElementById('kpiSupport').textContent = fmt(s.zd - 0.08,2);
+    document.getElementById('kpiInvalid').textContent = fmt(s.zg - 0.03,2);
+    document.getElementById('kpiStop').textContent = fmt(s.zg - 0.02,2);
+    document.getElementById('adviceAction').textContent = s.advice;
+    document.getElementById('advicePos').textContent = s.pos;
+    document.getElementById('adviceBuy').textContent = s.buy;
+    document.getElementById('adviceSell').textContent = s.sell;
+    document.getElementById('adviceStop').textContent = s.stop;
+
+    var levels = ['强烈看空','看空','中性观望','看多','强烈看多'];
+    var active = s.verdict.indexOf('看空') >= 0 ? 1 : (s.verdict.indexOf('看多') >= 0 ? 3 : 2);
+    document.getElementById('verdictScale').innerHTML = levels.map(function(x,i){
+      return '<span class="' + (i === active ? 'on' : '') + '">' + x + '</span>';
+    }).join('');
+
+    document.getElementById('weeklyBody').innerHTML = s.weekly.map(function(r){
+      return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>';
+    }).join('');
+
+    document.getElementById('indicatorBody').innerHTML = s.indicators.map(function(r){
+      return '<tr><td><b>' + r[0] + '</b></td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>';
+    }).join('');
+
+    document.getElementById('compareBody').innerHTML = s.compare.map(function(r){
+      return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>';
+    }).join('');
+
+    draw();
+  }
+
+  pick.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-code]');
+    if(b) selectStock(b.dataset.code);
+  });
+
+  selectStock('510300');
+  setTimeout(draw, 60);
+  window.addEventListener('resize', function(){ setTimeout(draw, 100); });
+})();
+</script>
+</body>
+</html>
