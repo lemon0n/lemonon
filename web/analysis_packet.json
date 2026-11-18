@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261118T085854-c451da4b60004a60",
+  "run_id": "20261118T115504-c451da4b60004a60",
   "status": "OK",
-  "generated_at": "2026-11-18 08:58:54",
+  "generated_at": "2026-11-18 11:55:04",
   "data_date": "2026-11-17",
-  "code_version": "ca481c6",
+  "code_version": "4f3af3f",
   "config_hash": "7dc121bf9c53564c",
   "input_hash": "c451da4b60004a60",
   "data_quality": {
@@ -13,13 +13,13 @@
     "synthetic_fields": [],
     "stale_fields": [],
     "conflicts": [
-      "板块资金流降级离线快照"
+      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ],
     "blockers": [],
-    "premium_ok": true,
+    "premium_ok": false,
     "market_snapshot": true,
-    "sector_snapshot": true,
-    "checked_at": "2026-11-18 08:59:36"
+    "sector_snapshot": false,
+    "checked_at": "2026-11-18 11:56:40"
   },
   "regime": {
     "regime": "下行趋势",
