@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "OK",
-  "ran_at": "2026-11-18 08:57:06",
+  "ran_at": "2026-11-18 08:57:17",
   "mode": "live",
   "data_date": "2026-11-17",
   "degraded": false,
@@ -23,15 +23,16 @@
   "orders": 4,
   "skipped": [],
   "fallback": [
-    "板块资金流降级离线快照"
+    "板块资金流降级离线快照",
+    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
   ],
   "validation": {
     "ok": true,
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261118T085610-c451da4b60004a60",
+  "run_id": "20261118T085712-c451da4b60004a60",
   "input_hash": "c451da4b60004a60",
   "config_hash": "7dc121bf9c53564c",
-  "html": "/home/runner/work/lemonon/lemonon/web/index.html"
+  "html": "/workspace/web/index.html"
 }
