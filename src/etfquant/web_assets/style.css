@@ -327,10 +327,8 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rs-advice .v b{color:var(--blue-d)}
 .rs-weekly td:first-child{color:var(--muted);white-space:nowrap}
 .rs-weekly td:last-child{font-variant-numeric:tabular-nums;color:var(--blue-d)}
-.rs-llm{border-left:3px solid var(--blue);background:#fff;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:11px}
 .rs-concl{border-left:3px solid var(--blue);background:#fff;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:11px 13px;margin-bottom:11px}
 .rs-concl .bt{margin-bottom:6px}
-.rs-concl .rs-one{font-size:12px;font-weight:700;color:var(--blue-d);line-height:1.7;padding-bottom:7px;border-bottom:1px dotted var(--line)}
 .rs-reasons{margin:8px 0 0}
 .rs-reasons .r{display:flex;gap:8px;font-size:10.8px;line-height:1.7;padding:4px 0;border-bottom:1px dotted var(--line)}
 .rs-reasons .r:last-child{border-bottom:0}

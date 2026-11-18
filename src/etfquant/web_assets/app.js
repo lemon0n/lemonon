@@ -2432,7 +2432,7 @@ function rsPageHTML(p,s1,adv){
       '<td>'+(a?tag(a.action_text,actKind(a.action)):'—')+'</td>'+
       '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td></tr>';
   });
-  h+='</tbody></table><div class="rs-note">技术结论来自缠论四维结构，风控动作来自交易规则；两者可能不一致，规则动作优先执行。上涨占比来自历史相似条件的统计，不是保证。</div></div>';
+  h+='</tbody></table><div class="rs-note">技术结论来自缠论多维结构，风控动作来自交易规则；两者可能不一致，规则动作优先执行。上涨占比来自历史相似条件的统计，不是保证。</div></div>';
 
   var pa=(PDEC&&PDEC.portfolio_after)||{};
   var fee=(PDEC&&PDEC.orders)?PDEC.orders.reduce(function(a,o){ return a+n(o.fee); },0):0;
@@ -2598,8 +2598,7 @@ function rsRenderDetail(){
       '<div class="kpi"><div class="k">20日上涨占比</div><div class="v">'+(f&&f.d20?f2(f.d20.p)+'%':'—')+'</div><div class="d">'+(f&&f.d20?('样本 '+f.d20.n):'样本不足')+'</div></div>'+
     '</div></div>';
 
-  h+='<div class="rs-concl"><div class="bt">结论与依据</div>'+
-    '<div class="rs-one">'+esc(nar.one)+'</div>'+
+  h+='<div class="rs-concl"><div class="bt">依据与改变条件</div>'+
     '<div class="rs-reasons">'+
       '<div class="r"><b>走势</b><span>'+esc(nar.reasons[0])+'</span></div>'+
       '<div class="r"><b>量能</b><span>'+esc(nar.reasons[1])+'</span></div>'+
