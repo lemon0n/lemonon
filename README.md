@@ -25,6 +25,14 @@ POSITIONS_PASSPHRASE="$POSITIONS_PASSPHRASE" python3.11 scripts/analyze_position
 
 ## 指导文件
 
+**日常更新只执行这一条命令**（唯一入口，详见 [每日更新执行说明](AGENTS.md)）：
+
+```bash
+bash scripts/daily.sh
+```
+
+其余文档是背景资料，不改变执行方式：
+
 - 自动/手动市场数据运行与故障处理：[每日运行说明](docs/每日运行说明.md)
 - 个人 LLM 每日持仓解读：[持仓分析每日运行指导](docs/持仓分析每日运行指导.md)，仅供你的个人 LLM/MCP 工作流使用，不会显示在 HTML
 - 语料研究参考：[沉关河语料研究记录](docs/沉关河方法论蒸馏.md)，不是生产规则；生产规则只认 `config/methodology.yaml`

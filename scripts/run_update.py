@@ -38,10 +38,20 @@ def git_push(r):
     msg = 'chore: 更新 %s（%s · %s）' % (r['data_date'] or '—', r['status'],
                                         '实时' if not r['degraded'] else '降级')
     c = run('git', 'commit', '-m', msg)
+    if c.returncode != 0 and 'identity' in (c.stderr or c.stdout).lower():
+        # 本地没配 author 时临时注入身份，不改动任何 git 配置
+        c = run('git', '-c', 'user.name=etfquant-bot',
+                '-c', 'user.email=etfquant-bot@users.noreply.github.com',
+                'commit', '-m', msg)
     if c.returncode != 0:
         print('提交失败：%s' % (c.stderr or c.stdout).strip(), file=sys.stderr)
         return 3
     p = run('git', 'push')
+    if p.returncode != 0:
+        # 生成期间远端可能被每日流水线推进过，拉一次再推
+        print('推送被拒，拉取远端后重试')
+        run('git', 'pull', '--rebase', '--autostash', 'origin', 'main')
+        p = run('git', 'push')
     if p.returncode != 0:
         print('推送失败：%s' % (p.stderr or p.stdout).strip(), file=sys.stderr)
         return 3
