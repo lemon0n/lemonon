@@ -2469,6 +2469,23 @@ function rsForecast(bars){
   }
   return {d5:horizon(5), d20:horizon(20)};
 }
+/* 多周期预测卡片：5 日 / 20 日，展示上涨占比、中位收益与样本量 */
+function rsForecastBlock(code,f){
+  function item(t,d,cls){
+    if(!d) return '<div class="rs-fc-item empty"><div class="k">'+esc(t)+'</div><div class="v">—</div><div class="d">样本不足</div><div class="rs-fc-bar"><i style="width:0"></i></div></div>';
+    var p=rsClamp(d.p,0,100);
+    return '<div class="rs-fc-item"><div class="k">'+esc(t)+'</div>'+
+      '<div class="v">'+f2(p)+'%</div>'+
+      '<div class="d">上涨占比 · 中位 '+(d.med>=0?'+':'')+f2(d.med)+'% · 样本 '+d.n+'</div>'+
+      '<div class="rs-fc-bar"><i class="'+cls+'" style="width:'+p+'%"></i></div></div>';
+  }
+  var has=!!(f&&(f.d5||f.d20));
+  var note=has?'按近 20 日动量与波动，在历史日线中找相似样本做统计；样本随行情变化，不是收益保证。'
+              :(LBARS[code]?'日线样本不足 45 根，暂不给出预测。':'日线行情未取到，暂时无法预测。');
+  return '<div class="box rs-fc-box"><div class="rs-fc-grid">'+
+    item('5 日',f&&f.d5,'')+item('20 日',f&&f.d20,'')+
+    '</div><div class="rs-note">'+esc(note)+'</div></div>';
+}
 
 function rsFetchWeekly(code,cb){
   var sym=tSym(code), vn='kw_'+sym+'_'+Date.now();
@@ -2715,6 +2732,9 @@ function rsRenderDetail(){
       '<div class="r"><b>市场主线</b><span>'+esc(nar.reasons[2])+'</span></div>'+
     '</div>'+
     '<div class="rs-change"><b>改变条件</b><span>'+esc(nar.change)+'</span></div></div>';
+
+  h+='<div class="rs-sec" style="margin-top:14px"><span class="bar"></span>多周期预测 <span class="rs-hint">历史相似条件统计，不是收益保证</span></div>';
+  h+=rsForecastBlock(code,f);
 
   h+='<div class="rs-sec" style="margin-top:14px"><span class="bar"></span>五维分析 <span class="rs-hint">缠论 40% · K线 20% · 资金 20% · 量能 20%；技术指标仅增强</span></div>';
   h+='<div class="rs-dims">'+
@@ -2986,9 +3006,10 @@ function rsDrawMacd(closes){
 function rsRenderForecastCells(){
   (HOLD.rows||[]).forEach(function(r){
     var c=String(r.code), f=rsForecast(LBARS[c]);
+    var miss=LBARS[c]?'样本不足':'数据不可用';
     var a=document.getElementById('rsFc5_'+c), b=document.getElementById('rsFc20_'+c);
-    if(a) a.textContent=f&&f.d5?f2(f.d5.p)+'%':'样本不足';
-    if(b) b.textContent=f&&f.d20?f2(f.d20.p)+'%':'样本不足';
+    if(a) a.textContent=f&&f.d5?f2(f.d5.p)+'%':miss;
+    if(b) b.textContent=f&&f.d20?f2(f.d20.p)+'%':miss;
     var v=document.getElementById('rsV_'+c);
     if(v) v.innerHTML=rsTechPill(c);
   });
@@ -3087,8 +3108,9 @@ function rsRenderIdeas(){
   if(!body) return;
   body.innerHTML=RS_IDEAS.map(function(x){
     var f=rsForecast(LBARS[x.code]);
-    var p5=f&&f.d5?f2(f.d5.p)+'%':'—';
-    var p20=f&&f.d20?f2(f.d20.p)+'%':'—';
+    var miss=LBARS[x.code]?'样本不足':'数据不可用';
+    var p5=f&&f.d5?f2(f.d5.p)+'%':miss;
+    var p20=f&&f.d20?f2(f.d20.p)+'%':miss;
     var med=f&&f.d20?f2(f.d20.med)+'%':'—';
     var sug=f&&f.d20?(f.d20.p>=55?'<span class="tag buy">分批关注</span>':(f.d20.p>=50?'<span class="tag warn">观察</span>':'<span class="tag">不追</span>')):'<span class="tag">观察</span>';
     return '<tr><td>'+esc(x.dir)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td class="r">'+p5+'</td><td class="r">'+p20+'</td><td class="r">'+med+'</td><td>'+sug+'</td><td>'+esc(x.why)+'</td><td>'+esc(x.risk)+'</td></tr>';
