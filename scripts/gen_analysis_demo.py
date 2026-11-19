@@ -231,7 +231,8 @@ def regime_of(bench):
     if up:
         cap = {'上行趋势': 65, '震荡区间': 55, '下行趋势': 25}[base]
     return dict(state=base + ('·波动抬升' if up else ''), cap=cap,
-                ma20=round(ma20, 2), ma60=round(ma60, 2), close=round(px, 2),
+                ma20=round(ma20, 2), ma60=round(ma60, 2), ma5=round(ma5, 2),
+                ma5_above=bool(ma5 > ma20), close=round(px, 2),
                 vol20=round(vol20, 2), vol60=round(vol60, 2))
 
 
@@ -313,6 +314,40 @@ def main():
             else:
                 l['action'], l['action_kind'] = '减半差额 %.1fpct' % (abs(gap) / 2), 'sell'
 
+    # 每层解读（由数据生成，不是固定模板）
+    reg['read'] = ('基准 %.2f，%sMA20 %.2f、%sMA60 %.2f，20 日波动 %.2f%%（60 日 %.2f%%）→ %s，总仓位上限 %d%%。'
+                   '改判：收盘站上 MA20 且 MA5 上穿 MA20 → 上限回到 65%%。'
+                   % (reg['close'], '高于' if reg['close'] > reg['ma20'] else '低于', reg['ma20'],
+                      '高于' if reg['close'] > reg['ma60'] else '低于', reg['ma60'],
+                      reg['vol20'], reg['vol60'], reg['state'], reg['cap']))
+
+    for l in legs:
+        note = ''
+        if l['day']['state'] == '强' and l['week']['state'] in ('空头/死叉',):
+            note = ' 分歧：日线转强但周线未修复，方向以周线为准，日线只用于执行节奏。'
+        elif l['month']['state'] == '转换' and l['week']['state'] in ('空头/死叉',):
+            note = ' 月线在转换期、周线仍空头，按周线处理，不提前加仓。'
+        l['read2'] = ('月线%s（%s，20 月线 %s）、周线%s、日线%s（量比 %s）→ %d 分，%s 档，单只上限 %d%%。%s'
+                      % (l['month']['state'], l['month']['div'],
+                         '—' if l['month']['ma20'] is None else '%.2f' % l['month']['ma20'],
+                         l['week']['state'], l['day']['state'],
+                         '—' if l['day']['vol_ratio'] is None else '%.2f' % l['day']['vol_ratio'],
+                         l['score'], l['grade'], l['cap'], note))
+
+    conflicts = []
+    for l in legs:
+        if l['day']['state'] == '强' and l['week']['state'] in ('空头/死叉',):
+            conflicts.append((l['code'], '日线强 / 周线空头', '方向以周线为准：不加仓，只按差额减或持有'))
+        if l['gap'] > 0 and l['week']['state'] in ('空头/死叉',):
+            conflicts.append((l['code'], '差额为正 / 周线向下', '不执行买入，动作降级为等待'))
+        p5 = l['prob'].get('d5')
+        if p5 and p5['p'] < 40 and l['gap'] < 0:
+            conflicts.append((l['code'], '5 日上涨概率 %.1f%% / 差额为负' % p5['p'],
+                              '概率只做参考，不改变档位；减仓按差额执行'))
+        if l['chan'].get('point') == '跌破中枢下沿' and l['day']['state'] == '强':
+            conflicts.append((l['code'], '缠论跌破中枢 / 日线转强', '结构只影响卖出时点：仍按差额减，不因日线转强加仓'))
+    conflicts = list(dict.fromkeys(conflicts))
+
     # 板块暴露
     exp = {}
     for l in legs:
@@ -342,7 +377,7 @@ def main():
                    total_pos=round(total_pos, 2), pos_pct=pos_pct, cash_pct=cash_pct,
                    cap_total=cap_total, target_sum=target_sum,
                    sectors=sectors[:8], top_sector=top_sector,
-                   sentiment=sent, national_team=nt, overall=overall,
+                   sentiment=sent, national_team=nt, overall=overall, conflicts=conflicts,
                    data_date=str(load_bars('510300')['date'].iloc[-1].date()))
 
     with open(OUT, 'w', encoding='utf-8') as f:
@@ -417,6 +452,14 @@ tr:nth-child(even) td{background:#fbfdff}
 <h1>持仓分析 v4 · 分层结构 demo</h1>
 <div class="sub">数据日 __DATE__ · 离线快照 + 示例持仓 · 结构验证用，不构成投资建议</div>
 <div class="flow"><span>L1 环境</span><span>→</span><span>L2 结构（月/周/日）</span><span>→</span><span>L3 目标权重</span><span>→</span><span>L4 差额执行</span><span>→</span><span>L5 解释</span></div>
+<div class="box"><div class="bt">主干道（唯一裁决顺序，后者不得推翻前者）</div>
+<table><thead><tr><th>顺序</th><th>层</th><th>只决定</th><th>不允许做什么</th></tr></thead><tbody>
+<tr><td>1</td><td>L1 环境</td><td>总仓位上限、市场定性</td><td>不挑个股、不给买卖点</td></tr>
+<tr><td>2</td><td>L2 结构</td><td>单只评分与档位上限</td><td>不突破 L1 总额度</td></tr>
+<tr><td>3</td><td>L3 组合</td><td>目标权重与分配</td><td>不用额度倒推动作</td></tr>
+<tr><td>4</td><td>L4 执行</td><td>差额方向与执行时点</td><td>不加仓于周线向下时</td></tr>
+<tr><td>5</td><td>L5 解释</td><td>理由、反证、改判条件</td><td>不改写前四层的结论</td></tr>
+</tbody></table></div>
 <div id="root"></div>
 </div>
 <script>
@@ -470,7 +513,8 @@ h+='<div class="grid2">'+
    tr(['市场情绪',(d.sentiment.label||'—')+' '+(d.sentiment.score||'')+'/100']),
    tr(['国家队宽基份额', d.national_team?'已接入 '+d.national_team.series.length+' 期':'未接入']),
    tr(['舆情定性','偏多/偏空/震荡（环境层，不进规则）'])
- ],['','r']))+'</div></div>';
+ ],['','r']))+'</div>'+
+ '<div class="one sm" style="margin-top:10px"><b>解读：</b>'+d.reg.read+'</div></div>';
 
 /* L2 结构 */
 h+='<div class="layer-box">'+sec('L2 结构层：月线定方向 → 周线定节奏 → 日线定点位');
@@ -480,6 +524,8 @@ h+=box('三周期状态与评分卡',tbl(
   return tr([l.code,l.month.state+(l.month.div!=='无'?' · '+l.month.div:''),l.week.state,l.day.state,
     l.month.score,l.week.score,l.day.score,'<b>'+l.score+'</b>',l.grade,l.cap+'%']);
  }),['','','','','r','r','r','r','','r']));
+h+='<div class="one sm" style="margin-top:10px"><b>解读：</b>'+
+ d.legs.map(function(l){return l.code+'：'+l.read2;}).join('<br>')+'</div>';
 h+='<div class="note">估值、宏观景气、资金三日流入未接入，评分按可得项归一；D 档 = 观察仓（5%），不清零。'+
   '目标合计 '+f2(d.target_sum,1)+'%，低于上限 '+d.cap_total+'%，差额留在现金。</div></div>';
 
@@ -487,7 +533,10 @@ h+='<div class="note">估值、宏观景气、资金三日流入未接入，评�
 h+='<div class="layer-box">'+sec('L3 组合层：目标权重 = 评分档 × 波动，合计不超过 L1 上限');
 h+=box('板块暴露（按持仓映射）',tbl(['板块','暴露占比','关系'],
  d.sectors.map(function(x){return tr([x[0],f2(x[1],1)+'%',x[1]>25?'超配':(x[1]<5?'低配':'中性')]);}),['','r','']));
-h+='<div class="note">行业映射仅覆盖 4 只宽基；其余标的名称为关键字兜底，未映射标「未映射」。</div></div>';
+h+='<div class="note">行业映射仅覆盖 4 只宽基；其余标的名称为关键字兜底，未映射标「未映射」。</div>'+
+ '<div class="one sm" style="margin-top:10px"><b>解读：</b>四只按评分系数（0.6+0.4×评分）与波动系数归一后，'+
+ '被各自档位上限截断，目标合计 '+f2(d.target_sum,1)+'%；上限 '+d.cap_total+'% 没用满，差额 '+f2(d.cap_total-d.target_sum,1)+
+ 'pct 留现金，不用额度倒推动作。</div></div>';
 
 /* L4 个股（深入） */
 h+='<div class="layer-box">'+sec('L4 个股层：缠论结构 + 执行位 + 多周期概率');
@@ -518,8 +567,22 @@ d.legs.forEach(function(l,i){
     tr(['执行位','买点参考 MA10 '+f2(l.day.ma[10])+'；失效 收盘跌破 MA20 '+f2(l.day.ma[20])]),
     tr(['改判条件','若周线转多头且站上 MA20 → 差额可执行；若跌破 MA30 两日 → 卖出全部差额'])
   ],['','']);
+  h+='<div class="one sm" style="margin-top:8px"><b>解读：</b>当前 '+f2(l.weight,1)+'% 对目标 '+f2(l.target,1)+
+    '%，差额 '+(l.gap>0?'+':'')+f2(l.gap,1)+'pct；周线'+l.week.state+'、日线确认 '+l.confirm+'/3，'+
+    (l.action_kind==='sell'?'因此按差额减，不减到 0。':(l.action_kind==='buy'?'因此可执行差额买入。':'差额不足 3pct 或条件未齐，保持不动。'))+
+    '</div>';
   h+='<canvas class="mini" id="cv_'+i+'"></canvas></div>';
 });
+h+='</div>';
+
+/* 一致性校验 */
+h+='<div class="layer-box">'+sec('一致性校验：冲突与裁决');
+if(d.conflicts&&d.conflicts.length){
+  h+=box('检测到的冲突（均按主干道裁决，不各自为政）',tbl(['代码','冲突','裁决'],
+    d.conflicts.map(function(x){return tr([x[0],x[1],x[2]]);}),['','','']));
+}else{
+  h+=box('一致性校验','<div class="muted">当前无跨层冲突。</div>');
+}
 h+='</div>';
 
 /* L5 汇总 */
