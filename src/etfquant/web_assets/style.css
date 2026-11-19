@@ -290,6 +290,8 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rs-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .rs-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .rs-sec{display:flex;align-items:center;gap:8px;margin:22px 0 9px;font-size:13px;font-weight:750;color:var(--blue-d)}
+.rs-sub{margin:16px 0 8px;font-size:12px;font-weight:750;color:#1e3a8a;border-left:3px solid var(--blue);padding-left:8px}
+.rs-brief .one{margin:0}
 .rs-sec .bar{width:3px;height:14px;background:var(--blue)}
 .rs-muted{color:var(--muted)}
 .rs-note{font-size:10.5px;line-height:1.65;color:var(--muted);margin-top:6px}
