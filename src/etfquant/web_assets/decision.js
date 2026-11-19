@@ -396,17 +396,6 @@
     }
 
     var ok = violations.length === 0;
-    /* 逐腿风险退出可能把执行后仓位压到区间下沿以下：与 Python 一致，只提示不阻断 */
-    if (snap.regime && after && after.position_pct != null) {
-      var lo = num(snap.regime.lo), hi = num(snap.regime.hi);
-      if (lo != null && after.position_pct < lo - 1e-9) {
-        warnings.push('执行后仓位 ' + pct2(after.position_pct) + '% 低于区间下沿 ' +
-          pct2(lo) + '%：逐腿风险退出优先，不会为凑仓位买入未通过筛选的标的');
-      } else if (hi != null && after.position_pct > hi + 1e-9) {
-        warnings.push('执行后仓位 ' + pct2(after.position_pct) + '% 仍高于区间上沿 ' +
-          pct2(hi) + '%，剩余仓位需下次运行重新评估');
-      }
-    }
     var decisions = drafts.map(function (d) {
       var trading = inList(TRADING_ACTIONS, d.action);
       var published = ok && trading && (d.delta_shares || 0) !== 0;

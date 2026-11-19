@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>全球智能投研 · Research Brief Demo</title>
+<style>
+:root{
+  --navy:#0f2a4a;--teal:#0f766e;--teal2:#e6f4f1;--blue:#1d4ed8;--blue2:#eef4ff;
+  --line:#d7e3ef;--bg:#f5f8fb;--text:#1f2d3d;--muted:#66758c;
+  --up:#c0392b;--down:#148f5b;--warn:#b45309;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;color:var(--text);background:var(--bg)
+}
+*{box-sizing:border-box;border-radius:0!important}
+[hidden]{display:none!important}
+body{margin:0}
+a{color:var(--blue);text-decoration:none}
+.top{background:#fff;border-bottom:1px solid var(--line);padding:14px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:32px;height:32px;background:var(--teal);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:12px}
+.top h1{font-size:16px;margin:0;color:var(--navy);font-weight:750}
+.top .ver{font-size:9.5px;border:1px solid var(--line);background:var(--teal2);color:var(--teal);padding:1px 5px;font-weight:700}
+.top .meta{margin-left:auto;font-size:10.5px;color:var(--muted);text-align:right;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding:16px 22px 60px}
+.demo{background:#fff7e6;border:1px solid #f0d9ac;color:#7a5a12;padding:8px 11px;font-size:11px;line-height:1.65;margin-bottom:12px}
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--teal);margin-bottom:14px;overflow-x:auto}
+.tabs button{border:0;background:transparent;padding:9px 14px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;font-family:inherit}
+.tabs button:hover{background:#fff;color:var(--navy)}
+.tabs button.on{background:#fff;color:var(--teal);border-bottom-color:var(--teal);font-weight:750}
+.page{display:none}.page.on{display:block}
+.sec{display:flex;align-items:center;gap:8px;margin:20px 0 9px;font-size:13px;font-weight:750;color:var(--navy)}
+.sec .bar{width:3px;height:14px;background:var(--teal)}
+.box{background:#fff;border:1px solid var(--line);padding:13px 15px;margin-bottom:11px;overflow-x:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+.summary{border:1px solid var(--line);border-left:4px solid var(--warn);background:#fff;padding:15px 17px;margin-bottom:12px}
+.summary .sh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.pill{display:inline-block;padding:2px 7px;font-size:10px;font-weight:700;border:1px solid var(--line);background:#f8fafc;color:var(--muted)}
+.pill.bad{background:#fdecea;border-color:#f3c6c0;color:var(--up)}
+.pill.good{background:#e8f6ef;border-color:#bfe6d2;color:var(--down)}
+.pill.warn{background:#fff5e6;border-color:#f0d9ac;color:var(--warn)}
+.summary h2{margin:0 0 6px;font-size:18px;color:var(--navy);line-height:1.4}
+.summary p{margin:0;font-size:12px;line-height:1.8;color:#334155}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:11px}
+.kpi{border:1px solid var(--line);background:#f8fafc;padding:8px 10px}
+.kpi .k{font-size:10px;color:var(--muted)}
+.kpi .v{font-size:18px;font-weight:780;color:var(--navy);font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .d{font-size:9.5px;color:var(--muted);margin-top:1px}
+.tbl{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff}
+.tbl th{background:var(--teal2);color:var(--navy);text-align:left;padding:7px 9px;border:1px solid var(--line);white-space:nowrap;font-weight:700}
+.tbl td{padding:6px 9px;border:1px solid var(--line);vertical-align:top;line-height:1.55}
+.tbl tr:nth-child(even) td{background:#fbfdfe}
+.tbl td.r,.tbl th.r{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:1px 5px;font-size:9.5px;font-weight:700;border:1px solid var(--line);background:#f8fafc;color:var(--muted);white-space:nowrap}
+.tag.good{background:#e8f6ef;border-color:#bfe6d2;color:var(--down)}
+.tag.warn{background:#fff5e6;border-color:#f0d9ac;color:var(--warn)}
+.tag.bad{background:#fdecea;border-color:#f3c6c0;color:var(--up)}
+.ev{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;padding:1px 4px;cursor:pointer}
+.ev:hover{background:#e0f2fe;border-color:#38bdf8}
+.factor{display:grid;grid-template-columns:76px 1fr 44px;gap:7px;align-items:center;font-size:10.5px;margin:5px 0}
+.factor .n{color:var(--muted)}
+.factor .t{height:9px;background:#eef2f7;position:relative}
+.factor .t i{display:block;height:100%;background:var(--teal)}
+.factor .t i.neg{background:var(--up)}
+.factor .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--navy)}
+.note{font-size:10.5px;line-height:1.65;color:var(--muted);margin-top:7px}
+.notice{font-size:11px;line-height:1.7;color:#7a5a12;background:#fffdf5;border:1px solid #f0d9ac;padding:8px 10px;margin-top:8px}
+.notice b{color:var(--warn)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px}
+.rule{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.rule .r{border:1px solid var(--line);background:#fff;padding:9px 10px}
+.rule .r .k{font-size:10px;color:var(--teal);font-weight:700}
+.rule .r .v{font-size:11px;line-height:1.65;color:#475569;margin-top:3px}
+.export{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.export button{border:1px solid var(--line);background:#fff;padding:14px 10px;text-align:left;cursor:pointer;font-family:inherit}
+.export button:hover{border-color:var(--teal);background:#f8fdfc}
+.export .f{font-size:12px;font-weight:750;color:var(--navy)}
+.export .d{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5}
+.diff{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.diff .col{border:1px solid var(--line);background:#fff;padding:11px 12px}
+.diff .col h4{margin:0 0 7px;font-size:11.5px;color:var(--navy)}
+.diff .line{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:4px 0;border-bottom:1px dotted var(--line)}
+.diff .line:last-child{border-bottom:0}
+.diff .line span:first-child{color:var(--muted)}
+.diff .line span:last-child{font-variant-numeric:tabular-nums;color:var(--navy)}
+.material{font-size:10.5px;border:1px solid #f0d9ac;background:#fffdf5;color:#7a5a12;padding:7px 9px;margin-top:8px;line-height:1.6}
+.footer{font-size:10px;color:var(--muted);border-top:1px solid var(--line);margin-top:20px;padding-top:9px;line-height:1.7}
+.drawer-mask{position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:70}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:94vw;background:#fff;z-index:80;box-shadow:-12px 0 36px rgba(15,23,42,.2);display:flex;flex-direction:column}
+.drawer-h{background:var(--teal2);border-bottom:1px solid var(--line);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:750;color:var(--navy);font-size:12.5px}
+.drawer-h button{border:1px solid var(--line);background:#fff;width:25px;height:25px;cursor:pointer;color:var(--muted);font-size:15px}
+.drawer-b{padding:13px 14px;overflow:auto}
+.ev-kv{display:grid;grid-template-columns:96px 1fr;gap:6px 9px;font-size:11px}
+.ev-kv .k{color:var(--muted)}
+.ev-kv .v{color:var(--navy);word-break:break-word}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#0f2a4a;color:#fff;padding:9px 14px;font-size:11.5px;z-index:90;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+@media(max-width:900px){.grid2,.grid3,.grid4,.kpis,.rule,.export,.diff{grid-template-columns:1fr}.top .meta{text-align:left;margin-left:0}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo">研</div>
+  <h1>全球智能投研</h1>
+  <span class="ver">v14.0</span>
+  <div class="meta">Research Brief · 510300 沪深300ETF<br>数据日 2026-11-17 · 资产类型 ETF · 生成 2026-11-18 09:00</div>
+</header>
+
+<main class="wrap">
+  <div class="demo"><b>Demo 说明：</b>本页复刻 aistockresearcher 的研究简报、证据链、经验分布与批量 diff 形态；数值为模拟数据，未联网、未调用 LLM，不构成投资建议。</div>
+
+  <div class="tabs" id="tabs">
+    <button class="on" data-p="p1">单标的简报</button>
+    <button data-p="p2">批量研究</button>
+    <button data-p="p3">报告差异</button>
+    <button data-p="p4">导出</button>
+  </div>
+
+  <!-- 单标的 -->
+  <section class="page on" id="p1">
+    <div class="summary">
+      <div class="sh">
+        <span class="pill bad">方向 bearish</span>
+        <span class="pill warn">评分 -32</span>
+        <span class="pill">置信度 0.61</span>
+        <span class="pill warn">质量 derived</span>
+        <span class="pill">来源 3 / 5</span>
+      </div>
+      <h2>趋势与动量同步走弱，但相对基准仍有小幅超额；当前更像“弱势整理”，不是可确认的反转</h2>
+      <p>现价 4.042 低于 MA20 4.124 与 MA60 4.310，20 日动量 -4.22%；MACD 柱为负、RSI 42，量价配合偏弱。相对沪深300的 5 日超额 -0.21pct、20 日超额 +0.35pct，二者冲突，因此不支持“相对强势”的单边结论。概率来自历史相似条件的经验分布，样本 142，不是盈利保证。</p>
+      <div class="kpis">
+        <div class="kpi"><div class="k">5 日方向概率</div><div class="v down">0.38</div><div class="d">上涨概率，封顶 0.85</div></div>
+        <div class="kpi"><div class="k">5 日中位收益</div><div class="v down">-1.8%</div><div class="d">70% 区间 -4.1% ~ +2.0%</div></div>
+        <div class="kpi"><div class="k">20 日动量</div><div class="v down">-4.22%</div><div class="d">5 日 -2.25%</div></div>
+        <div class="kpi"><div class="k">年化波动</div><div class="v warn">17.1%</div><div class="d">60 日 14.7%</div></div>
+      </div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>多周期经验分布 <span style="font-size:10px;color:var(--muted);font-weight:400">样本不足自动弃权</span></div>
+    <div class="box" style="padding:0">
+      <table class="tbl">
+        <thead><tr><th>周期</th><th>方向</th><th class="r">上涨概率</th><th class="r">中位收益</th><th class="r">70% 区间</th><th class="r">样本</th><th>方法</th><th>质量</th></tr></thead>
+        <tbody>
+          <tr><td>1d</td><td><span class="tag bad">bearish</span></td><td class="r">0.44</td><td class="r down">-0.3%</td><td class="r">-1.2% ~ +0.7%</td><td class="r">180</td><td>kNN 经验分布</td><td><span class="tag good">actual</span></td></tr>
+          <tr><td>5d</td><td><span class="tag bad">bearish</span></td><td class="r">0.38</td><td class="r down">-1.8%</td><td class="r">-4.1% ~ +2.0%</td><td class="r">142</td><td>kNN 经验分布</td><td><span class="tag warn">derived</span></td></tr>
+          <tr><td>1M</td><td><span class="tag">neutral</span></td><td class="r">0.47</td><td class="r down">-0.6%</td><td class="r">-5.2% ~ +4.8%</td><td class="r">118</td><td>kNN 经验分布</td><td><span class="tag warn">derived</span></td></tr>
+          <tr><td>3M</td><td><span class="tag">neutral</span></td><td class="r">0.51</td><td class="r up">+0.4%</td><td class="r">-8.1% ~ +9.2%</td><td class="r">86</td><td>kNN 经验分布</td><td><span class="tag warn">estimated</span></td></tr>
+          <tr><td>6M</td><td><span class="tag warn">abstain</span></td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">54</td><td>样本不足，弃权</td><td><span class="tag bad">insufficient</span></td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="padding:0 10px 9px">概率来自历史相似条件（20 日动量 + 20 日波动）的 kNN 邻域；方向概率上限 0.85，70% 区间使用 Z=1.036。样本不足或校准失败时输出“弃权”，不硬给方向。</div>
+    </div>
+
+    <div class="grid2">
+      <div class="sec" style="margin-top:0"><span class="bar"></span>因子贡献</div>
+      <div class="sec" style="margin-top:0"><span class="bar"></span>数据质量与来源</div>
+    </div>
+    <div class="grid2">
+      <div class="box">
+        <div class="factor"><span class="n">趋势结构</span><span class="t"><i class="neg" style="width:62%"></i></span><span class="v">-25</span></div>
+        <div class="factor"><span class="n">动量</span><span class="t"><i class="neg" style="width:45%"></i></span><span class="v">-18</span></div>
+        <div class="factor"><span class="n">MACD</span><span class="t"><i class="neg" style="width:20%"></i></span><span class="v">-8</span></div>
+        <div class="factor"><span class="n">RSI</span><span class="t"><i style="width:2%"></i></span><span class="v">0</span></div>
+        <div class="factor"><span class="n">波动率</span><span class="t"><i class="neg" style="width:30%"></i></span><span class="v">-12</span></div>
+        <div class="factor"><span class="n">量价配合</span><span class="t"><i class="neg" style="width:12%"></i></span><span class="v">-5</span></div>
+        <div class="note">加权评分 = Σ(因子分 × 权重 × 置信度) / Σ(权重 × 置信度)；评分不是上涨概率。趋势与动量同向，MACD/RSI 未形成强共振。</div>
+      </div>
+      <div class="box" style="padding:0">
+        <table class="tbl">
+          <thead><tr><th>数据类别</th><th>来源</th><th>时效</th><th>质量</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>日线历史</td><td>tencent</td><td>2026-11-17</td><td><span class="tag good">actual</span></td><td>250 根，含 OHLCV</td></tr>
+            <tr><td>实时报价</td><td>eastmoney_api</td><td>09:25:12</td><td><span class="tag good">actual</span></td><td>延迟约 3 秒</td></tr>
+            <tr><td>资金流</td><td>eastmoney_api</td><td>2026-11-17</td><td><span class="tag warn">derived</span></td><td>主力净流入 -1.2 亿</td></tr>
+            <tr><td>新闻/公告</td><td>sina</td><td>11-17 09:10</td><td><span class="tag warn">snapshot</span></td><td>去重后 6 条</td></tr>
+            <tr><td>基本面</td><td>—</td><td>—</td><td><span class="tag bad">unavailable</span></td><td>ETF 无个股财务口径</td></tr>
+            <tr><td>IOPV / 折溢价</td><td>—</td><td>—</td><td><span class="tag bad">unavailable</span></td><td>源未提供，不填 0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sec"><span class="bar"></span>证据账本 <span style="font-size:10px;color:var(--muted);font-weight:400">每条结论绑定 evidence_id</span></div>
+    <div class="box" style="padding:0">
+      <table class="tbl">
+        <thead><tr><th>evidence_id</th><th>类型</th><th>结论 / 因子</th><th>值</th><th>来源</th><th>观测时间</th><th>质量</th></tr></thead>
+        <tbody>
+          <tr><td><button class="ev" data-ev="ev_f1a2b3c4d5e6">ev_f1a2b3c4d5e6</button></td><td>technical</td><td>趋势结构</td><td>现价 4.042；MA20 4.124；MA60 4.310</td><td>tencent</td><td>2026-11-17</td><td><span class="tag good">actual</span></td></tr>
+          <tr><td><button class="ev" data-ev="ev_a2b3c4d5e6f7">ev_a2b3c4d5e6f7</button></td><td>technical</td><td>动量</td><td>20 日 -4.22%；5 日 -2.25%</td><td>本地计算</td><td>2026-11-17</td><td><span class="tag warn">derived</span></td></tr>
+          <tr><td><button class="ev" data-ev="ev_b3c4d5e6f7a8">ev_b3c4d5e6f7a8</button></td><td>technical</td><td>MACD</td><td>DIF -0.018；DEA -0.012；柱 -0.012</td><td>本地计算</td><td>2026-11-17</td><td><span class="tag warn">derived</span></td></tr>
+          <tr><td><button class="ev" data-ev="ev_c4d5e6f7a8b9">ev_c4d5e6f7a8b9</button></td><td>money_flow</td><td>资金流</td><td>主力净流入 -1.2 亿；5 日 -3.4 亿</td><td>eastmoney_api</td><td>2026-11-17</td><td><span class="tag warn">derived</span></td></tr>
+          <tr><td><button class="ev" data-ev="ev_d5e6f7a8b9c0">ev_d5e6f7a8b9c0</button></td><td>forecast</td><td>5 日分布</td><td>p_up 0.38；p50 -1.8%；n=142</td><td>本地计算</td><td>2026-11-17</td><td><span class="tag warn">derived</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sec"><span class="bar"></span>三条铁律</div>
+    <div class="rule">
+      <div class="r"><div class="k">数据不装</div><div class="v">拿不到就报 unavailable，不拿 0 价、空表或估算值冒充实际值。</div></div>
+      <div class="r"><div class="k">预测不装</div><div class="v">概率来自历史相似条件的经验分布；样本不足就说不足，不硬给方向。</div></div>
+      <div class="r"><div class="k">评分 ≠ 盈利保证</div><div class="v">评分只是综合打分，不等于上涨概率，也不构成交易指令。</div></div>
+    </div>
+  </section>
+
+  <!-- 批量 -->
+  <section class="page" id="p2">
+    <div class="sec" style="margin-top:0"><span class="bar"></span>批量研究 <span style="font-size:10px;color:var(--muted);font-weight:400">单标的失败只落一行错误，不中断整批</span></div>
+    <div class="box" style="padding:0">
+      <table class="tbl">
+        <thead><tr><th>代码</th><th>名称</th><th class="r">评分</th><th>方向</th><th class="r">置信度</th><th>质量</th><th class="r">5d p_up</th><th>关键风险</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>510300</td><td>沪深300ETF</td><td class="r">-32</td><td><span class="tag bad">bearish</span></td><td class="r">0.61</td><td><span class="tag warn">derived</span></td><td class="r">0.38</td><td>趋势走弱、量价偏弱</td><td><span class="tag good">OK</span></td></tr>
+          <tr><td>510500</td><td>中证500ETF</td><td class="r">-41</td><td><span class="tag bad">bearish</span></td><td class="r">0.66</td><td><span class="tag good">actual</span></td><td class="r">0.31</td><td>20 日 -8.06%</td><td><span class="tag good">OK</span></td></tr>
+          <tr><td>588000</td><td>科创50ETF</td><td class="r">-28</td><td><span class="tag bad">bearish</span></td><td class="r">0.44</td><td><span class="tag warn">estimated</span></td><td class="r">0.42</td><td>基准缺失、数据降级</td><td><span class="tag warn">DEGRADED</span></td></tr>
+          <tr><td>159915</td><td>创业板ETF</td><td class="r">-55</td><td><span class="tag bad">bearish</span></td><td class="r">0.72</td><td><span class="tag good">actual</span></td><td class="r">0.26</td><td>20 日新低、风险贡献高</td><td><span class="tag good">OK</span></td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="padding:0 10px 9px">批量研究支持 <span class="mono">--min-quality derived</span> 质量门槛；未达标标的会被标记，而不是静默混入结论。批量表只做研究对比，不生成订单。</div>
+    </div>
+
+    <div class="grid3">
+      <div class="box"><div style="font-size:10px;color:var(--muted)">相对最强</div><div style="font-size:15px;font-weight:750;color:var(--navy);margin-top:3px">588000</div><div class="note">评分最高，但质量 estimated；不能据此加仓。</div></div>
+      <div class="box"><div style="font-size:10px;color:var(--muted)">相对最弱</div><div style="font-size:15px;font-weight:750;color:var(--up);margin-top:3px">159915</div><div class="note">评分最低且数据质量 OK；研究结论更可信。</div></div>
+      <div class="box"><div style="font-size:10px;color:var(--muted)">数据缺口</div><div style="font-size:15px;font-weight:750;color:var(--warn);margin-top:3px">1 / 4</div><div class="note">588000 基准缺失；其余标的来源完整。</div></div>
+    </div>
+  </section>
+
+  <!-- 差异 -->
+  <section class="page" id="p3">
+    <div class="sec" style="margin-top:0"><span class="bar"></span>报告差异 <span style="font-size:10px;color:var(--muted);font-weight:400">识别实质性变化，而不是逐字 diff</span></div>
+    <div class="diff">
+      <div class="col">
+        <h4>上一份 · 2026-11-14</h4>
+        <div class="line"><span>评分</span><span>-24</span></div>
+        <div class="line"><span>方向</span><span>bearish</span></div>
+        <div class="line"><span>置信度</span><span>0.64</span></div>
+        <div class="line"><span>质量</span><span>OK</span></div>
+        <div class="line"><span>5d p_up</span><span>0.44</span></div>
+        <div class="line"><span>趋势结构</span><span>-18</span></div>
+        <div class="line"><span>MACD</span><span>-4</span></div>
+      </div>
+      <div class="col">
+        <h4>本份 · 2026-11-17</h4>
+        <div class="line"><span>评分</span><span><b class="bad">-32</b></span></div>
+        <div class="line"><span>方向</span><span>bearish</span></div>
+        <div class="line"><span>置信度</span><span>0.61</span></div>
+        <div class="line"><span>质量</span><span><b class="warn">DEGRADED</b></span></div>
+        <div class="line"><span>5d p_up</span><span><b class="bad">0.38</b></span></div>
+        <div class="line"><span>趋势结构</span><span><b class="bad">-25</b></span></div>
+        <div class="line"><span>MACD</span><span><b class="bad">-8</b></span></div>
+      </div>
+    </div>
+    <div class="material"><b>实质性变化：</b>评分变化 -8（未达 ±10 阈值）；方向未翻转；质量状态 OK → DEGRADED；5 日上涨概率 -6pct（未达 10pct 阈值）。结论：<b>变化存在，但未达到“实质性变化”门槛</b>；若使用 <span class="mono">--fail-on-material</span>，不会因此退出 4。</div>
+    <div class="box" style="margin-top:11px">
+      <div class="note" style="margin-top:0">diff 只比较已结构化字段：评分、方向、置信度、质量、周期概率、因子与风险。它不重新分析，也不生成新结论；冲突信号保留，不强行抹平。</div>
+    </div>
+  </section>
+
+  <!-- 导出 -->
+  <section class="page" id="p4">
+    <div class="sec" style="margin-top:0"><span class="bar"></span>报告导出 <span style="font-size:10px;color:var(--muted);font-weight:400">同一份 IR，多格式渲染</span></div>
+    <div class="export">
+      <button data-fmt="Word"><div class="f">Word · .docx</div><div class="d">纯 OOXML 渲染；可选 python-docx 增强。</div></button>
+      <button data-fmt="PPT"><div class="f">PowerPoint · .pptx</div><div class="d">纯 OOXML 渲染；可选 python-pptx 增强。</div></button>
+      <button data-fmt="PDF"><div class="f">PDF</div><div class="d">内置 CID 字体，不嵌字体文件。</div></button>
+      <button data-fmt="Markdown"><div class="f">Markdown</div><div class="d">可审计的文本简报，适合入库。</div></button>
+      <button data-fmt="JSON"><div class="f">JSON</div><div class="d">结构化报告，适合机器读取与 diff。</div></button>
+      <button data-fmt="Text"><div class="f">纯文本</div><div class="d">最小依赖，适合日志与通知。</div></button>
+    </div>
+    <div class="box" style="margin-top:11px">
+      <div class="note" style="margin-top:0">导出不是“再写一份报告”，而是把同一棵格式中立 IR 渲染成不同格式；页面、Markdown、Word/PPT/PDF 必须共享同一事实源。</div>
+    </div>
+    <div class="notice"><b>Demo：</b>导出按钮只展示入口，不会生成真实文件。正式实现需接 <span class="mono">export_bytes(report, fmt, engine="auto")</span>。</div>
+  </section>
+
+  <div class="footer">Demo 仅用于对比输出形态与信息架构；不联网、不调用 LLM、不构成投资建议。真实 Skill 的概率、来源与质量会随数据变化。</div>
+</main>
+
+<div class="drawer-mask" id="mask" hidden></div>
+<aside class="drawer" id="drawer" hidden>
+  <div class="drawer-h"><span>证据详情</span><button id="close" type="button">×</button></div>
+  <div class="drawer-b" id="body"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var tabs = document.getElementById('tabs');
+  tabs.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-p]');
+    if(!b) return;
+    tabs.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.toggle('on', p.id === b.dataset.p); });
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+
+  var EVIDENCE = {
+    'ev_f1a2b3c4d5e6': {kind:'technical', title:'趋势结构', value:'现价 4.042；MA20 4.124；MA60 4.310；MA5 4.089', source:'tencent', observed:'2026-11-17', quality:'actual', note:'现价低于 MA20 与 MA60，趋势结构偏弱。'},
+    'ev_a2b3c4d5e6f7': {kind:'technical', title:'动量', value:'20 日 -4.22%；5 日 -2.25%', source:'本地计算', observed:'2026-11-17', quality:'derived', note:'由收盘价计算，不含未来数据。'},
+    'ev_b3c4d5e6f7a8': {kind:'technical', title:'MACD', value:'DIF -0.018；DEA -0.012；柱 -0.012', source:'本地计算', observed:'2026-11-17', quality:'derived', note:'MACD 柱为负，未出现金叉。'},
+    'ev_c4d5e6f7a8b9': {kind:'money_flow', title:'资金流', value:'主力净流入 -1.2 亿；5 日 -3.4 亿', source:'eastmoney_api', observed:'2026-11-17', quality:'derived', note:'资金流为第三方口径，存在延迟与口径差异。'},
+    'ev_d5e6f7a8b9c0': {kind:'forecast', title:'5 日经验分布', value:'p_up 0.38；p50 -1.8%；70% 区间 -4.1% ~ +2.0%；n=142', source:'本地计算', observed:'2026-11-17', quality:'derived', note:'条件经验分布，不是点预测；样本不足会弃权。'}
+  };
+
+  var mask = document.getElementById('mask'), drawer = document.getElementById('drawer'), body = document.getElementById('body'), close = document.getElementById('close');
+  function open(id){
+    var d = EVIDENCE[id]; if(!d) return;
+    body.innerHTML = '<div class="ev-kv">' +
+      '<div class="k">evidence_id</div><div class="v mono">' + id + '</div>' +
+      '<div class="k">类型</div><div class="v">' + d.kind + '</div>' +
+      '<div class="k">结论 / 因子</div><div class="v">' + d.title + '</div>' +
+      '<div class="k">值</div><div class="v">' + d.value + '</div>' +
+      '<div class="k">来源</div><div class="v">' + d.source + '</div>' +
+      '<div class="k">观测时间</div><div class="v">' + d.observed + '</div>' +
+      '<div class="k">质量</div><div class="v">' + d.quality + '</div>' +
+      '<div class="k">备注</div><div class="v">' + d.note + '</div>' +
+      '</div><div class="notice">证据只解释事实，不生成交易动作。</div>';
+    mask.hidden = false; drawer.hidden = false;
+  }
+  function shut(){ mask.hidden = true; drawer.hidden = true; }
+  document.addEventListener('click', function(e){ var b = e.target.closest('[data-ev]'); if(b) open(b.dataset.ev); });
+  mask.addEventListener('click', shut); close.addEventListener('click', shut);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') shut(); });
+
+  var toast = document.getElementById('toast'), t = null;
+  document.querySelectorAll('[data-fmt]').forEach(function(b){
+    b.addEventListener('click', function(){
+      toast.textContent = 'Demo：' + b.dataset.fmt + ' 导出入口；正式实现会从同一 IR 渲染。';
+      toast.classList.add('on');
+      clearTimeout(t); t = setTimeout(function(){ toast.classList.remove('on'); }, 2200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

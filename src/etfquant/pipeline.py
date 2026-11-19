@@ -103,10 +103,10 @@ def run(use_live=True, strict=False, write_packet=True):
         if dec.get('demo'):
             # DEMO：仅展示规则会命中什么，动作一律 ABSTAIN
             legs.append(dict(code=code, name=r['name'], category=r['category'],
-                         track=r.get('track'), benchmark=bench_code,
-                         settle=r.get('settle', 'T+1'),
-                         feature=f, rs=rs, decision=dec, quality=q,
-                         price=P.prices('HOLD', f, universe.precision(cfg['universe']))))
+                             track=r.get('track'), benchmark=bench_code,
+                             settle=r.get('settle', 'T+1'),
+                             feature=f, rs=rs, decision=dec, quality=q,
+                             price=P.prices('HOLD', f, universe.precision(cfg['universe']))))
             leg_payloads.append(dict(code=code, data_date=q['last_date'],
                                      quality=q['status']))
             bars_by_code[code] = bars

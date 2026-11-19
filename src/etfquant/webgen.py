@@ -14,7 +14,7 @@ ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_assets')
 
 
 def _national_team():
-    """读取国家队宽基份额快照（由 scripts/fetch_national_team.py 生成）。"""
+    """读取宽基 ETF 份额快照（由 scripts/fetch_national_team.py 生成）。"""
     path = os.path.join(config.ROOT, 'data', 'national_team.json')
     try:
         with open(path, encoding='utf-8') as f:
