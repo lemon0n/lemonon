@@ -1581,6 +1581,8 @@ function heatDetail(name){
   var rank=(m.flow||[]).slice().sort(function(a,b){ return n(b.turnover)-n(a.turnover); })
     .map(function(x){ return x.sector; }).indexOf(name)+1;
   if(rank>0) rows.push(['成交额排名','第 '+rank+' / '+(m.flow||[]).length+' 名']);
+  var expo=rsExposureOf(name);
+  if(expo!=null) rows.push(['我的暴露', expo>0?(f2(expo)+'%'):'未持有']);
   var el=document.getElementById('heatBox');
   if(!el){
     el=document.createElement('div');
@@ -1665,10 +1667,12 @@ function page1(){
   h+=heatMap(m.heat);
   var flow=(m.flow||[]).slice().sort(function(a,b){ return b.turnover-a.turnover; });
   h+=box(bt('行业成交额与占比')+
-    tbl(['行业','成交额','占比','涨跌幅','流通市值'],flow.map(function(x){
+    tbl(['行业','成交额','占比','涨跌幅','我的暴露','流通市值'],flow.map(function(x){
+      var expo=rsExposureOf(x.sector);
       return tr([esc(x.sector), f2(x.turnover)+' 亿', f2(x.share)+'%', col(x.chg),
+                 expo==null?'—':(expo>0?f2(expo)+'%':'0%'),
                  Math.round(n(x.cap)).toLocaleString()+' 亿']);
-    }),['','r','r','r','r']));
+    }),['','r','r','r','r','r']));
   h+='<div class="grid2">'+box(bt('轮动与主线')+
       kv([['阶段',esc(rg.regime)],['主线方向',esc((rg.leaders||[]).join('、'))],
           ['落后方向',esc((rg.laggards||[]).join('、'))]]))+
@@ -2040,25 +2044,78 @@ function rsSectorExposure(p){
     if(r.weight==null) return;
     total+=r.weight;
     rsSectorMap(r.code,r.name,r.category).forEach(function(x){
-      acc[x[0]]=(acc[x[0]]||0)+r.weight*x[1]/100;
+      var s=rsSwCanon(x[0]);
+      acc[s]=(acc[s]||0)+r.weight*x[1]/100;
     });
   });
   var rows=Object.keys(acc).map(function(k){
-    return {sector:k, pct: total>0?acc[k]/total*100:0, weight:acc[k]};
+    var kind=rsSectorKind(k);
+    return {sector:k, pct: total>0?acc[k]/total*100:0, weight:acc[k], kind:kind, sw:kind==='sw'};
   }).sort(function(a,b){ return b.pct-a.pct; });
   return {rows:rows,total:total};
 }
 
+/* 市场概况与持仓分析共用同一套申万行业暴露，用于两页联动 */
+function rsHoldingExposure(){
+  if(RS_PORT&&RS_PORT.rows&&RS_PORT.rows.length&&RS_PORT.rows[0].weight!=null){
+    return rsSectorExposure(RS_PORT);
+  }
+  if(!HOLD||!HOLD.rows||!HOLD.rows.length) return null;
+  var rows=[], total=0;
+  HOLD.rows.forEach(function(r){
+    var mv=n(r.shares)*(n(r.last)||n(r.cost));
+    if(!(mv>0)) return;
+    rows.push({code:String(r.code),name:r.name,category:r.category,weight:mv});
+    total+=mv;
+  });
+  if(!(total>0)) return null;
+  return rsSectorExposure({rows:rows.map(function(x){
+    return {code:x.code,name:x.name,category:x.category,weight:x.weight/total*100};
+  })});
+}
+function rsExposureOf(sector){
+  var e=rsHoldingExposure();
+  if(!e) return null;
+  var s=rsSwCanon(sector);
+  var row=e.rows.filter(function(x){ return x.sector===s; })[0];
+  return row?row.pct:0;
+}
+
+/* 申万一级行业名单直接取自「市场概况」的 heat / flow，保证两边分类同名、可联动 */
+var RS_SW=null;
+function rsSwNames(){
+  if(RS_SW) return RS_SW;
+  var m=D.market||{}, names=[];
+  ((m.flow||[]).forEach(function(x){ if(x.sector&&names.indexOf(x.sector)<0) names.push(x.sector); }));
+  ((m.heat||[]).forEach(function(x){ if(x.name&&names.indexOf(x.name)<0) names.push(x.name); }));
+  RS_SW=names;
+  return names;
+}
+function rsSwCanon(name){
+  name=String(name||'').trim();
+  if(!name) return '';
+  var list=rsSwNames();
+  if(list.indexOf(name)>=0) return name;
+  var key=name.replace(/[ⅠⅡⅢIV]+$/,'').replace(/[（(].*?[)）]/g,'');
+  for(var i=0;i<list.length;i++){
+    if(list[i]===key||list[i].indexOf(key)>=0||key.indexOf(list[i])>=0) return list[i];
+  }
+  return name;
+}
+/* 非申万口径（黄金/债券/海外等）单独标注，不强行并入行业 */
+function rsIsSw(name){ return rsSwNames().indexOf(name)>=0; }
+function rsSectorKind(name){
+  if(name==='其他'||name==='未映射') return 'other';
+  return rsIsSw(name)?'sw':'nonsw';
+}
+
 function rsFindHeat(name){
-  var heat=(D.market&&D.market.heat)||[];
-  var exact=heat.filter(function(x){ return x.name===name; })[0];
-  if(exact) return exact;
-  var key=String(name||'').replace(/生物|设备|化工|金属|金融|事业|运输/g,'');
-  return heat.filter(function(x){ return x.name&&x.name.indexOf(key)>=0; })[0]||null;
+  var heat=(D.market&&D.market.heat)||[], c=rsSwCanon(name);
+  return heat.filter(function(x){ return x.name===c||x.name===name; })[0]||null;
 }
 function rsFindFlow(name){
-  var flow=(D.market&&D.market.flow)||[];
-  return flow.filter(function(x){ return x.sector===name; })[0]||null;
+  var flow=(D.market&&D.market.flow)||[], c=rsSwCanon(name);
+  return flow.filter(function(x){ return x.sector===c||x.sector===name; })[0]||null;
 }
 
 function rsSectorHealth(exp){
@@ -2457,7 +2514,7 @@ function rsPageHTML(p,s1,adv){
     '<div class="rs-bar-row"><span class="n">持仓 '+f2(p.positionPct)+'%</span><span class="t"><i style="width:'+rsClamp(n(p.positionPct),0,100)+'%"></i></span><span class="v">'+fy(p.totalPos)+'</span></div>'+
     '<div class="rs-bar-row"><span class="n">现金 '+f2(p.cashPct)+'%</span><span class="t"><i style="width:'+rsClamp(n(p.cashPct),0,100)+'%"></i></span><span class="v">'+fy(p.cash)+'</span></div>'+
     '<div class="rs-note">当前仓位相对模型区间 '+(s1.lo==null?'—':s1.lo+'~'+s1.hi+'%')+'，'+esc(posTxt(s1))+'。</div></div>'+
-    '<div class="box"><div class="bt">持仓类别</div><div id="rsPortrait" class="rs-note">加载中…</div></div>'+
+    '<div class="box"><div class="bt">申万行业分布</div><div id="rsPortrait" class="rs-note">加载中…</div></div>'+
     '</div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>持仓建议</div>';
@@ -2465,7 +2522,10 @@ function rsPageHTML(p,s1,adv){
   p.rows.forEach(function(r,i){
     var a=adv.rows[i]?adv.rows[i].a:null;
     var sm=rsSectorMap(r.code,r.name,r.category);
-    h+='<tr><td>'+esc(r.code)+'</td><td>'+esc(r.name)+'</td><td>'+esc(sm[0][0])+'</td>'+
+    var main=sm[0]||['未映射',100];
+    var mainName=rsSwCanon(main[0]);
+    var mainKind=rsSectorKind(mainName);
+    h+='<tr><td>'+esc(r.code)+'</td><td>'+esc(r.name)+'</td><td>'+esc(mainName)+(mainKind==='nonsw'?'（非申万）':'')+' '+f2(main[1])+'%</td>'+
       '<td class="r">'+f2(r.weight)+'%</td><td class="r">'+f2(r.cost)+' → '+f2(r.last)+'</td>'+
       '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'</td>'+
       '<td><span id="rsV_'+esc(r.code)+'">'+rsTechPill(r.code)+'</span></td>'+
@@ -2492,12 +2552,12 @@ function rsPageHTML(p,s1,adv){
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
   h+='<div class="rs-grid2">'+
-    '<div class="box"><div class="bt">组合板块结构</div><div id="rsSectorBars" class="rs-note">加载中…</div></div>'+
+    '<div class="box"><div class="bt">申万行业暴露</div><div id="rsSectorBars" class="rs-note">加载中…</div></div>'+
     '<div class="box"><div class="bt">集中度与结构</div><div id="rsRiskFacts" class="rs-note">加载中…</div></div>'+
     '</div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>申万板块健康度</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>板块</th><th class="r">健康度</th><th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th></tr></thead><tbody id="rsSectorTable"></tbody></table><div class="rs-note">健康度按当日涨跌与成交占比估算，只描述板块状态，不是买卖信号。</div></div>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>申万一级行业</th><th class="r">健康度</th><th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th></tr></thead><tbody id="rsSectorTable"></tbody></table><div class="rs-note">行业名称、涨跌与成交占比取自「市场概况」同一份申万一级数据；非申万资产（黄金/债券/海外等）不列入本表。健康度只描述板块状态，不是买卖信号。</div></div>';
 
   h+='<div class="rs-grid2" style="margin-top:11px"><div class="box"><div class="bt">宏观经济背景</div><table class="tbl"><thead><tr><th>指标</th><th>值</th></tr></thead><tbody id="rsMacroTable"></tbody></table></div>'+
     '<div class="box"><div class="bt">组合健康度</div><div id="rsHealthBars" class="rs-note">加载中…</div></div></div>';
@@ -2940,20 +3000,28 @@ function rsRenderSector(){
   if(bars){
     var max=exp.rows.length?exp.rows[0].pct:1;
     bars.innerHTML=exp.rows.slice(0,7).map(function(x){
-      return '<div class="rs-bar-row"><span class="n">'+esc(x.sector)+' '+f2(x.pct)+'%</span><span class="t"><i style="width:'+rsClamp(x.pct/max*100,0,100)+'%"></i></span><span class="v">'+(x.pct>=25?'超配':(x.pct<=5?'低配':'中性'))+'</span></div>';
+      var nm=x.kind==='nonsw'?x.sector+'(非申万)':x.sector;
+      return '<div class="rs-bar-row"><span class="n">'+esc(nm)+' '+f2(x.pct)+'%</span><span class="t"><i style="width:'+rsClamp(x.pct/max*100,0,100)+'%"></i></span><span class="v">'+(x.pct>=25?'超配':(x.pct<=5?'低配':'中性'))+'</span></div>';
     }).join('')||'<div class="rs-note">暂无板块映射。</div>';
   }
   var portrait=document.getElementById('rsPortrait');
-  var top=exp.rows[0]||null, top3=exp.rows.slice(0,3).reduce(function(a,x){return a+x.pct;},0);
+  var swRows=exp.rows.filter(function(x){ return x.sw; });
+  var topSw=swRows[0]||null;
+  var top3=swRows.slice(0,3).reduce(function(a,x){return a+x.pct;},0);
+  var top=topSw||exp.rows[0]||null;
   if(portrait){
-    portrait.innerHTML='<div class="kv"><span class="k">最大板块</span><span class="v">'+(top?esc(top.sector)+' '+f2(top.pct)+'%':'—')+'</span>'+
-      '<span class="k">前三大板块</span><span class="v">'+f2(top3)+'%</span>'+
-      '<span class="k">持仓只数</span><span class="v">'+RS_PORT.rows.length+'</span>'+
-      '<span class="k">类别</span><span class="v">'+esc(RS_PORT.rows.map(function(r){return r.category;}).filter(function(v,i,a){return a.indexOf(v)===i;}).join('、')||'—')+'</span></div>';
+    var nonSw=exp.rows.filter(function(x){ return x.kind==='nonsw'; });
+    var otherPct=exp.rows.filter(function(x){ return x.kind==='other'; }).reduce(function(a,x){ return a+x.pct; },0);
+    portrait.innerHTML='<div class="kv"><span class="k">最大行业</span><span class="v">'+(topSw?esc(topSw.sector)+' '+f2(topSw.pct)+'%':'—')+'</span>'+
+      '<span class="k">前三大行业</span><span class="v">'+f2(top3)+'%</span>'+
+      '<span class="k">覆盖申万行业</span><span class="v">'+swRows.length+' / '+rsSwNames().length+' 个</span>'+
+      '<span class="k">非申万资产</span><span class="v">'+(nonSw.length?esc(nonSw.map(function(x){ return x.sector+' '+f2(x.pct)+'%'; }).join('、')):'无')+'</span>'+
+      '<span class="k">未归类部分</span><span class="v">'+(otherPct>0?f2(otherPct)+'%':'无')+'</span></div>'+
+      '<div class="rs-note">行业口径与「市场概况」的申万一级行业一致，可直接对照涨跌与成交占比。</div>';
   }
   var body=document.getElementById('rsSectorTable');
   if(body){
-    var rows=rsSectorHealth(exp).filter(function(x){ return x.pct>=1; });
+    var rows=rsSectorHealth(exp).filter(function(x){ return x.chg!=null&&x.pct>=1; });
     body.innerHTML=rows.map(function(x){
       var cls=x.chg==null?'':(x.chg>0?'up':(x.chg<0?'down':''));
       return '<tr><td>'+esc(x.sector)+'</td><td class="r">'+(x.health==null?'—':f2(x.health))+'</td><td class="r '+cls+'">'+(x.chg==null?'—':sign(x.chg)+f2(x.chg)+'%')+'</td><td class="r">'+(x.share==null?'—':f2(x.share)+'%')+'</td><td class="r">'+f2(x.pct)+'%</td><td>'+esc(x.relation)+'</td><td>'+esc(x.state)+'</td></tr>';
