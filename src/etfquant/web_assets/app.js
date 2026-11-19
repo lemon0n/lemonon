@@ -1644,33 +1644,31 @@ function nationalTeamSection(){
   if(!nt||!nt.series||!nt.series.length) return '';
   var s=nt.series, last=s[s.length-1];
   var prev=s.length>1?s[s.length-2]:null;
-  var base=s.length>1?s[Math.max(0,s.length-21)]:null;   /* 近四周≈20 个采集日 */
-  var ORDER=['510300','510050','510500','512100','588000','159915'];
-  var keys=Object.keys(nt.groups||{}).sort(function(a,b){
-    var ia=ORDER.indexOf(a), ib=ORDER.indexOf(b);
-    if(ia<0) ia=99; if(ib<0) ib=99;
-    return ia-ib || Number(a)-Number(b);
-  });
-  var total=0, rows=keys.map(function(k){
-    var a=(last.groups[k]||{}).shares;
-    var b=prev&&(prev.groups[k]||{}).shares;
-    var c=base&&(base.groups[k]||{}).shares;
-    if(a) total+=a;
-    var d1=(a&&b)?(a/b-1)*100:null;
-    var d4=(a&&c)?(a/c-1)*100:null;
+  var base=s.length>4?s[s.length-5]:null;          /* 近四周：周采样 4 期前 */
+  var ORDER=nt.order||[];
+  var TOTAL='全宽基合计';
+  var keys=ORDER.filter(function(k){ return k!==TOTAL; });
+  function val(x,k){ return x&&x.groups&&x.groups[k]!=null?n(x.groups[k]):null; }
+  var rows=[], totalChg=null;
+  keys.forEach(function(k){
+    var a=val(last,k), b=val(prev,k), c=val(base,k);
+    var d1=(a!=null&&b)?(a/b-1)*100:null;
+    var d4=(a!=null&&c)?(a/c-1)*100:null;
     var dir=d4==null?'—':(d4>0.5?'增持':(d4<-0.5?'减持':'持平'));
     var kind=d4==null?'':(d4>0.5?'buy':(d4<-0.5?'sell':'hold'));
-    return tr([esc(nt.groups[k]), a==null?'—':f2(a/1e8)+' 亿份',
+    rows.push(tr([esc(k), a==null?'—':f2(a)+' 亿份',
       d1==null?'—':col(d1), d4==null?'—':col(d4),
-      '<span class="tag '+kind+'">'+dir+'</span>']);
+      '<span class="tag '+kind+'">'+dir+'</span>']));
   });
-  var note='数据为宽基 ETF 场内总份额（腾讯快照，与上交所披露口径一致），采集日 '+
-    esc(nt.as_of||'—')+'，已累积 '+s.length+' 期。';
-  if(s.length<2) note+='首次采集：明日起显示「较上次」，累积约 20 个交易日后显示「近四周」。';
-  note+='份额含散户与机构申赎，只作背景，不参与规则定仓。';
+  var ta=val(last,TOTAL), tc=val(base,TOTAL);
+  if(ta!=null&&tc) totalChg=(ta/tc-1)*100;
+  rows.push(tr(['<b>'+TOTAL+'</b>', ta==null?'—':f2(ta)+' 亿份',
+    (function(){ var p=val(prev,TOTAL); return (ta!=null&&p)?col((ta/p-1)*100):'—'; })(),
+    totalChg==null?'—':col(totalChg),
+    '<span class="tag '+(totalChg==null?'':(totalChg>0.5?'buy':(totalChg<-0.5?'sell':'hold')))+'">'+
+      (totalChg==null?'—':(totalChg>0.5?'增持':(totalChg<-0.5?'减持':'持平')))+'</span>']));
   return box(bt('国家队动向（宽基 ETF 份额）')+
-    tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r',''])+
-    '<div class="note">合计 '+(total?f2(total/1e8)+' 亿份':'—')+'。'+note+'</div>');
+    tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']));
 }
 
 /* ---------------- v3 仓位运营：状态 → 目标 → 差额 ----------------
