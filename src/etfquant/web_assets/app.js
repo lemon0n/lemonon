@@ -1638,8 +1638,8 @@ function linkStrip(){
   }
   return txt;
 }
-/* 国家队动向：宽基 ETF 份额（只作背景，不参与规则定仓；嵌入行业表内） */
-function nationalTeamInline(){
+/* 国家队动向：宽基 ETF 份额（只作背景，不参与规则定仓；独立卡与行业表内各一份） */
+function nationalTeamTable(){
   var nt=D.market&&D.market.national_team;
   if(!nt||!nt.series||!nt.series.length) return '';
   var s=nt.series, last=s[s.length-1];
@@ -1664,8 +1664,15 @@ function nationalTeamInline(){
     (ta!=null&&tp)?col((ta/tp-1)*100):'—', t4==null?'—':col(t4),
     '<span class="tag '+(t4==null?'':(t4>0.5?'buy':(t4<-0.5?'sell':'hold')))+'">'+
       (t4==null?'—':(t4>0.5?'增持':(t4<-0.5?'减持':'持平')))+'</span>']));
-  return '<div class="bt" style="margin-top:14px">国家队动向（宽基 ETF 份额）</div>'+
-    tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']);
+  return tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']);
+}
+function nationalTeamSection(){
+  var t=nationalTeamTable();
+  return t?box(bt('国家队动向（宽基 ETF 份额）')+t):'';
+}
+function nationalTeamInline(){
+  var t=nationalTeamTable();
+  return t?'<div class="bt" style="margin-top:14px">国家队动向（宽基 ETF 份额）</div>'+t:'';
 }
 
 /* ---------------- v3 仓位运营：状态 → 目标 → 差额 ----------------
@@ -1754,6 +1761,9 @@ function page1(){
   h+=planSection(true);
 
   h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅');
+
+  /* 国家队独立卡：宽基 ETF 份额，只作背景，不参与规则定仓 */
+  h+=nationalTeamSection();
 
   h+=heatMap(m.heat);
 
