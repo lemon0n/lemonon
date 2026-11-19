@@ -1670,10 +1670,6 @@ function nationalTeamSection(){
   var t=nationalTeamTable();
   return t?box(bt('国家队动向（宽基 ETF 份额）')+t):'';
 }
-function nationalTeamInline(){
-  var t=nationalTeamTable();
-  return t?'<div class="bt" style="margin-top:14px">国家队动向（宽基 ETF 份额）</div>'+t:'';
-}
 
 /* ---------------- v3 仓位运营：状态 → 目标 → 差额 ----------------
    只解释「目标多少、现在多少、差多少、今天该不该动」，不生成订单；
@@ -1772,7 +1768,7 @@ function page1(){
     tbl(['行业','成交额','占比','涨跌幅','流通市值'],flow.map(function(x){
       return tr([esc(x.sector), f2(x.turnover)+' 亿', f2(x.share)+'%', col(x.chg),
                  Math.round(n(x.cap)).toLocaleString()+' 亿']);
-    }),['','r','r','r','r'])+nationalTeamInline());
+    }),['','r','r','r','r']));
   h+='<div class="grid2">'+box(bt('轮动与主线')+
       kv([['阶段',esc(rg.regime)],['主线方向',esc((rg.leaders||[]).join('、'))],
           ['落后方向',esc((rg.laggards||[]).join('、'))]]))+
