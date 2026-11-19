@@ -98,7 +98,8 @@ def _r(x, d=3):
         return None
 
 
-def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=None):
+def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=None,
+               plan=None):
     """组装前端数据：公开行情 + 逐腿证据卡 + 权威数据包摘要 + 决策契约参数。"""
     def _col(row, key, default=0.0):
         try:
@@ -190,6 +191,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         trading=cfg['universe'],
         methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
+        plan=plan,
         contract=dict(
             version='1.0',
             config_hash=(pkt or {}).get('config_hash'),

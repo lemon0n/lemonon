@@ -871,6 +871,7 @@ function page5CashOnly(h,p,s1,adv,pdec){
     kpi('持仓市值','¥0','无持仓')+
     kpi('今日待执行',orders+' 笔','无持仓可调整')+
     '</div>';
+  h+=planSection(true);
   h+='</section>';
 
   h+='<section id="portfolio-holdings" class="portfolio-section">'+secLg('逐仓分析')+
@@ -1637,6 +1638,66 @@ function linkStrip(){
   }
   return txt;
 }
+/* ---------------- v3 仓位运营：状态 → 目标 → 差额 ----------------
+   只解释「目标多少、现在多少、差多少、今天该不该动」，不生成订单；
+   规则动作仍以 methodology.decide 为准。 */
+function planSection(compact){
+  var pl=D.plan;
+  if(!pl||!pl.items||!pl.items.length) return '';
+  var p=calcPort();
+  var locked=!(HOLD.rows||[]).length;
+  var cur=(!locked&&p.complete)?p.positionPct:null;
+  var gap=cur==null?null:pl.total_target-cur;
+  var thr=n(pl.gap_threshold,3);
+  var verdict;
+  if(cur==null) verdict='未解锁持仓：仅显示目标仓位，解锁后自动计算差额';
+  else if(Math.abs(gap)<thr) verdict='差额 '+f2(gap)+'pct，小于 '+f2(thr)+'pct，今日不动';
+  else if(gap>0) verdict='低于目标 '+f2(gap)+'pct，按确认条件分批补，不是一次性满仓';
+  else verdict='超出目标 '+f2(-gap)+'pct，按均线分级减，不清仓';
+  var vkind=cur==null?'':(Math.abs(gap)<thr?'hold':(gap>0?'buy':'sell'));
+
+  var wmap={};
+  p.rows.forEach(function(r){ wmap[String(r.code)]=r.weight; });
+
+  var h=box(bt('仓位运营（v3）')+
+    '<div class="grid4">'+
+      '<div class="kpi"><div class="k">目标总仓位</div><div class="v">'+f2(pl.total_target)+'%</div>'+
+        '<div class="d">状态 '+esc(pl.regime||'—')+' · '+(pl.fit_lo==null?'—':pl.fit_lo+'~'+pl.fit_hi+'%')+'</div></div>'+
+      '<div class="kpi"><div class="k">当前仓位</div><div class="v">'+(cur==null?'—':f2(cur)+'%')+'</div>'+
+        '<div class="d">'+(locked?'未加载持仓':(p.complete?'含现金总资产口径':'缺价，暂不计算'))+'</div></div>'+
+      '<div class="kpi"><div class="k">差额</div><div class="v">'+(gap==null?'—':(gap>0?'+':'')+f2(gap)+'pct')+'</div>'+
+        '<div class="d">|差额| &lt; '+f2(thr)+'pct 不动</div></div>'+
+      '<div class="kpi"><div class="k">今日结论</div><div class="v"><span class="tag '+vkind+'">'+
+        (vkind==='buy'?'补仓':vkind==='sell'?'减仓':vkind==='hold'?'不动':'待解锁')+'</span></div>'+
+        '<div class="d">'+esc(verdict)+'</div></div>'+
+    '</div>');
+
+  if(!compact){
+    h+=tbl(['标的','结构评分','20日波动','周线','确认','目标权重','当前权重','差额','今日提示'],
+      pl.items.map(function(x){
+        var cw=wmap[String(x.code)];
+        var g=(cw==null)?null:x.target_weight-cw;
+        var hint;
+        if(g==null) hint=esc(x.tier);
+        else if(g>thr){
+          if(!x.wk_up) hint='周线向下，暂不买';
+          else if(n(x.confirm)<2) hint='确认 '+x.confirm+'/3，等确认';
+          else hint='可差额买入 '+f2(g)+'pct';
+        } else if(g<-thr) hint=esc(x.tier);
+        else hint='差额不足，不动';
+        return tr(['<b>'+esc(x.code)+'</b> '+esc(x.name||''),
+          String(x.score==null?'—':x.score), x.vol20==null?'—':f2(x.vol20)+'%',
+          x.wk_up?'向上':'向下', x.confirm+'/3',
+          f2(x.target_weight)+'%', cw==null?'—':f2(cw)+'%',
+          g==null?'—':((g>0?'+':'')+f2(g)+'pct'), hint]);
+      }),['','r','r','','r','r','r','r','']);
+    h+='<div class="note">目标权重 = 状态区间中枢 × 结构评分 × 波动系数，归一后取前 6 只；'+
+      '买入需周线不向下且至少 2 条确认（站上 MA10 / MACD 多头 / 连续 2 日资金流入）；'+
+      '卖出按 MA10 / MA20 / MA30 / MA60 分级，只卖超出目标的部分。规则动作仍以规则卡为准。</div>';
+  }
+  return h;
+}
+
 function page1(){
   var m=D.market, rg=m.regime, b=m.breadth, s=m.sentiment;
   var h='<div class="pg-h"><h1>市场概况</h1>'+
@@ -1660,6 +1721,7 @@ function page1(){
 
   /* 与持仓分析联动：同一套阶段/仓位口径，页面间互相印证 */
   h+=box(bt('阶段 → 仓位 → 我的持仓')+'<div class="lk">'+linkStrip()+'</div>');
+  h+=planSection(true);
 
   h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅');
   h+=heatMap(m.heat);
@@ -2185,6 +2247,7 @@ function rsPageHTML(p,s1,adv){
     '</div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>持仓建议</div>';
+  h+=planSection();
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本 → 现价</th><th class="r">浮动盈亏</th><th>建议</th><th>理由</th><th class="r">5/20日上涨占比</th></tr></thead><tbody>';
   p.rows.forEach(function(r,i){
     var a=adv.rows[i]?adv.rows[i].a:null;
