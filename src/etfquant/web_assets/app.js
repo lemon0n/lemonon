@@ -59,14 +59,6 @@ function friendlyIssue(text){
   return t.replace('未分类标的（分类缺失，结构核对不完整）：',
                    '以下持仓缺少分类映射，结构核对不完整：');
 }
-function friendlyIssues(list){
-  var seen={},out=[];
-  (list||[]).forEach(function(x){
-    var s=friendlyIssue(x);
-    if(s&&!seen[s]){ seen[s]=1; out.push(s); }
-  });
-  return out;
-}
 function box(html){ return '<div class="box">'+html+'</div>'; }
 function bt(t){ return '<div class="bt">'+esc(t)+'</div>'; }
 function btInfo(label,title){ return '<div class="bt">'+esc(label)+' <span class="info" tabindex="0" title="'+esc(title)+'" aria-label="'+esc(title)+'">i</span></div>'; }
@@ -1000,30 +992,12 @@ function localLeg(code,row){
     cycle:k.cycle,support:k.support,reduce:k.reduce_think,risk:[],
     price:null,evidence:null};
 }
-function renderLocalLeg(code){
-  var el=document.getElementById('loc_'+code);
-  if(!el) return;
-  if(!LBARS[code]){ el.innerHTML='<div class="notice">'+esc(code)+' 日线不可用（该腿按 ABSTAIN 处理）</div>'; return; }
-  var l=localLeg(code);
-  if(!l){ el.innerHTML='<div class="notice">'+esc(code)+' 日线不足</div>'; return; }
-  var p=calcPort();
-  var pr=p.rows.filter(function(x){ return String(x.code)===String(code); })[0]||{weight:null,pnl_pct:null};
-  el.innerHTML=legDetail(l,pr);
-}
-
 function stageHint(){
   var rg=(D.market&&D.market.regime)||{};
   return {regime:rg.regime||'—',lo:(rg.fit_lo==null?null:n(rg.fit_lo)),
           hi:(rg.fit_hi==null?null:n(rg.fit_hi)),
           leaders:(rg.leaders||[]).slice(0,4),laggards:(rg.laggards||[]).slice(0,3),
           note:rg.stage_note||'',as_of:rg.as_of||''};
-}
-/* 池外腿取数：计数式刷新，全部完成后重设 #p5 整块，避免同页数据不同步 */
-function renderPage5(){
-  var el=document.getElementById('p5');
-  if(!el) return;
-  el.innerHTML=page5();
-  loadPerf();
 }
 function legDetail(l,r,s1){
   var sp=l.support||{};
