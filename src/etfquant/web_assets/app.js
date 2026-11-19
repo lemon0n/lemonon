@@ -1757,10 +1757,11 @@ function page1(){
   h+=planSection(true);
 
   h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅');
-  h+=heatMap(m.heat);
 
   /* 国家队动向：宽基 ETF 份额，只作背景，不参与规则定仓 */
   h+=nationalTeamSection();
+
+  h+=heatMap(m.heat);
 
   var flow=(m.flow||[]).slice().sort(function(a,b){ return b.turnover-a.turnover; });
   h+=box(bt('行业成交额与占比')+
