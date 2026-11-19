@@ -2255,7 +2255,9 @@ function rsIndicators(bars,closes){
   return {obv:obv,obvSlope:obvSlope,volRatio:volRatio,kdj:[k,d,3*k-2*d],boll:boll,rsi:rsRsi(closes,14)};
 }
 function rsChan(bars){
-  if(!bars||!bars.closes||bars.closes.length<30||!bars.highs||!bars.lows) return null;
+  /* 与规则动作同口径：剔除未收盘、重复、OHLC 异常与陈旧 K 线 */
+  bars=sanitizeBars(bars);
+  if(!bars||!bars.closes||bars.closes.length<30) return null;
   var n=Math.min(bars.closes.length,bars.highs.length,bars.lows.length);
   var arr=[];
   for(var i=0;i<n;i++){
@@ -2425,6 +2427,8 @@ function rsDimRow(name,score,desc){
     '<div class="rs-dim-bar"><i class="'+(pos?'pos':'neg')+'" style="width:'+pct+'%"></i></div></div>';
 }
 function rsForecast(bars){
+  /* 与规则动作同口径：先做 K 线质量门禁，避免盘中未收盘 K 线污染样本 */
+  bars=sanitizeBars(bars);
   if(!bars||!bars.closes) return null;
   var c=(bars.closes||[]).filter(function(x){ return isFinite(x)&&x>0; });
   if(c.length<45) return null;
@@ -2516,6 +2520,17 @@ function rsFetchWeekly(code,cb){
   setTimeout(function(){ fin(null); },9000);
 }
 
+/* 逐腿风险退出与组合仓位区间冲突时统一口径（与 portfolio/analysis.py 的说明一致） */
+function rsBandNote(pa,s1){
+  if(!pa||pa.position_pct==null||!s1) return '';
+  var pos=n(pa.position_pct), lo=(s1.lo==null?null:n(s1.lo)), hi=(s1.hi==null?null:n(s1.hi));
+  if(lo!=null&&pos<lo-1e-9)
+    return '执行后仓位 '+f2(pos)+'% 低于区间下沿 '+f2(lo)+'%：逐腿风险退出优先于组合仓位区间，不会为回到区间而买入未通过筛选的标的。';
+  if(hi!=null&&pos>hi+1e-9)
+    return '执行后仓位 '+f2(pos)+'% 仍高于区间上沿 '+f2(hi)+'%，剩余仓位需在下一次运行重新评估。';
+  return '';
+}
+
 function rsPageHTML(p,s1,adv){
   var h='';
   h+='<div class="rs-sec"><span class="bar"></span>一、持仓概况</div>';
@@ -2553,17 +2568,20 @@ function rsPageHTML(p,s1,adv){
 
   var pa=(PDEC&&PDEC.portfolio_after)||{};
   var fee=(PDEC&&PDEC.orders)?PDEC.orders.reduce(function(a,o){ return a+n(o.fee); },0):0;
+  var band=rsBandNote(pa,s1);
   h+='<div class="rs-grid2" style="margin-top:10px">'+
     '<div class="box"><div class="bt">执行后估算</div><div class="kv">'+
       '<span class="k">执行后仓位</span><span class="v">'+(pa.position_pct==null?'—':f2(pa.position_pct)+'%')+'</span>'+
       '<span class="k">执行后现金</span><span class="v">'+(pa.cash_pct==null?'—':f2(pa.cash_pct)+'%')+'</span>'+
       '<span class="k">剩余腿数</span><span class="v">'+(pa.legs==null?'—':pa.legs)+'</span>'+
       '<span class="k">预计费用</span><span class="v">¥'+f2(fee)+'</span>'+
-      '<span class="k">约束校验</span><span class="v">'+(PDEC&&PDEC.violations&&PDEC.violations.length?('未通过 '+PDEC.violations.length+' 项'):'通过')+'</span>'+
-    '</div><div class="rs-note">按当前价格静态估算，不是成交回报；未成交与跳空会使实际值偏离。</div></div>'+
+      '<span class="k">约束校验</span><span class="v">'+(PDEC&&PDEC.violations&&PDEC.violations.length?('未通过 '+PDEC.violations.length+' 项'):(band?'通过（附口径提示）':'通过'))+'</span>'+
+    '</div>'+(band?'<div class="rs-note warn">'+esc(band)+'</div>':'')+
+    '<div class="rs-note">按当前价格静态估算，不是成交回报；未成交与跳空会使实际值偏离。</div></div>'+
     '<div class="box"><div class="bt">今日建议</div><div class="rs-advice">'+
       '<div class="ar"><span class="k">组合</span><span class="v">'+esc(posTxt(s1))+'</span></div>'+
       '<div class="ar"><span class="k">逐腿</span><span class="v">'+(PDEC&&PDEC.orders&&PDEC.orders.length?PDEC.orders.map(function(o){return esc(actText(o.action))+' '+rsCodeName(o.code);}).join('、'):'无，保持观察')+'</span></div>'+
+      (band?'<div class="ar"><span class="k">口径</span><span class="v">'+esc(band)+'</span></div>':'')+
       '<div class="ar"><span class="k">原则</span><span class="v">先降风险，再调结构；不追高，不抄底。</span></div>'+
     '</div></div></div>';
 
@@ -2677,19 +2695,51 @@ function rsSelect(code){
   rsRenderDetail();
 }
 
+function rsAdviceRows(a){
+  return '<div class="ar"><span class="k">规则动作</span><span class="v"><b>'+esc(a?a.action_text:'—')+'</b></span></div>'+
+    '<div class="ar"><span class="k">参考仓位</span><span class="v">'+(a&&a.action==='CLEAR'?'0–10%':a&&a.action==='TRIM'?'10–20%':a&&a.action==='ADD'?'30–40%':'20–30%')+'（参考区间）</span></div>'+
+    '<div class="ar"><span class="k">买点</span><span class="v">'+(a&&a.entry!=null?f2(a.entry):'—')+'</span></div>'+
+    '<div class="ar"><span class="k">卖点 / 止损</span><span class="v">'+(a&&a.stop!=null?f2(a.stop):'—')+'</span></div>'+
+    '<div class="ar"><span class="k">说明</span><span class="v">'+esc((a&&a.price_note)||'价格是执行政策，不保证成交')+'</span></div>';
+}
+/* 本地日线取不到时的降级卡片：保留执行动作与关键价位 */
+function rsDegradedCard(code,row,a){
+  var act=rsActionLabel(a);
+  var execLabel=act.code?act.txt:'数据不足';
+  var execCls=act.code?act.cls:'';
+  var vcolor=execCls==='sell'?'var(--down)':(execCls==='buy'?'var(--up)':'var(--blue-d)');
+  var px=row.last!=null?row.last:null;
+  var h='<div class="rs-verdict" style="border-top-color:'+vcolor+'"><div class="vh">'+
+    '<span class="rs-pill '+execCls+'">执行：'+esc(execLabel)+'</span>'+
+    '<span class="rs-pill warn">技术面：数据不可用</span>'+
+    '<span class="rs-pill">'+esc(code)+(rsName(code)?' '+esc(rsName(code)):'')+' · 日线 · '+esc((D.meta&&D.meta.data_date)||'—')+'</span>'+
+    '</div><div class="big" style="color:'+vcolor+'">'+esc(execLabel)+'</div>'+
+    '<p>本地日线未取到，技术面与多周期预测暂不可用；下面保留规则动作与关键价位，行情恢复后会自动补全结构分析。</p>'+
+    '<div class="kpis">'+
+      '<div class="kpi"><div class="k">现价 / 成本</div><div class="v">'+(px==null?'—':f2(px))+' / '+(row.cost==null?'—':f2(row.cost))+'</div><div class="d">'+(row.pnl_pct==null?'—':col(row.pnl_pct))+'</div></div>'+
+      '<div class="kpi"><div class="k">参考买点</div><div class="v">'+(a&&a.entry!=null?f2(a.entry):'—')+'</div><div class="d">规则价</div></div>'+
+      '<div class="kpi"><div class="k">卖点 / 止损</div><div class="v">'+(a&&a.stop!=null?f2(a.stop):'—')+'</div><div class="d">收盘为准</div></div>'+
+      '<div class="kpi"><div class="k">规则等级</div><div class="v">'+esc(a&&a.level?a.level:'—')+'</div><div class="d">'+esc(a&&a.rule_ids?a.rule_ids.join(' / '):'—')+'</div></div>'+
+    '</div></div>';
+  h+='<div class="rs-grid2" style="margin-top:11px"><div class="box"><div class="bt">量化操作建议</div><div class="rs-advice">'+rsAdviceRows(a)+'</div></div>'+
+    '<div class="box"><div class="bt">日线 ↔ 周线联动</div><table class="tbl rs-weekly"><thead><tr><th>观察</th><th>日线</th><th>周线</th></tr></thead><tbody id="rsWeeklyBody"></tbody></table><div class="rs-note">日线不可用时只显示周线；行情恢复后自动补全日线。</div></div></div>';
+  h+='<div class="rs-note">技术面与预测依赖浏览器直连行情源；若被拦截，可稍后刷新或检查网络。</div>';
+  return h;
+}
+
 function rsRenderDetail(){
   var el=document.getElementById('rsDetail');
   if(!el) return;
   var code=RS_SELECTED||((HOLD.rows&&HOLD.rows[0])?String(HOLD.rows[0].code):null);
   if(!code){ el.innerHTML='<div class="notice">当前没有持仓。</div>'; return; }
   var row=(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
-  var l=legOf(code)||localLeg(code,row);
   var a=null;
   if(RS_ADV){ for(var i=0;i<RS_ADV.rows.length;i++){ if(String(RS_ADV.rows[i].r.code)===String(code)){ a=RS_ADV.rows[i].a; break; } } }
-  if(!l){ el.innerHTML='<div class="notice">'+esc(code)+' 行情不足，暂不展示个股结构。</div>'; return; }
   var c=rsChan(LBARS[code]);
   if(!c){
-    el.innerHTML='<div class="notice">'+esc(code)+' 日线数据不足（至少 30 根），暂不做结构判断。</div>';
+    /* 行情不可用时仍保留规则动作与关键价位，只把技术面标为不可用 */
+    el.innerHTML=rsDegradedCard(code,row,a);
+    rsRenderWeekly(code);
     return;
   }
   var sc=rsScore(c), lb=rsLabel(sc.comp);
@@ -2764,12 +2814,7 @@ function rsRenderDetail(){
   h+='<div class="rs-grid2" style="margin-top:11px"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点</span><div class="rs-legend">'+
     '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span><span style="color:var(--up)">▲ 买点</span><span style="color:var(--down)">▼ 卖点</span></div></div>'+
     '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas><div class="rs-note">红涨绿跌；笔与中枢按日线简化计算，非严格缠论级别递归划分，仅用于结构判断。</div></div>'+
-    '<div><div class="box"><div class="bt">量化操作建议</div><div class="rs-advice">'+
-      '<div class="ar"><span class="k">规则动作</span><span class="v"><b>'+esc(a?a.action_text:'—')+'</b></span></div>'+
-      '<div class="ar"><span class="k">参考仓位</span><span class="v">'+(a&&a.action==='CLEAR'?'0–10%':a&&a.action==='TRIM'?'10–20%':a&&a.action==='ADD'?'30–40%':'20–30%')+'（参考区间）</span></div>'+
-      '<div class="ar"><span class="k">买点</span><span class="v">'+(a&&a.entry!=null?f2(a.entry):'—')+'</span></div>'+
-      '<div class="ar"><span class="k">卖点 / 止损</span><span class="v">'+(a&&a.stop!=null?f2(a.stop):'—')+'</span></div>'+
-      '<div class="ar"><span class="k">说明</span><span class="v">'+esc((a&&a.price_note)||'价格是执行政策，不保证成交')+'</span></div>'+
+    '<div><div class="box"><div class="bt">量化操作建议</div><div class="rs-advice">'+rsAdviceRows(a)+
     '</div></div><div class="box"><div class="bt">日线 ↔ 周线联动</div><table class="tbl rs-weekly"><thead><tr><th>观察</th><th>日线</th><th>周线</th></tr></thead><tbody id="rsWeeklyBody"></tbody></table><div class="rs-note">周线定方向，日线找点位；周线数据失败时只显示日线。</div></div></div></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>单指标深度解析</div>';
