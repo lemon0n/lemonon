@@ -44,10 +44,30 @@ def classify(bench_bars):
         '20日年化波动 %.2f%% vs 60日 %.2f%%（%s）'
         % (vol20, vol60, '抬升' if vol_up else '未抬升'),
     ]
+
+    # 位置与赔率：近 120 日高低点，只用可观测价格，不给点位预测
+    win = c.tail(120)
+    high120 = float(win.max())
+    low120 = float(win.min())
+    up_room = high120 - last
+    down_room = last - low120
+    odds = round(up_room / down_room, 2) if down_room > 0 else None
+    pos = dict(high120=round(high120, 2), low120=round(low120, 2),
+               high_dist_pct=round((last / high120 - 1) * 100, 2),
+               low_dist_pct=round((last / low120 - 1) * 100, 2),
+               up_room_pct=round(up_room / last * 100, 2),
+               down_room_pct=round(down_room / last * 100, 2),
+               odds=odds,
+               span_pct=round((high120 - low120) / low120 * 100, 2) if low120 > 0 else None)
+    obs.append('近120日 高 %.2f / 低 %.2f（现价距高点 %.2f%%、距低点 %.2f%%）'
+               % (high120, low120, pos['high_dist_pct'], pos['low_dist_pct']))
     return dict(regime=regime, fit_lo=fit.get('lo'), fit_hi=fit.get('hi'),
                 observations=obs, as_of=str(bench_bars['date'].iloc[-1])[:10],
+                close=round(last, 2),
                 vol20=round(vol20, 2), vol60=round(vol60, 2),
-                ma20=round(float(ma20), 2), ma60=round(float(ma60), 2))
+                ma5=round(float(ma5), 2),
+                ma20=round(float(ma20), 2), ma60=round(float(ma60), 2),
+                position=pos)
 
 
 def compute(bench_bars, market=None, cfg=None):

@@ -895,7 +895,7 @@ function page5(){
   var h='<div class="pg-h"><h1>持仓分析</h1></div>';
   var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
   PDEC=buildPdec(p,s1,adv);
-  RS_PORT=p; RS_S1=s1; RS_ADV=adv;
+  RS_PORT=p; RS_S1=s1; RS_ADV=adv; adv5RowsCache=adv.rows;
   if(!HOLD.rows.length) return page5CashOnly(h+portfolioNav(),p,s1,adv,PDEC);
   h+=rsPageHTML(p,s1,adv);
   setTimeout(rsInit,0);
@@ -2102,13 +2102,7 @@ function changePass(){
 /* ================= 新版持仓研究页（三部分） ================= */
 var RS_PORT=null, RS_S1=null, RS_ADV=null, RS_SELECTED=null;
 var RS_WEEK={}, RS_TRIED={}, RS_WTRIED={}, RS_IDEA_TRIED={};
-var RS_IDEAS=[
-  {code:'512890',name:'红利低波ETF',dir:'红利 / 银行',why:'主线方向，组合暴露为 0；波动相对低',risk:'红利拥挤度上升'},
-  {code:'518880',name:'黄金ETF',dir:'黄金',why:'与权益相关性低，补分散',risk:'美元与利率反弹'},
-  {code:'511010',name:'国债ETF',dir:'债券',why:'现金之外的稳健缓冲',risk:'利率下行空间有限'},
-  {code:'513180',name:'恒生科技ETF',dir:'港股科技',why:'估值低，但趋势未确认',risk:'波动大、汇率与政策'},
-  {code:'159995',name:'芯片ETF',dir:'半导体',why:'超跌反弹候选，但板块仍在走弱',risk:'景气与外部限制'}
-];
+var RS_IDEAS=[];   /* 由观察池动态生成，见 buildIdeas() */
 var RS_SECTOR_MAP={
   '510300':[['银行',25],['食品饮料',18],['非银金融',12],['电子',10],['电力设备',8],['医药生物',7],['其他',20]],
   '510500':[['医药生物',15],['电子',15],['电力设备',12],['基础化工',8],['有色金属',8],['其他',42]],
@@ -2266,6 +2260,95 @@ function rsFetchWeekly(code,cb){
   setTimeout(function(){ fin(null); },9000);
 }
 
+/* 目标权重：来自仓位账本（v3 计划），找不到返回 null */
+function planTargetOf(code){
+  var pl=D.plan;
+  if(!pl||!pl.items) return null;
+  for(var i=0;i<pl.items.length;i++){
+    if(String(pl.items[i].code)===String(code)) return n(pl.items[i].target_weight);
+  }
+  return null;
+}
+function suggestedShares(r,w){
+  if(w==null||r.last==null) return null;
+  var total=n(HOLD.cash);
+  (HOLD.rows||[]).forEach(function(x){ total+=n(x.shares)*n(priceOf(x.code)&&priceOf(x.code).last||0); });
+  if(!(total>0)) return null;
+  return Math.floor(total*w/100/n(r.last)/100)*100;
+}
+/* 全市场位置：相对基准 5 日超额，附所属板块成交占比 */
+function marketPosText(r){
+  var l=r.leg, out=[];
+  if(l&&l.rs&&l.rs.known&&l.rs.excess5!=null){
+    out.push((l.rs.excess5>0?'强于':'弱于')+'基准 '+f2(Math.abs(l.rs.excess5))+'pct');
+  }
+  var sm=rsSectorMap(r.code,r.name,r.category);
+  if(sm&&sm[0]&&sm[0][0]&&sm[0][0]!=='未映射'){
+    var f=rsFindFlow(sm[0][0]);
+    if(f&&f.share!=null) out.push(sm[0][0]+'成交占比 '+f2(f.share)+'%');
+  }
+  return out.length?esc(out.join('；')):'—';
+}
+var NT_GROUP_OF={'510300':'沪深300','510050':'上证50','510500':'中证500',
+  '512100':'中证1000','588000':'科创50','159915':'创业板'};
+/* 国家队：该宽基份额近四周变化；无覆盖返回“未纳入” */
+function nationalTeamText(code){
+  var nt=D.market&&D.market.national_team;
+  var g=NT_GROUP_OF[String(code)];
+  if(!nt||!g||!nt.series||nt.series.length<2) return '—';
+  var s=nt.series, last=s[s.length-1], base=s[Math.max(0,s.length-5)];
+  var a=(last.groups||{})[g], b=(base.groups||{})[g];
+  if(a==null||b==null) return '未纳入';
+  var chg=(a/b-1)*100;
+  return esc(g+' '+(chg>0.5?'增持':(chg<-0.5?'减持':'持平'))+' '+f2(Math.abs(chg))+'%');
+}
+/* 今日点评：由当次数据生成（环境→结构→执行→改判），环境口径与第三部分同源 */
+function rsRenderBrief(p,s1){
+  var el=document.getElementById('rsBrief');
+  if(!el||!p) return;
+  var v=marketOutlook();
+  var pl=D.plan||{};
+  var pos=p.positionPct, anchor=pl.total_target;
+  var acts=(PDEC&&PDEC.orders)||[];
+  var cnt=(PDEC&&PDEC.orders)?PDEC.orders.length:0;
+  var LEVEL_RANK={D:0,C:1,B:2,A:3};
+  var weakest=null, weakRank=9;
+  (adv5RowsCache||[]).forEach(function(x){
+    var rk=LEVEL_RANK[(x.a&&x.a.level)||'B'];
+    if(rk==null) rk=2;
+    if(rk<weakRank){ weakRank=rk; weakest=x; }
+  });
+  var nt=D.market&&D.market.national_team;
+  var ntTxt='';
+  if(nt&&nt.series&&nt.series.length>4){
+    var s0=nt.series, a=s0[s0.length-1].groups||{}, b=s0[s0.length-5].groups||{};
+    var ta=a['全宽基合计'], tb=b['全宽基合计'];
+    if(ta&&tb){ var ch=(ta/tb-1)*100;
+      ntTxt='；宽基份额近四周合计 '+(ch>0.5?'增持':(ch<-0.5?'减持':'持平'))+' '+f2(Math.abs(ch))+'%'; }
+  }
+  var l1=v.session.label+'（'+v.session.focus+'）：大盘'+esc(v.regime)+'，今日定性 '+esc(v.verdict)+
+    '；'+(v.reasons[0]||'')+'。仓位 '+f2(pos)+'%，锚 '+(anchor==null?'—':f2(anchor)+'%')+
+    (anchor==null?'':'（'+(pos>anchor?'高于':'低于')+' '+f2(Math.abs(pos-anchor))+'pct）')+
+    '；温度 '+v.temp+'/100'+ntTxt+'。';
+  var l2='结构上 '+(adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='CLEAR';}).length+' 只触发退出、'+
+    (adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='TRIM';}).length+' 只减仓、'+
+    (adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='ADD';}).length+' 只可加仓；'+
+    '最弱 '+(weakest?esc(weakest.code)+'（'+esc((weakest.a&&weakest.a.action_text)||'—')+'）':'—')+'。';
+  var l3=cnt?('执行层面，今日 '+cnt+' 笔：'+acts.map(function(o){ return o.action+' '+o.code; }).join('、')+'；其余按差额不足 3pct 不动。'):
+    '执行层面，今日无订单：差额不足 3pct 或确认条件未齐。';
+  var l4='改判：'+(v.ma20==null?'基准数据恢复后重算':'基准收复 MA20 '+f2(v.ma20)+' 且 MA5 上穿 MA20 → 仓位锚上调；')+
+    '任一持仓跌破 MA30 两日 → 卖出该腿全部差额。';
+  var cf=outlookConflicts();
+  el.innerHTML='<div class="bt">今日点评</div>'+
+    '<div class="one sm" style="margin:0">'+l1+'</div>'+
+    '<div class="rs-note" style="margin-top:6px">'+l2+'</div>'+
+    '<div class="rs-note">'+l3+'</div>'+
+    '<div class="rs-note">'+l4+'</div>'+
+    (cf.length?'<div class="rs-note" style="color:#b45309">环境与动作存在分歧：'+
+      cf.map(function(x){ return esc(x[0])+' → '+esc(x[1]); }).join('；')+'</div>':'');
+}
+var adv5RowsCache=null;
+
 function rsPageHTML(p,s1,adv){
   var h='';
   h+='<div class="rs-sec"><span class="bar"></span>一、持仓概况</div>';
@@ -2276,50 +2359,64 @@ function rsPageHTML(p,s1,adv){
     kpi('当日盈亏',p.dayPnl==null?'—':col(p.dayPnl/p.totalAsset*100)+'　'+fy(p.dayPnl),'按最新价估算')+
     '</div>';
 
-  h+='<div class="rs-grid2" style="margin-top:11px">'+
-    '<div class="box"><div class="bt">仓位与现金</div>'+
-    '<div class="rs-bar-row"><span class="n">持仓 '+f2(p.positionPct)+'%</span><span class="t"><i style="width:'+rsClamp(n(p.positionPct),0,100)+'%"></i></span><span class="v">'+fy(p.totalPos)+'</span></div>'+
-    '<div class="rs-bar-row"><span class="n">现金 '+f2(p.cashPct)+'%</span><span class="t"><i style="width:'+rsClamp(n(p.cashPct),0,100)+'%"></i></span><span class="v">'+fy(p.cash)+'</span></div>'+
-    '<div class="rs-note">当前仓位相对模型区间 '+(s1.lo==null?'—':s1.lo+'~'+s1.hi+'%')+'，'+esc(posTxt(s1))+'。</div></div>'+
-    '<div class="box"><div class="bt">持仓类别</div><div id="rsPortrait" class="rs-note">加载中…</div></div>'+
-    '</div>';
+  /* 点评：由当次数据生成（市场 → 结构 → 动作 → 改判），不是固定模板 */
+  h+='<div class="box rs-brief" id="rsBrief" style="margin-top:11px">'+
+     '<div class="bt">今日点评</div><div class="rs-note">计算中…</div></div>';
 
-  h+='<div class="rs-sec"><span class="bar"></span>持仓建议</div>';
-  h+=planSection();
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本 → 现价</th><th class="r">浮动盈亏</th><th>建议</th><th>理由</th><th class="r">5/20日上涨占比</th></tr></thead><tbody>';
+  h+='<div class="box tight rs-scroll" style="margin-top:11px"><table class="tbl"><thead><tr>'+
+     '<th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重（现→目标）</th>'+
+     '<th class="r">数量（现→建议后）</th><th class="r">成本 → 现价</th><th class="r">盈亏</th>'+
+     '<th class="r">5/20日占比</th><th>全市场位置</th><th>国家队</th><th>动作</th>'+
+     '</tr></thead><tbody>';
   p.rows.forEach(function(r,i){
     var a=adv.rows[i]?adv.rows[i].a:null;
     var sm=rsSectorMap(r.code,r.name,r.category);
+    var tgt=planTargetOf(r.code);
+    var sug=suggestedShares(r,tgt);
     h+='<tr><td>'+esc(r.code)+'</td><td>'+esc(r.name)+'</td><td>'+esc(sm[0][0])+'</td>'+
-      '<td class="r">'+f2(r.weight)+'%</td><td class="r">'+f2(r.cost)+' → '+f2(r.last)+'</td>'+
-      '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'</td>'+
-      '<td>'+(a?tag(a.action_text,actKind(a.action)):'—')+'</td>'+
-      '<td>'+esc(rsReason(a,r))+'</td>'+
-      '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td></tr>';
+      '<td class="r">'+f2(r.weight)+'%'+(tgt==null?'':' → '+f2(tgt)+'%')+'</td>'+
+      '<td class="r">'+(r.shares==null?'—':Math.round(n(r.shares)).toLocaleString())+
+        (sug==null?'':' → '+sug.toLocaleString())+'</td>'+
+      '<td class="r">'+f2(r.cost)+' → '+f2(r.last)+'</td>'+
+      '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'<br><span class="muted">'+fy(r.pnl)+'</span></td>'+
+      '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td>'+
+      '<td>'+marketPosText(r)+'</td>'+
+      '<td>'+nationalTeamText(r.code)+'</td>'+
+      '<td>'+(a?tag(a.action_text,actKind(a.action)):'—')+'</td></tr>';
   });
-  h+='</tbody></table><div class="rs-note">上涨占比来自历史相似条件的统计（5 日 / 20 日），不是保证；样本不足时不显示。</div></div>';
-
-  var pa=(PDEC&&PDEC.portfolio_after)||{};
-  var fee=(PDEC&&PDEC.orders)?PDEC.orders.reduce(function(a,o){ return a+n(o.fee); },0):0;
-  h+='<div class="rs-grid2" style="margin-top:10px">'+
-    '<div class="box"><div class="bt">执行后估算</div><div class="kv">'+
-      '<span class="k">执行后仓位</span><span class="v">'+(pa.position_pct==null?'—':f2(pa.position_pct)+'%')+'</span>'+
-      '<span class="k">执行后现金</span><span class="v">'+(pa.cash_pct==null?'—':f2(pa.cash_pct)+'%')+'</span>'+
-      '<span class="k">剩余腿数</span><span class="v">'+(pa.legs==null?'—':pa.legs)+'</span>'+
-      '<span class="k">预计费用</span><span class="v">¥'+f2(fee)+'</span>'+
-      '<span class="k">约束校验</span><span class="v">'+(PDEC&&PDEC.violations&&PDEC.violations.length?('未通过 '+PDEC.violations.length+' 项'):'通过')+'</span>'+
-    '</div><div class="rs-note">按当前价格静态估算，不是成交回报；未成交与跳空会使实际值偏离。</div></div>'+
-    '<div class="box"><div class="bt">今日建议</div><div class="rs-advice">'+
-      '<div class="ar"><span class="k">组合</span><span class="v">'+esc(posTxt(s1))+'</span></div>'+
-      '<div class="ar"><span class="k">逐腿</span><span class="v">'+esc(PDEC&&PDEC.orders&&PDEC.orders.length?PDEC.orders.map(function(o){return o.action+' '+o.code;}).join('、'):'无，保持观察')+'</span></div>'+
-      '<div class="ar"><span class="k">原则</span><span class="v">先降风险，再调结构；不追高，不抄底。</span></div>'+
-    '</div></div></div>';
+  h+='</tbody></table><div class="rs-note">上涨占比来自历史相似条件统计（5/20 日），样本不足显示“样本不足”；目标权重来自仓位账本；建议后数量按目标权重与现价折算，100 份取整。</div></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
+
+  /* (1) 市场环境：大盘走势、热度、国家队、舆情（先环境，后组合，再个股） */
+  h+='<div class="rs-sub">1. 市场环境</div>';
+  var rg0=(D.market&&D.market.regime)||{}, br=(D.market&&D.market.breadth)||{};
+  h+='<div class="rs-grid2">'+
+    '<div class="box"><div class="bt">大盘走势</div>'+
+      '<div class="kv">'+
+        '<span class="k">状态</span><span class="v">'+esc(rg0.regime||'未知')+'</span>'+
+        '<span class="k">仓位锚</span><span class="v">'+(D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':(rg0.fit_lo==null?'—':rg0.fit_lo+'~'+rg0.fit_hi+'%'))+'</span>'+
+        '<span class="k">基准日</span><span class="v">'+esc(rg0.as_of||'—')+'</span>'+
+      '</div>'+
+      '<div class="rs-note">'+esc((rg0.observations||[]).join('；')||'基准数据不足')+'</div></div>'+
+    '<div class="box"><div class="bt">市场热度与舆情</div>'+
+      '<div class="kv">'+
+        '<span class="k">上涨/下跌</span><span class="v">'+n(br.advance)+' / '+n(br.decline)+'</span>'+
+        '<span class="k">成交额</span><span class="v">'+f2(br.amount_yi)+' 亿</span>'+
+        '<span class="k">情绪</span><span class="v">'+esc((D.market.sentiment||{}).label||'—')+' '+n((D.market.sentiment||{}).score)+'/100</span>'+
+        '<span class="k">消息面</span><span class="v">'+esc((D.market.news_sentiment||{}).label||'—')+' '+n((D.market.news_sentiment||{}).score)+'/100</span>'+
+      '</div>'+
+      '<div class="rs-note">热度只做环境定性，不生成个股动作。</div></div>'+
+    '</div>';
+  h+=nationalTeamSection();
+
+  h+='<div class="rs-sub">2. 组合情况</div>';
   h+='<div class="rs-grid2">'+
     '<div class="box"><div class="bt">组合板块结构</div><div id="rsSectorBars" class="rs-note">加载中…</div></div>'+
     '<div class="box"><div class="bt">集中度与结构</div><div id="rsRiskFacts" class="rs-note">加载中…</div></div>'+
     '</div>';
+  h+='<div class="box" style="margin-top:10px"><div class="bt">组合与市场是否一致</div>'+
+     '<div id="rsPortfolioRead" class="rs-note">加载中…</div></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>申万板块健康度</div>';
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>板块</th><th class="r">健康度</th><th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th></tr></thead><tbody id="rsSectorTable"></tbody></table><div class="rs-note">健康度按当日涨跌与成交占比估算，只描述板块状态，不是买卖信号。</div></div>';
@@ -2327,7 +2424,7 @@ function rsPageHTML(p,s1,adv){
   h+='<div class="rs-grid2" style="margin-top:11px"><div class="box"><div class="bt">宏观经济背景</div><table class="tbl"><thead><tr><th>指标</th><th>值</th></tr></thead><tbody id="rsMacroTable"></tbody></table></div>'+
     '<div class="box"><div class="bt">组合健康度</div><div id="rsHealthBars" class="rs-note">加载中…</div></div></div>';
 
-  h+='<div class="rs-sec"><span class="bar"></span>持仓个股</div>';
+  h+='<div class="rs-sub">3. 个股分析</div>';
   h+='<div class="rs-stockpick" id="rsStockPick">';
   p.rows.forEach(function(r,i){
     h+='<button type="button" class="'+(i===0?'on':'')+'" data-code="'+esc(r.code)+'" onclick="rsSelect(\''+esc(r.code)+'\')">'+esc(r.code)+' '+esc(r.name)+'</button>';
@@ -2335,13 +2432,19 @@ function rsPageHTML(p,s1,adv){
   h+='</div><div id="rsDetail"></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>三、市场洞察及方向</div>';
-  h+='<div class="rs-grid2"><div class="box"><div class="bt">市场整体后续方向</div><div id="rsMarketText" class="rs-note">加载中…</div></div>'+
-    '<div class="rs-temp"><div class="bt">市场温度</div><div class="th"><span class="tv" id="rsTemp">—</span><span class="tl">/ 100</span></div><div class="rs-tempbar"><i id="rsTempBar" style="left:50%"></i></div><div class="rs-marks"><span>冷 0</span><span>中性 50</span><span>热 100</span></div><div id="rsTempNote" class="rs-note"></div></div></div>';
+  h+='<div class="rs-sub">1. 今日定性（按时段）</div>';
+  h+='<div class="box"><div id="rsOutlook" class="rs-note">加载中…</div></div>';
 
-  h+='<div class="rs-sec"><span class="bar"></span>后续路径</div><div class="rs-dir" id="rsDir"></div>';
+  h+='<div class="rs-grid2" style="margin-top:10px">'+
+    '<div class="box"><div class="bt">2. 位置与赔率</div><div id="rsPos" class="rs-note">加载中…</div></div>'+
+    '<div class="box"><div class="bt">3. 情绪与主线</div><div id="rsMood" class="rs-note">加载中…</div></div>'+
+    '</div>';
 
-  h+='<div class="rs-sec"><span class="bar"></span>新板块 / 新基推荐</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">上涨占比是历史相似条件下的统计，不是收益保证；样本不足或趋势未确认时只写“观察”。</div></div>';
+  h+='<div class="rs-sub">4. 情景与触发</div>';
+  h+='<div class="box"><div id="rsDir" class="rs-dir">加载中…</div></div>';
+
+  h+='<div class="rs-sub">5. 新方向候选（受环境额度约束）</div>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自观察池（A/B 级、非持仓、相对基准不弱，同类别只留一只）；环境额度不足时只写“观察”。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
   return h;
 }
 
@@ -2375,6 +2478,7 @@ function rsVerdict(a,r,l){
 
 function rsAfterBars(){
   if(!RS_PORT) return;
+  rsRenderBrief(RS_PORT,RS_S1);
   rsRenderSector();
   rsRenderMacro();
   rsRenderMarket();
@@ -2385,6 +2489,7 @@ function rsAfterBars(){
 
 function rsInit(){
   if(!RS_PORT) return;
+  rsRenderBrief(RS_PORT,RS_S1);
   if(!RS_SELECTED){
     RS_SELECTED=(HOLD.rows&&HOLD.rows[0])?String(HOLD.rows[0].code):null;
   }
@@ -2587,6 +2692,22 @@ function rsRenderSector(){
       '<span class="k">持仓只数</span><span class="v">'+RS_PORT.rows.length+'</span>'+
       '<span class="k">类别</span><span class="v">'+esc(RS_PORT.rows.map(function(r){return r.category;}).filter(function(v,i,a){return a.indexOf(v)===i;}).join('、')||'—')+'</span></div>';
   }
+  var readEl=document.getElementById('rsPortfolioRead');
+  if(readEl){
+    var rg1=(D.market&&D.market.regime)||{};
+    var leaders=(rg1.leaders||[]);
+    var topName=top?top.sector:'';
+    var aligned=leaders.length?leaders.some(function(x){ return x&&(topName.indexOf(x)>=0||x.indexOf(topName)>=0); }):null;
+    var over=exp.rows.filter(function(x){ return x.pct>=25; }).map(function(x){ return x.sector; });
+    var under=exp.rows.filter(function(x){ return x.pct<=5&&x.pct>0; }).map(function(x){ return x.sector; });
+    var health=rsSectorHealth(exp);
+    var weakS=health.filter(function(x){ return x.state==='走弱'&&x.pct>=10; }).map(function(x){ return x.sector; });
+    readEl.innerHTML='最大暴露 '+esc(topName||'—')+' '+f2(top?top.pct:0)+'%，'+
+      (aligned==null?'主线数据不足，无法判断一致性':(aligned?'与当前主线（'+esc(leaders.join('、'))+'）方向一致':'与当前主线（'+esc(leaders.join('、'))+'）不一致'))+
+      '；'+(over.length?'超配：'+esc(over.join('、')):'无超配')+
+      '；'+(under.length?'低配：'+esc(under.join('、')):'无低配')+
+      (weakS.length?'；走弱但仍有暴露：'+esc(weakS.join('、'))+'（需要在个股层逐个收紧）':'')+'。';
+  }
   var body=document.getElementById('rsSectorTable');
   if(body){
     var rows=rsSectorHealth(exp).filter(function(x){ return x.pct>=1; });
@@ -2615,52 +2736,225 @@ function rsRenderMacro(){
   }).join(''):'<tr><td colspan="2" class="muted">宏观数据未接入</td></tr>';
 }
 
-function rsMarketView(){
+/* 交易时段（决定结论口径：盘前看隔夜，盘中看量能，盘后看次日） */
+function bjSession(){
+  var t=bjNow(), hm=t.substr(11,5);
+  var hh=Number(hm.substr(0,2)), mm=Number(hm.substr(3,2));
+  var wd=new Date(t.substr(0,10)+'T00:00:00Z').getUTCDay();
+  if(wd===0||wd===6) return {key:'weekend',label:'周末',focus:'下周策略与仓位盘点'};
+  var m=hh*60+mm;
+  if(m<5*60)   return {key:'night',label:'盘后（隔夜）',focus:'隔夜外围与次日预判'};
+  if(m<9*60+25)return {key:'pre',label:'盘前',focus:'隔夜消息与开盘预判'};
+  if(m<11*60+30)return {key:'intraday',label:'盘中',focus:'实时舆情与量能承接'};
+  if(m<13*60)  return {key:'midday',label:'午盘',focus:'上午复盘与下午前瞻'};
+  if(m<15*60)  return {key:'intraday',label:'盘中',focus:'尾盘量能与资金去向'};
+  return {key:'after',label:'盘后',focus:'次日预判与结构确认'};
+}
+/* 情绪条目：按名称取值，取不到返回 null */
+function sentItem(k){
+  var items=(D.market&&D.market.sentiment&&D.market.sentiment.items)||[];
+  for(var i=0;i<items.length;i++){ if(items[i].k===k) return items[i].v; }
+  return null;
+}
+/* 市场洞察唯一数据源：定性 / 位置赔率 / 情绪主线 / 情景触发
+   第一部分点评与第三部分方向都从这里取，不允许各算一套 */
+function marketOutlook(){
   var rg=(D.market&&D.market.regime)||{};
   var b=(D.market&&D.market.breadth)||{};
   var sent=(D.market&&D.market.sentiment)||{};
-  var obs=(rg.observations||[]).join(' ');
-  var ma20=rsMatchNum(obs,/MA20\s*([0-9.]+)/);
-  var ma60=rsMatchNum(obs,/MA60\s*([0-9.]+)/);
+  var ns=(D.market&&D.market.news_sentiment)||{};
   var regime=rg.regime||'未知';
-  var temp=sent.score!=null?n(sent.score):rsClamp(50+(n(b.up_ratio)-50)*0.8+(regime.indexOf('上行')>=0?10:(regime.indexOf('下行')>=0?-10:0)),0,100);
-  var text='中期'+(regime.indexOf('下行')>=0?'偏弱':(regime.indexOf('上行')>=0?'偏强':'震荡'))+'，'+
-    (regime.indexOf('下行')>=0?'短期有修复需求，但还没有确认反转。':'以结构机会为主，不追高。')+
-    ' 当前'+(ma20!=null?'基准 MA20 约 '+f2(ma20)+'，':'')+(ma60!=null?'MA60 约 '+f2(ma60)+'；':'')+
-    '上涨家数 '+n(b.advance)+'，下跌家数 '+n(b.decline)+'，成交额 '+f2(b.amount_yi)+' 亿。';
-  var dirs=[
-    {k:'偏弱延续',v:'跌破 '+(ma20!=null?f2(ma20*0.96):'前低'),x:'成交放大、下跌家数增加；先降仓位，不抄底。'},
-    {k:'震荡修复',v:(ma20!=null?f2(ma20*0.96)+' ~ '+f2(ma20):'区间内'),x:'成交缩量、上涨家数回升；做结构，不追高。'},
-    {k:'转强确认',v:'站上 '+(ma20!=null?f2(ma20):'MA20'),x:'MA5 上穿 MA20，上涨家数回到 50% 以上；再谈加仓。'}
+  var ma20=rg.ma20!=null?n(rg.ma20):null;
+  var ma60=rg.ma60!=null?n(rg.ma60):null;
+  var ma5=rg.ma5!=null?n(rg.ma5):null;
+  var pos=rg.position||null;
+  var adv=n(b.advance), dec=n(b.decline);
+  var breadthPct=(adv+dec)>0?adv/(adv+dec)*100:n(b.up_ratio);
+  var amtChg=b.amount_chg_pct==null?null:n(b.amount_chg_pct);
+  var sentScore=sent.score!=null?n(sent.score):null;
+  var newsScore=ns.score!=null?n(ns.score):null;
+
+  /* 温度：四项加权，分项写出来 */
+  var sS=sentScore==null?50:sentScore;
+  var amtScore=amtChg==null?50:rsClamp(50+amtChg*1.5,0,100);
+  var trendScore=rsClamp(50+(regime.indexOf('上行')>=0?15:(regime.indexOf('下行')>=0?-15:0)),0,100);
+  var temp=Math.round(rsClamp(sS*0.40+breadthPct*0.35+amtScore*0.15+trendScore*0.10,0,100));
+  var tempParts=['情绪 '+f2(sS)+'×40%','涨跌家数 '+f2(breadthPct)+'×35%',
+                 '成交额 '+f2(amtScore)+'×15%','趋势 '+f2(trendScore)+'×10%'];
+
+  /* 定性：可解释打分，三条依据同时列出 */
+  var score=0, reasons=[];
+  if(regime.indexOf('上行')>=0){ score+=2; reasons.push('基准处上行趋势，仓位锚偏高'); }
+  else if(regime.indexOf('下行')>=0){ score-=2; reasons.push('基准处下行趋势，仓位锚偏低'); }
+  else { reasons.push('基准处震荡区间，方向未定'); }
+  if(ma5!=null&&ma20!=null){
+    if(ma5>ma20){ score+=1; reasons.push('MA5 高于 MA20，短期均线对价格有支撑'); }
+    else{ score-=1; reasons.push('MA5 低于 MA20，短期均线压制'); }
+  }
+  if(breadthPct>55){ score+=1; reasons.push('上涨家数占 '+f2(breadthPct)+'%，赚钱面偏广'); }
+  else if(breadthPct<45){ score-=1; reasons.push('上涨家数占 '+f2(breadthPct)+'%，赚钱面偏窄'); }
+  else { reasons.push('上涨家数占 '+f2(breadthPct)+'%，多空接近均衡'); }
+  if(sentScore!=null&&sentScore>=65){ score+=1; reasons.push('情绪分 '+f2(sentScore)+'，偏暖'); }
+  else if(sentScore!=null&&sentScore<=35){ score-=1; reasons.push('情绪分 '+f2(sentScore)+'，偏冷'); }
+  var verdict=score>=2?'偏多':(score<=-2?'偏空':'震荡');
+  var vcls=verdict==='偏多'?'buy':(verdict==='偏空'?'sell':'');
+
+  /* 情绪与主线：恐慌判定、量能口径、主线是否扛过分歧 */
+  var panicTxt=sentItem('恐慌判定');
+  var streak=sentItem('连续普跌天数');
+  var limitTxt=sentItem('涨停/跌停');
+  var boards=sentItem('连板高度');
+  var node=sentItem('情绪节点');
+  var firstDiv=sentItem('首次分歧');
+  var leaders=(rg.leaders||[]).slice(0,3);
+  var laggards=(rg.laggards||[]).slice(0,3);
+  var mood=[];
+  mood.push('涨停/跌停 '+(limitTxt||'—')+(boards?'，连板高度 '+(boards||'—'):''));
+  mood.push('成交额 '+f2(b.amount_yi)+' 亿'+(amtChg==null?'':'，环比 '+(amtChg>0?'+':'')+f2(amtChg)+'%'+
+    (amtChg<-5?'（缩量：缩量下跌不计恐慌）':(amtChg>10?'（放量）':''))));
+  mood.push('恐慌判定 '+(panicTxt||'—')+(streak?'，连续普跌 '+(streak||'0'):''));
+  if(node) mood.push('情绪节点 '+(node||'—')+(firstDiv?'，首次分歧 '+(firstDiv||'—'):''));
+  var mainTxt='主线数据不足';
+  if(leaders.length){
+    var tailTxt;
+    if(node&&node.indexOf('一致')>=0){
+      tailTxt='：分歧已转一致，'+(firstDiv&&firstDiv.indexOf('已过')>=0?'首次分歧已过，':'')+
+        '具备“扛过分歧再反包”的条件，仍需次日不破 MA5 确认';
+    }else{
+      tailTxt='：尚未完成分歧后的反包确认';
+    }
+    mainTxt='主线 '+leaders.join('、')+tailTxt;
+  }
+  if(laggards.length) mainTxt+='；落后 '+laggards.join('、')+'（未跌够的不追反弹）';
+
+  /* 位置与赔率 */
+  var posTxt='';
+  if(pos&&pos.high120!=null){
+    var oddsTxt=pos.odds==null?'—':f2(pos.odds,1)+' : 1';
+    posTxt='近120日 高 '+f2(pos.high120)+' / 低 '+f2(pos.low120)+
+      '；现价距高点 '+f2(pos.high_dist_pct)+'%、距低点 '+f2(pos.low_dist_pct)+'%；'+
+      '向上空间 '+f2(pos.up_room_pct)+'%、向下空间 '+f2(pos.down_room_pct)+'%，赔率 '+oddsTxt+'。';
+  }
+
+  /* 情景：触发值来自真实均线与区间，不用写死系数 */
+  var low=pos&&pos.low120!=null?n(pos.low120):null;
+  var high=pos&&pos.high120!=null?n(pos.high120):null;
+  var last=rg.close!=null?n(rg.close):null;
+  var toMa20=(last!=null&&ma20)?(last/ma20-1)*100:null;
+  var scenarios=[
+    {k:'偏弱延续', v: low!=null?('收盘跌破 '+f2(low)):'跌破近120日低点',
+     x:'成交放大且下跌家数增加；按差额分批减，不抄底。',
+     trigger: low==null?'缺少前低':'现价距前低 '+f2(pos.low_dist_pct)+'%'},
+    {k:'震荡修复', v: (low!=null&&ma20!=null)?(f2(low)+' ~ '+f2(ma20)):'前低 ~ MA20',
+     x:'缩量、上涨家数回到 50% 上方；只调结构，不加总仓。',
+     trigger: toMa20==null?'缺少 MA20':('现价距 MA20 '+(toMa20>0?'+':'')+f2(toMa20)+'%')},
+    {k:'转强确认', v: ma20!=null?('站上 '+f2(ma20)+' 且 MA5 上穿 MA20'):'站上 MA20 且 MA5 上穿 MA20',
+     x:'上涨家数连续 2 日 >50%、成交额环比转正；差额可执行。',
+     trigger: toMa20==null?'缺少基准数据':('需再涨 '+f2(Math.abs(toMa20))+'% 才站上')}
   ];
-  return {regime:regime,temp:temp,text:text,dirs:dirs,ma20:ma20,ma60:ma60};
+
+  return {session:bjSession(), regime:regime, verdict:verdict, vcls:vcls, score:score,
+    reasons:reasons.slice(0,3), temp:temp, tempParts:tempParts, mood:mood, mainTxt:mainTxt,
+    posTxt:posTxt, pos:pos, ma20:ma20, ma60:ma60, ma5:ma5, scenarios:scenarios,
+    breadthPct:breadthPct, amountChg:amtChg, newsScore:newsScore};
 }
 
 function rsRenderMarket(){
-  var v=rsMarketView();
-  var text=document.getElementById('rsMarketText');
-  if(text) text.innerHTML=esc(v.text)+'<div class="rs-note">数据日 '+esc((D.meta&&D.meta.data_date)||'—')+'；市场状态只做风险过滤，不是涨跌预测。</div>';
-  var t=document.getElementById('rsTemp');
-  if(t) t.textContent=Math.round(v.temp);
-  var bar=document.getElementById('rsTempBar');
-  if(bar) bar.style.left=rsClamp(v.temp,0,100)+'%';
-  var note=document.getElementById('rsTempNote');
-  if(note) note.textContent='温度由情绪分、涨跌家数与趋势合成；当前 '+v.regime+'。';
+  var v=marketOutlook();
+  var s=v.session;
+  var el=document.getElementById('rsOutlook');
+  if(el){
+    el.innerHTML='<div class="rs-verdict" style="border-top-color:'+
+      (v.vcls==='sell'?'var(--down)':(v.vcls==='buy'?'var(--up)':'var(--blue-d)'))+'">'+
+      '<div class="vh"><span class="rs-pill '+v.vcls+'">今日定性：'+esc(v.verdict)+'</span>'+
+      '<span class="rs-pill">'+esc(s.label)+' · '+esc(s.focus)+'</span>'+
+      '<span class="rs-pill">数据日 '+esc((D.meta&&D.meta.data_date)||'—')+'</span></div>'+
+      '<p>'+esc(v.reasons.join('；'))+'。定性只看环境，不直接给个股动作。</p></div>';
+  }
+  var p=document.getElementById('rsPos');
+  if(p){
+    var oddsNote='赔率 = 向上空间 ÷ 向下空间，只描述位置，不预测何时到；现价贴近前低时赔率会显著放大，不代表发生可能性。';
+    p.innerHTML=(v.posTxt?'<div class="rs-note" style="margin-top:0">'+esc(v.posTxt)+'</div>':
+      '<div class="rs-note" style="margin-top:0">缺少基准高低点，位置与赔率不可用。</div>')+
+      '<div class="kv">'+
+      '<span class="k">MA5 / MA20 / MA60</span><span class="v">'+f2(v.ma5)+' / '+f2(v.ma20)+' / '+f2(v.ma60)+'</span>'+
+      '<span class="k">仓位锚</span><span class="v">'+(D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':((D.market.regime||{}).fit_lo==null?'—':(D.market.regime||{}).fit_lo+'~'+(D.market.regime||{}).fit_hi+'%'))+'</span>'+
+      '</div><div class="rs-note">'+esc(oddsNote)+'</div>';
+  }
+  var m=document.getElementById('rsMood');
+  if(m){
+    m.innerHTML='<div class="rs-note" style="margin-top:0">'+v.mood.map(function(x){ return '· '+esc(x); }).join('<br>')+'</div>'+
+      '<div class="rs-note" style="margin-top:6px">'+esc(v.mainTxt)+'</div>'+
+      '<div class="rs-temp" style="margin-top:8px"><div class="th"><span class="tv" id="rsTemp">'+v.temp+'</span><span class="tl">/ 100</span></div>'+
+      '<div class="rs-tempbar"><i id="rsTempBar" style="left:'+rsClamp(v.temp,0,100)+'%"></i></div>'+
+      '<div class="rs-marks"><span>冷 0</span><span>中性 50</span><span>热 100</span></div>'+
+      '<div class="rs-note" id="rsTempNote">温度 = '+esc(v.tempParts.join(' + '))+'</div></div>';
+  }
   var dir=document.getElementById('rsDir');
-  if(dir) dir.innerHTML=v.dirs.map(function(x){ return '<div class="d"><div class="k">'+esc(x.k)+'</div><div class="v">'+esc(x.v)+'</div><div class="x">'+esc(x.x)+'</div></div>'; }).join('');
+  if(dir){
+    dir.innerHTML='<table class="tbl"><thead><tr><th>情景</th><th>触发</th><th>当前距离</th><th>对应动作</th></tr></thead><tbody>'+
+      v.scenarios.map(function(x){
+        return '<tr><td>'+esc(x.k)+'</td><td>'+esc(x.v)+'</td><td>'+esc(x.trigger)+'</td><td>'+esc(x.x)+'</td></tr>';
+      }).join('')+'</tbody></table>'+
+      '<div class="rs-note">情景只写触发条件与对应动作，不预测发生概率；条件未触发时不提前动作。</div>';
+  }
 }
 
+/* 第三部分与第一部分的冲突：环境与动作方向相反时标出来 */
+function outlookConflicts(){
+  var v=marketOutlook(), out=[];
+  var acts=(PDEC&&PDEC.orders)||[];
+  var buys=acts.filter(function(o){ return o.action==='ADD'; }).length;
+  var sells=acts.filter(function(o){ return o.action==='CLEAR'||o.action==='TRIM'; }).length;
+  if(v.verdict==='偏空'&&buys){ out.push(['环境偏空 / 存在加仓','加仓需先满足周线不向下与确认条件，否则只观察']); }
+  if(v.verdict==='偏多'&&sells&&!buys){ out.push(['环境偏多 / 全是减仓','减仓按差额执行，环境不改变单只档位']); }
+  if(v.amountChg!=null&&v.amountChg<-5&&v.verdict==='偏多'){
+    out.push(['缩量 / 定性偏多','缩量下的偏多只作修复，不据此加总仓']);
+  }
+  return out;
+}
+
+/* 新方向候选：从观察池动态生成，排除已持仓、同类别只留一只；
+   额度不足时一律“观察”，不给买入建议，避免与组合层结论冲突。 */
+function buildIdeas(){
+  var held={}; (HOLD.rows||[]).forEach(function(r){ held[String(r.code)]=1; });
+  var pl=D.plan||{};
+  var pos=(RS_PORT&&RS_PORT.positionPct!=null)?n(RS_PORT.positionPct):null;
+  var room=(pl.total_target!=null&&pos!=null)?pl.total_target-pos:null;
+  var out=[], seen={};
+  (D.legs||[]).forEach(function(l){
+    var c=String(l.code);
+    if(held[c]) return;
+    if(l.level!=='A'&&l.level!=='B') return;
+    var cat=l.category||'未分类';
+    if(seen[cat]) return;
+    var ex=(l.rs&&l.rs.known)?l.rs.excess5:null;
+    if(ex!=null&&ex<0) return;
+    var sug,why,risk;
+    if(room==null){ sug='<span class="tag">观察</span>'; why='仓位账本不可用，不推买入'; risk='缺目标仓位'; }
+    else if(room<3){ sug='<span class="tag">观察</span>'; why='环境额度已用尽（剩余 '+f2(room)+'pct）'; risk='无额度时不新增'; }
+    else if(l.level==='A'){ sug='<span class="tag buy">可分批</span>'; why='规则 A 级；5 日相对基准 '+(ex==null?'—':(ex>0?'+':'')+f2(ex)+'pct'); risk='跌破 MA10 止损'; }
+    else { sug='<span class="tag warn">观察</span>'; why='B 级，等站上 MA10 与量能确认'; risk='趋势未确认'; }
+    seen[cat]=1;
+    out.push({code:c,name:l.name,dir:cat,sug:sug,why:why,risk:risk});
+  });
+  return out.slice(0,6);
+}
 function rsRenderIdeas(){
   var body=document.getElementById('rsIdeaBody');
   if(!body) return;
+  if(!RS_IDEAS.length) RS_IDEAS=buildIdeas();
+  if(!RS_IDEAS.length){
+    body.innerHTML='<tr><td colspan="9" class="muted">观察池中没有满足条件的候选（A/B 级、非持仓、相对基准不弱）。</td></tr>';
+  }else{
   body.innerHTML=RS_IDEAS.map(function(x){
     var f=rsForecast(LBARS[x.code]);
     var p5=f&&f.d5?f2(f.d5.p)+'%':'—';
     var p20=f&&f.d20?f2(f.d20.p)+'%':'—';
     var med=f&&f.d20?f2(f.d20.med)+'%':'—';
-    var sug=f&&f.d20?(f.d20.p>=55?'<span class="tag buy">分批关注</span>':(f.d20.p>=50?'<span class="tag warn">观察</span>':'<span class="tag">不追</span>')):'<span class="tag">观察</span>';
-    return '<tr><td>'+esc(x.dir)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td class="r">'+p5+'</td><td class="r">'+p20+'</td><td class="r">'+med+'</td><td>'+sug+'</td><td>'+esc(x.why)+'</td><td>'+esc(x.risk)+'</td></tr>';
+    return '<tr><td>'+esc(x.dir)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td class="r">'+p5+'</td><td class="r">'+p20+'</td><td class="r">'+med+'</td><td>'+x.sug+'</td><td>'+esc(x.why)+'</td><td>'+esc(x.risk)+'</td></tr>';
   }).join('');
+  }
   var body2=document.getElementById('rsRiskFacts');
   if(body2&&RS_PORT){
     var exp=rsSectorExposure(RS_PORT);

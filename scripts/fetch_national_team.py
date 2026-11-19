@@ -96,13 +96,6 @@ def _load():
         return None
 
 
-def merge_series(series, entry, keep=80):
-    """按日期去重（同日覆盖）并升序保留最近 keep 期。"""
-    by_date = {x['date']: x for x in series or []}
-    by_date[entry['date']] = entry
-    return sorted(by_date.values(), key=lambda x: x['date'])[-keep:]
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--weeks', type=int, default=30, help='回补最近多少周（默认 30）')
@@ -143,9 +136,10 @@ def main():
         print('[警告] 上交所份额接口不可用，保留上次数据', file=sys.stderr)
         return 0
 
-    series = []
+    series = {}
     for x in old['series']:
-        series = merge_series(series, x)
+        series[x['date']] = x
+    series = sorted(series.values(), key=lambda x: x['date'])[-80:]
     out = dict(as_of=series[-1]['date'], unit='亿份', order=ORDER + [TOTAL],
                source='上交所 ETF 份额披露（与 AKShare fund_etf_scale_sse 同源）',
                series=series,
