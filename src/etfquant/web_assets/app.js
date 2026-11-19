@@ -2335,6 +2335,31 @@ function rsCodeName(code){
   var nm=rsName(code);
   return '<b>'+esc(code)+'</b>'+(nm?' '+esc(nm):'');
 }
+/* 执行动作以风控规则为准；技术面只做参考，两者冲突时在文案里说清 */
+function rsActionLabel(a){
+  if(!a||a.data_status==='ABSTAIN') return {txt:'暂不操作',cls:'',code:null};
+  var map={CLEAR:'清仓退出',TRIM:'减仓',ADD:'加仓'};
+  var txt=a.action_text||map[a.action]||'继续持有';
+  var cls=(a.action==='CLEAR'||a.action==='TRIM')?'sell':(a.action==='ADD'?'buy':'');
+  return {txt:txt,cls:cls,code:a.action||'HOLD'};
+}
+function rsExecSentence(act,lb){
+  if(!act.code) return '数据不足，暂不给执行动作；技术面为'+lb.label+'。';
+  var bear=act.cls==='sell', bull=act.cls==='buy';
+  if(bear&&lb.idx>=2) return '技术面'+lb.label+'，看起来还能再等；但风控规则已触发「'+act.txt+'」，两者冲突时以风控为准，先降风险再谈结构。';
+  if(bull&&lb.idx<=2) return '技术面'+lb.label+'，尚未确认转折；风控规则允许「'+act.txt+'」，只做小仓位分批，不追高。';
+  if(bear) return '技术面与风控一致偏弱，执行「'+act.txt+'」；反弹只按中枢回抽处理，不主动加仓。';
+  if(bull) return '技术面与风控一致偏强，执行「'+act.txt+'」；回踩不破中枢下沿可继续持有。';
+  return '技术面'+lb.label+'，风控未要求调整，执行「'+act.txt+'」；等价格走出中枢再动手。';
+}
+function rsContribRow(name,score,weight){
+  var pos=score>=0, pct=Math.round(Math.abs(score)*100);
+  var contrib=weight==null?'—':((score*weight>=0?'+':'')+f2(score*weight));
+  var w=weight==null?'增强':Math.round(weight*100)+'%';
+  return '<div class="rs-contrib-row"><span class="n">'+esc(name)+'</span><span class="w">'+w+'</span>'+
+    '<span class="t"><i class="'+(pos?'':'neg')+'" style="width:'+rsClamp(pct,0,100)+'%"></i></span>'+
+    '<span class="v" style="color:'+(pos?'var(--up)':'var(--down)')+'">'+contrib+'</span></div>';
+}
 function rsDimRow(name,score,desc){
   var pos=score>=0, pct=Math.round(Math.abs(score)*100);
   return '<div class="rs-dim"><div class="rs-dim-h"><span class="rs-dim-n">'+esc(name)+'</span>'+
@@ -2436,7 +2461,7 @@ function rsPageHTML(p,s1,adv){
     '</div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>持仓建议</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本 → 现价</th><th class="r">浮动盈亏</th><th>技术结论</th><th>风控动作</th><th class="r">5/20日上涨占比</th></tr></thead><tbody>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>代码</th><th>名称</th><th>主要板块</th><th class="r">权重</th><th class="r">成本 → 现价</th><th class="r">浮动盈亏</th><th>技术面</th><th>执行动作</th><th class="r">5/20日上涨占比</th></tr></thead><tbody>';
   p.rows.forEach(function(r,i){
     var a=adv.rows[i]?adv.rows[i].a:null;
     var sm=rsSectorMap(r.code,r.name,r.category);
@@ -2447,7 +2472,7 @@ function rsPageHTML(p,s1,adv){
       '<td>'+(a?tag(a.action_text,actKind(a.action)):'—')+'</td>'+
       '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td></tr>';
   });
-  h+='</tbody></table><div class="rs-note">技术结论来自缠论多维结构，风控动作来自交易规则；两者可能不一致，规则动作优先执行。上涨占比来自历史相似条件的统计，不是保证。</div></div>';
+  h+='</tbody></table><div class="rs-note">「技术面」是缠论结构判断，「执行动作」是风控规则给出的结论；两者冲突时以执行动作为准，技术面只解释原因。上涨占比来自历史相似条件的统计，不是保证。</div></div>';
 
   var pa=(PDEC&&PDEC.portfolio_after)||{};
   var fee=(PDEC&&PDEC.orders)?PDEC.orders.reduce(function(a,o){ return a+n(o.fee); },0):0;
@@ -2594,21 +2619,31 @@ function rsRenderDetail(){
   var sector=(rsSectorMap(code,row.name,row.category)[0]||['未映射'])[0];
   var nar=rsNarrative(c,sc,lb,sector);
   var f=rsForecast(LBARS[code]);
+  var act=rsActionLabel(a);
+  var execLabel=act.code?act.txt:lb.label;
+  var execCls=act.code?act.cls:lb.cls;
+  var vcolor=execCls==='sell'?'var(--down)':(execCls==='buy'?'var(--up)':'var(--blue-d)');
+  var techColor=lb.cls==='sell'?'var(--down)':(lb.cls==='buy'?'var(--up)':'var(--blue-d)');
   var levels=['强烈看空','看空','中性观望','看多','强烈看多'];
-  var active=lb.idx;
-  var vcolor=lb.cls==='sell'?'var(--down)':(lb.cls==='buy'?'var(--up)':'var(--blue-d)');
+  var one=rsExecSentence(act,lb,nar.one);
+  var support=(function(){
+    var lo=c.bars.slice(-20).map(function(b){ return b.l; });
+    var m=Math.min.apply(null,lo);
+    return c.pivot&&c.pivot.zd<m?c.pivot.zd:m;
+  })();
   var h='<div class="rs-verdict" style="border-top-color:'+vcolor+'"><div class="vh">'+
-    '<span class="rs-pill '+lb.cls+'">结论：'+lb.label+'</span>'+
+    '<span class="rs-pill '+execCls+'">执行：'+esc(execLabel)+'</span>'+
+    '<span class="rs-pill '+lb.cls+'">技术面：'+lb.label+'</span>'+
     '<span class="rs-pill warn">信心 '+f2(sc.conf)+' / 10</span>'+
     '<span class="rs-pill">'+esc(code)+(rsName(code)?' '+esc(rsName(code)):'')+' · 日线 · '+esc((D.meta&&D.meta.data_date)||'—')+'</span>'+
-    (a?'<span class="rs-pill">风控动作：'+esc(a.action_text)+'</span>':'')+
     (f&&f.d5?'<span class="rs-pill">5日上涨占比 '+f2(f.d5.p)+'%</span>':'')+
-    '</div><div class="big" style="color:'+vcolor+'">'+lb.label+'</div>'+
-    '<div class="scale">'+levels.map(function(x,i){ return '<span class="'+(i===active?'on':'')+'">'+x+'</span>'; }).join('')+'</div>'+
-    '<p>'+esc(nar.one)+'</p>'+
+    '</div><div class="big" style="color:'+vcolor+'">'+esc(execLabel)+'</div>'+
+    '<div class="rs-scale-h">技术面五档</div>'+
+    '<div class="scale">'+levels.map(function(x,i){ return '<span class="'+(i===lb.idx?'on':'')+'" style="'+(i===lb.idx?'background:'+techColor+';border-color:'+techColor:'')+'">'+x+'</span>'; }).join('')+'</div>'+
+    '<p>'+esc(one)+'</p>'+
     '<div class="kpis">'+
-      '<div class="kpi"><div class="k">现价 / MA20</div><div class="v">'+f2(c.last)+' / '+(c.ma20==null?'—':f2(c.ma20))+'</div><div class="d">'+(c.last<c.ma20?'均线下方':'均线上方')+'</div></div>'+
       '<div class="kpi"><div class="k">中枢 ZD / ZG</div><div class="v">'+(c.pivot?f2(c.pivot.zd)+' / '+f2(c.pivot.zg):'未成形')+'</div><div class="d">'+(c.pivot?('价格在'+({above:'中枢上方',below:'中枢下方',inside:'中枢内'})[c.pos]):'笔数不足')+'</div></div>'+
+      '<div class="kpi"><div class="k">关键支撑</div><div class="v">'+f2(support)+'</div><div class="d">近 20 日低点</div></div>'+
       '<div class="kpi"><div class="k">结构失效位</div><div class="v">'+(c.pivot?(lb.idx>=3?f2(c.pivot.zd):f2(c.pivot.zg)):'—')+'</div><div class="d">收盘为准</div></div>'+
       '<div class="kpi"><div class="k">20日上涨占比</div><div class="v">'+(f&&f.d20?f2(f.d20.p)+'%':'—')+'</div><div class="d">'+(f&&f.d20?('样本 '+f.d20.n):'样本不足')+'</div></div>'+
     '</div></div>';
@@ -2630,6 +2665,22 @@ function rsRenderDetail(){
     rsDimRow('技术指标',sc.tech,rsTechDesc(c))+
     '</div>';
 
+  h+='<div class="rs-grid2" style="margin-top:11px"><div class="box"><div class="bt">多维信号贡献</div>'+
+    rsContribRow('缠论',sc.chan,0.4)+
+    rsContribRow('K线形态',sc.kline,0.2)+
+    rsContribRow('资金流向',sc.flow,0.2)+
+    rsContribRow('成交量',sc.vol,0.2)+
+    rsContribRow('技术指标',sc.tech,null)+
+    '<div class="rs-note">加权分只用于解释，不直接生成动作；缠论强信号优先，其他维度只能降级、不能反转。</div></div>'+
+    '<div class="box"><div class="bt">缠论结构速览</div>'+
+      '<div class="rs-advice">'+
+      '<div class="ar"><span class="k">笔</span><span class="v">'+esc(c.direction==='up'?'向上笔':'向下笔')+'，共 '+c.strokes.length+' 笔</span></div>'+
+      '<div class="ar"><span class="k">中枢</span><span class="v">'+(c.pivot?('ZD '+f2(c.pivot.zd)+' / ZG '+f2(c.pivot.zg)+'，价格在'+({above:'中枢上方',below:'中枢下方',inside:'中枢内'})[c.pos]):'未成形')+'</span></div>'+
+      '<div class="ar"><span class="k">背驰</span><span class="v">'+esc(c.divergence?c.divergence.desc:'未出现')+'</span></div>'+
+      '<div class="ar"><span class="k">买卖点</span><span class="v">'+(c.points.length?c.points.map(function(p){ return (p.kind==='buy'?'买点 ':'卖点 ')+p.label; }).join('、'):'暂无')+'</span></div>'+
+      '<div class="ar"><span class="k">均线</span><span class="v">MA5 '+(c.ma5==null?'—':f2(c.ma5))+' / MA20 '+(c.ma20==null?'—':f2(c.ma20))+'</span></div>'+
+      '</div><div class="rs-note">分型与笔按日线简化处理，不是严格的级别递归划分。</div></div></div>';
+
   h+='<div class="rs-grid2" style="margin-top:11px"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点</span><div class="rs-legend">'+
     '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span><span style="color:var(--up)">▲ 买点</span><span style="color:var(--down)">▼ 卖点</span></div></div>'+
     '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas><div class="rs-note">红涨绿跌；笔与中枢按日线简化计算，非严格缠论级别递归划分，仅用于结构判断。</div></div>'+
@@ -2646,6 +2697,15 @@ function rsRenderDetail(){
 
   h+='<div class="rs-sec"><span class="bar"></span>多指标共振矩阵 <span class="rs-hint">缠论为锚，指标为辅，不把票数变成动作</span></div>';
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>维度</th><th>当前观察</th><th>对当前结论</th><th>数据状态</th></tr></thead><tbody>'+rsMatrixRows(c,lb,row)+'</tbody></table></div>';
+
+  h+='<div class="rs-sec"><span class="bar"></span>缠论方法论四模块</div>';
+  h+='<div class="rs-method">'+
+    rsMethodCard('理论','分型 / 笔 / 线段 / 中枢 / 走势类型 / 背驰 / 三类买卖点 / 级别递归。')+
+    rsMethodCard('识别','a+A+b+B+c 趋势结构；中枢 ZD/ZG；买卖点 ★/▲；背驰段标注。')+
+    rsMethodCard('决策','定级别 → 取数 → 分型笔线段 → 定中枢 → 判走势 → 定位买卖点 → 背驰确认。')+
+    rsMethodCard('风控','级别风控、背驰失效、小转大、中阴阶段、结构失效位与止损纪律。')+
+    '</div>';
+  h+='<div class="rs-note">本页为技术分析，不构成投资建议；仓位区间是按信号强度给出的参考，不是收益承诺。</div>';
 
   el.innerHTML=h;
   rsDrawChart(code);
@@ -2736,6 +2796,9 @@ function rsMatrixRows(c,lb,row){
   }).join('');
 }
 
+function rsMethodCard(k,v){
+  return '<div class="m"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div></div>';
+}
 function rsRenderWeekly(code){
   var body=document.getElementById('rsWeeklyBody');
   if(!body) return;
@@ -2747,12 +2810,24 @@ function rsRenderWeekly(code){
   var dMa20=dc.length>=20?dc.slice(-20).reduce(function(a,b){return a+b;},0)/20:null;
   var wMa5=wc.length>=5?wc.slice(-5).reduce(function(a,b){return a+b;},0)/5:null;
   var wMa20=wc.length>=20?wc.slice(-20).reduce(function(a,b){return a+b;},0)/20:null;
+  function macdTxt(arr){
+    if(!arr||arr.length<27) return '—';
+    var m=rsMacdArr(arr), n=m.hist.length;
+    return (m.hist[n-1]>0?'红柱':'绿柱')+(m.hist[n-1]>m.hist[n-2]?'缩短':'放大');
+  }
+  function structTxt(c){
+    if(!c) return '不可用';
+    var pos=c.pivot?({above:'中枢上方',below:'中枢下方',inside:'中枢内'})[c.pos]:'中枢未成形';
+    return (c.direction==='up'?'向上笔':'向下笔')+'，'+pos;
+  }
   var rows=[
     ['收盘',dLast==null?'—':f2(dLast),wLast==null?'—':f2(wLast)],
     ['MA5',dMa5==null?'—':f2(dMa5),wMa5==null?'—':f2(wMa5)],
     ['MA20',dMa20==null?'—':f2(dMa20),wMa20==null?'—':f2(wMa20)],
     ['方向',dLast!=null&&dMa20!=null?(dLast>dMa20?'均线上方':'均线下方'):'—',wLast!=null&&wMa20!=null?(wLast>wMa20?'向上':'向下'):'不可用'],
-    ['RSI14',rsRsi(dc,14)==null?'—':f2(rsRsi(dc,14)),rsRsi(wc,14)==null?'—':f2(rsRsi(wc,14))]
+    ['MACD',macdTxt(dc),macdTxt(wc)],
+    ['RSI14',rsRsi(dc,14)==null?'—':f2(rsRsi(dc,14)),rsRsi(wc,14)==null?'—':f2(rsRsi(wc,14))],
+    ['结构',structTxt(rsChan(d)),structTxt(rsChan(w))]
   ];
   body.innerHTML=rows.map(function(r){ return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>'; }).join('');
 }
