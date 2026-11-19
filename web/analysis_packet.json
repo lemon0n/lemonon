@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261120T071846-de2182c16b861dd2",
+  "run_id": "20261120T071911-de2182c16b861dd2",
   "status": "OK",
-  "generated_at": "2026-11-20 07:18:46",
+  "generated_at": "2026-11-20 07:19:11",
   "data_date": "2026-11-19",
-  "code_version": "6f5d02f",
+  "code_version": "ceb229b",
   "config_hash": "7dc121bf9c53564c",
   "input_hash": "de2182c16b861dd2",
   "data_quality": {
@@ -19,7 +19,7 @@
     "premium_ok": false,
     "market_snapshot": true,
     "sector_snapshot": false,
-    "checked_at": "2026-11-20 07:18:48"
+    "checked_at": "2026-11-20 07:19:13"
   },
   "regime": {
     "regime": "下行趋势",
