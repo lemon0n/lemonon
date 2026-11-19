@@ -24,6 +24,7 @@ from .datasource import loader
 from .indicators import analyze
 from .signals import market_regime, relative_strength
 from .portfolio import watchlist
+from .portfolio import plan_v3
 from .portfolio.analysis import evidence_card as analysis_card
 from . import methodology as M
 from . import pricing as P
@@ -85,6 +86,7 @@ def run(use_live=True, strict=False, write_packet=True):
 
     # ---- 逐腿：数据质量 → 特征 → 相对强弱 → 唯一决策 ----
     legs, leg_payloads = [], []
+    bars_by_code = {}
     for r, bars, bench_code, b_bars in raw:
         code = r['code']
         is_syn = (src.get('channels', {}).get('daily') or {}).get(code) != 'live'
@@ -101,12 +103,13 @@ def run(use_live=True, strict=False, write_packet=True):
         if dec.get('demo'):
             # DEMO：仅展示规则会命中什么，动作一律 ABSTAIN
             legs.append(dict(code=code, name=r['name'], category=r['category'],
-                             track=r.get('track'), benchmark=bench_code,
-                             settle=r.get('settle', 'T+1'),
-                             feature=f, rs=rs, decision=dec, quality=q,
-                             price=P.prices('HOLD', f, universe.precision(cfg['universe']))))
+                         track=r.get('track'), benchmark=bench_code,
+                         settle=r.get('settle', 'T+1'),
+                         feature=f, rs=rs, decision=dec, quality=q,
+                         price=P.prices('HOLD', f, universe.precision(cfg['universe']))))
             leg_payloads.append(dict(code=code, data_date=q['last_date'],
                                      quality=q['status']))
+            bars_by_code[code] = bars
             continue
 
         legs.append(dict(code=code, name=r['name'], category=r['category'],
@@ -118,6 +121,7 @@ def run(use_live=True, strict=False, write_packet=True):
                                         universe.precision(cfg['universe']))))
         leg_payloads.append(dict(code=code, data_date=q['last_date'],
                                  quality=q['status']))
+        bars_by_code[code] = bars
 
     if not legs:
         raise RuntimeError('全部观察标的计算失败：%s' % '；'.join(loader.source_report()['fallback']))
@@ -219,7 +223,9 @@ def run(use_live=True, strict=False, write_packet=True):
         pkt['status'] = 'ERROR'
         pkt['validation']['blocked'] = True
 
-    data = webgen.build_data(market, sectors, regime, legs, cfg, meta, packet=pkt)
+    data = webgen.build_data(market, sectors, regime, legs, cfg, meta, packet=pkt,
+                             plan=plan_v3.build(bars_by_code, bench, regime,
+                                                {l['code']: l['name'] for l in legs}))
     out = webgen.render(data, cfg)
     if write_packet:
         runs_dir = os.path.join(config.ROOT, 'data', 'runs')

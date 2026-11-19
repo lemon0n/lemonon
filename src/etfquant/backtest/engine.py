@@ -94,8 +94,12 @@ def _feature_dicts(f, warm):
     return out
 
 
-def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
-    """多标的组合走查。返回 trades / equity / legs / stats。"""
+def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None, entry_filter=None):
+    """多标的组合走查。返回 trades / equity / legs / stats。
+
+    entry_filter(code, date, feats_df, i) -> bool 为可选的加仓过滤器：
+    只在规则已给出 ADD 时调用，返回 False 则放弃该次加仓；不影响 CLEAR/TRIM。
+    """
     cfg = cfg or config.cfg()
     p = dict(DEFAULT_PARAMS, **(p or {}))
     feats = {c: build_features(df, cfg) for c, df in bars_by_code.items()}
@@ -213,6 +217,19 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
                     continue
                 frac = 1.0 if act == 'CLEAR' else 0.5
                 sh = leg['shares'] if act == 'CLEAR' else int(leg['shares'] * frac / lot) * lot
+                # 核心底仓：仅对指定代码生效，卖出时保留不低于该权重；默认关闭
+                core = float(p.get('core_weight_pct') or 0.0)
+                core_codes = p.get('core_codes') or []
+                if core > 0 and code in core_codes:
+                    eq = total_equity_open(d)
+                    keep = int(eq * core / 100.0 /
+                               (px * (1 - p['slippage_bps'] / 10000.0)) / lot) * lot
+                    keep = min(keep, leg['shares'])
+                    if act == 'CLEAR':
+                        sh = leg['shares'] - keep
+                    else:
+                        sh = min(sh, max(0, leg['shares'] - keep))
+                    sh = int(sh / lot) * lot
                 if sh <= 0:
                     continue
                 fill_px = px * (1 - p['slippage_bps'] / 10000.0)
@@ -250,6 +267,8 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
                 continue
             dec = M.decide(feat, data_status='OK')
             act = dec['action']
+            if act == 'ADD' and entry_filter is not None and not entry_filter(code, d, f, i):
+                continue                  # 结构过滤只影响加仓，不影响退出规则
             if any(x['code'] == code and x['action'] == act for x in pending):
                 continue                  # 同一标的同方向不重复挂单
             if code in legs:
@@ -296,6 +315,350 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
                 partial_sells=partial_sells, unrealized=round(unrealized, 2),
                 unrealized_rows=unrealized_rows, stale_days=len(set(stale_rows)),
                 params=p)
+
+
+# ---------------------------------------------------------------------------
+# v3：状态 → 目标仓位 → 差额执行（研究路径，不改变线上规则）
+# ---------------------------------------------------------------------------
+
+V3_DEFAULTS = dict(
+    total_target_vol=15.0,      # 目标年化波动，用于波动系数
+    gap_threshold_pct=3.0,      # 差额小于该值不动
+    max_buy_gap_pct=15.0,       # 单次买入不超过组合的该比例
+    hard_stop_pct=-12.0,        # 相对成本的硬止损
+    top_n=None,                 # 每日候选数，None 表示用 max_legs
+)
+
+
+def _ema(s, span):
+    return s.ewm(span=span, adjust=False).mean()
+
+
+def _v3_indicators(df):
+    """v3 需要的指标：MA10/20/30/60、MACD、连续跌破、周/月方向、评分。"""
+    c = pd.to_numeric(df['close'], errors='coerce').astype(float)
+    v = pd.to_numeric(df['volume'], errors='coerce').astype(float)
+    ma5 = c.rolling(5).mean()
+    ma10 = c.rolling(10).mean()
+    ma20 = c.rolling(20).mean()
+    ma30 = c.rolling(30).mean()
+    ma60 = c.rolling(60).mean()
+    r = c.pct_change()
+    vol20 = r.rolling(20).std() * np.sqrt(252) * 100
+
+    dif = _ema(c, 12) - _ema(c, 26)
+    dea = _ema(dif, 9)
+    macd_pos = dif > dea
+    macd_cross = macd_pos & (~macd_pos.shift(1).fillna(False))
+
+    below20 = (c < ma20).fillna(False).values
+    below30 = (c < ma30).fillna(False).values
+    run20 = np.zeros(len(c), dtype=int)
+    run30 = np.zeros(len(c), dtype=int)
+    a = b = 0
+    for i in range(len(c)):
+        a = a + 1 if below20[i] else 0
+        b = b + 1 if below30[i] else 0
+        run20[i] = a
+        run30[i] = b
+
+    # 资金流入代理：连续 2 日「收涨且成交量高于前 5 日均量」
+    up = (c > c.shift(1)).fillna(False)
+    vavg = v.rolling(5).mean().shift(1)
+    inflow = (up & (v > vavg)).fillna(False).values
+    inflow2 = np.zeros(len(c), dtype=bool)
+    for i in range(1, len(c)):
+        inflow2[i] = bool(inflow[i] and inflow[i - 1])
+
+    # 周线 / 月线方向（只用已结束的周期，避免前视）
+    dt = pd.to_datetime(df['date'])
+    tmp = pd.Series(c.values, index=dt)
+    wk = tmp.resample('W-FRI').last().dropna()
+    wk_ma20 = wk.rolling(20).mean()
+    wk_up = (wk > wk_ma20)
+    mo = tmp.resample('ME').last().dropna()
+    mo_ma20 = mo.rolling(20).mean()
+    mo_bull = (mo > mo_ma20)
+
+    score = np.full(len(c), 50.0)
+    for i in range(len(c)):
+        s = 50.0
+        if c.iloc[i] > ma20.iloc[i]:
+            s += 15
+        else:
+            s -= 15
+        if ma5.iloc[i] > ma10.iloc[i] > ma20.iloc[i]:
+            s += 10
+        if ma5.iloc[i] < ma10.iloc[i] < ma20.iloc[i]:
+            s -= 10
+        if c.iloc[i] > ma60.iloc[i]:
+            s += 5
+        if bool(df['close'].iloc[i] <= df['low'].rolling(20).min().iloc[i]):
+            s -= 10
+        score[i] = min(100.0, max(0.0, s))
+
+    return dict(date=dt.values, close=c.values, open=pd.to_numeric(
+        df['open'], errors='coerce').astype(float).values,
+        ma5=ma5.values, ma10=ma10.values, ma20=ma20.values,
+        ma30=ma30.values, ma60=ma60.values, vol20=vol20.values,
+        macd_pos=macd_pos.values, macd_cross=macd_cross.values,
+        below20_2d=run20 >= 2, below30_2d=run30 >= 2, inflow2=inflow2,
+        score=score, wk_idx=wk.index.values, wk_up=wk_up.values,
+        mo_idx=mo.index.values, mo_bull=mo_bull.values)
+
+
+def _v3_regime_series(bench_df):
+    """基准日线 → 每日 regime / 目标总仓位（区间中枢）。"""
+    c = pd.to_numeric(bench_df['close'], errors='coerce').astype(float)
+    ma5 = c.rolling(5).mean()
+    ma20 = c.rolling(20).mean()
+    ma60 = c.rolling(60).mean()
+    r = c.pct_change()
+    vol20 = r.rolling(20).std() * np.sqrt(252) * 100
+    vol60 = r.rolling(60).std() * np.sqrt(252) * 100
+    fit = {'上行趋势': 85.0, '震荡区间': 65.0, '下行趋势': 35.0,
+           '上行趋势·波动抬升': 65.0, '下行趋势·波动抬升': 25.0}
+    out = {}
+    for i in range(len(c)):
+        last = c.iloc[i]
+        if not np.isfinite(last) or not np.isfinite(ma60.iloc[i]):
+            out[pd.Timestamp(bench_df['date'].iloc[i]).date()] = (None, None)
+            continue
+        if last > ma60.iloc[i] and ma5.iloc[i] > ma20.iloc[i]:
+            base = '上行趋势'
+        elif last < ma60.iloc[i] and ma5.iloc[i] < ma20.iloc[i]:
+            base = '下行趋势'
+        else:
+            base = '震荡区间'
+        up = bool(np.isfinite(vol20.iloc[i]) and np.isfinite(vol60.iloc[i])
+                  and vol20.iloc[i] > vol60.iloc[i] * 1.25)
+        key = base + ('·波动抬升' if up else '')
+        out[pd.Timestamp(bench_df['date'].iloc[i]).date()] = (key, fit.get(key))
+    return out
+
+
+def _v3_pick(series, when, default):
+    """在升序时间序列里取「严格早于 when」的最后一个值（不看未来）。"""
+    idx, vals = series
+    if idx is None or not len(idx):
+        return default
+    pos = int(np.searchsorted(idx, np.datetime64(pd.Timestamp(when)), side='left')) - 1
+    if pos < 0:
+        return default
+    return vals[pos]
+
+
+def run_portfolio_v3(bars_by_code, p=None, cfg=None, bench_code=None):
+    """v3 组合走查：每日算目标仓位，只有差额超过阈值才交易。
+
+    与 v2 的差别：
+      · 不是「规则触发 → 固定动作」，而是「状态 → 目标权重 → 差额」；
+      · 买入需周线不向下且至少 2 条确认；
+      · 卖出按 MA10/MA20/MA30/MA60 分级，只卖差额，不整仓清零；
+      · 无固定底仓，靠目标仓位与差额执行避免每天清仓。
+    """
+    cfg = cfg or config.cfg()
+    p = dict(DEFAULT_PARAMS, **V3_DEFAULTS, **(p or {}))
+    codes = list(bars_by_code)
+    if not codes:
+        return dict(trades=[], equity=None, legs={}, reason='no_bars')
+    bench_code = bench_code or ('510300' if '510300' in bars_by_code else codes[0])
+    ind = {c: _v3_indicators(bars_by_code[c]) for c in codes}
+    pos_of = {c: {pd.Timestamp(d).date(): i for i, d in enumerate(ind[c]['date'])}
+              for c in codes}
+    regime = _v3_regime_series(bars_by_code[bench_code])
+
+    dates = sorted(set().union(*[set(pos_of[c]) for c in codes]))
+    lot = int(p['lot_size'])
+    top_n = int(p['top_n'] or p['max_legs'])
+
+    legs, trades, partial = {}, [], 0
+    orders = []          # 上一交易日收盘生成，今日开盘执行
+    equity_rows = []
+    cash = float(p['initial_cash'])
+
+    def px_close(code, d):
+        i = pos_of[code].get(d)
+        return None if i is None else float(ind[code]['close'][i])
+
+    def px_open(code, d):
+        i = pos_of[code].get(d)
+        if i is None:
+            return None
+        o = ind[code]['open'][i]
+        return float(o) if np.isfinite(o) and o > 0 else float(ind[code]['close'][i])
+
+    def eq_close(d):
+        v = cash
+        for code, leg in legs.items():
+            px = px_close(code, d)
+            if px is not None:
+                v += leg['shares'] * px
+        return v
+
+    for d in dates:
+        # ---- 1) 执行昨日订单（今日开盘） ----
+        for od in orders:
+            code, side, gap = od['code'], od['side'], od['gap']
+            px = px_open(code, d)
+            if px is None:
+                continue
+            eq = cash + sum(lg['shares'] * (px_open(cc, d) or 0)
+                            for cc, lg in legs.items())
+            if eq <= 0:
+                continue
+            if side == 'buy':
+                budget = min(eq * min(gap, float(p['max_buy_gap_pct'])) / 100.0, cash)
+                fill = px * (1 + p['slippage_bps'] / 10000.0)
+                sh = int(budget / (fill * (1 + p['fee_bps'] / 10000.0)) / lot) * lot
+                while sh >= lot:
+                    notional = sh * fill
+                    fee = _fee(notional, p)
+                    if notional + fee <= cash:
+                        break
+                    sh -= lot
+                if sh >= lot:
+                    notional = sh * fill
+                    fee = _fee(notional, p)
+                    cash -= notional + fee
+                    if code in legs:
+                        lg = legs[code]
+                        old = lg['shares']
+                        lg['entry_px'] = (lg['entry_px'] * old + fill * sh) / (old + sh)
+                        lg['shares'] = old + sh
+                        lg['cost'] += notional
+                        lg['entry_fee'] += fee
+                    else:
+                        legs[code] = dict(shares=sh, entry_px=fill, entry_date=d,
+                                          cost=notional, realized=0.0, entry_fee=fee,
+                                          exit_fee=0.0, sold=0, reason=od['reason'])
+            else:
+                lg = legs.get(code)
+                if not lg:
+                    continue
+                want = int(eq * min(gap, 100.0) / 100.0 / px / lot) * lot
+                sh = min(want, lg['shares'])
+                if sh <= 0:
+                    continue
+                fill = px * (1 - p['slippage_bps'] / 10000.0)
+                notional = sh * fill
+                fee = _fee(notional, p)
+                cash += notional - fee
+                lg['shares'] -= sh
+                lg['realized'] += (fill - lg['entry_px']) * sh - fee
+                lg['exit_fee'] += fee
+                lg['sold'] += sh
+                if lg['shares'] <= 0:
+                    trades.append(dict(code=code, entry_date=lg['entry_date'],
+                                       exit_date=d, entry=lg['entry_px'], exit=fill,
+                                       shares=lg['sold'],
+                                       fee=round(lg['entry_fee'] + lg['exit_fee'], 2),
+                                       reason_in=lg['reason'], reason_out=od['reason'],
+                                       pnl=round(lg['realized'] - lg['entry_fee'], 2),
+                                       pnl_pct=round((fill / lg['entry_px'] - 1) * 100, 2)))
+                    del legs[code]
+                else:
+                    partial += 1
+        orders = []
+
+        # ---- 2) 收盘：计算目标权重与差额 ----
+        eq = eq_close(d)
+        if eq <= 0:
+            equity_rows.append(dict(date=pd.Timestamp(d), value=cash, cash=cash,
+                                    positions=len(legs), stale=False))
+            continue
+        total_target = regime.get(d, (None, None))[1]
+        if total_target is None:
+            total_target = 65.0          # 基准数据不足：中性仓位，不空仓
+
+        # 候选评分（含现有持仓，避免因排名抖动被动清仓）
+        cand = {}
+        for code in codes:
+            i = pos_of[code].get(d)
+            if i is None or not np.isfinite(ind[code]['ma60'][i]):
+                continue
+            sc = float(ind[code]['score'][i])
+            vol = ind[code]['vol20'][i]
+            volf = 1.0 if not np.isfinite(vol) or vol <= 0 else min(
+                1.0, float(p['total_target_vol']) / float(vol))
+            cand[code] = (0.6 + 0.4 * sc / 100.0) * volf
+        if not cand:
+            equity_rows.append(dict(date=pd.Timestamp(d), value=eq, cash=cash,
+                                    positions=len(legs), stale=False))
+            continue
+        ranked = sorted(cand, key=lambda c: cand[c], reverse=True)
+        rank = {c: i for i, c in enumerate(ranked)}
+        # 候选 = 前 top_n；已有持仓多给 2 名缓冲，避免排名抖动导致反复进出；
+        # 掉出缓冲区的旧持仓目标设为 0，逐步卖出，仓位才能完整闭环。
+        keep = set(ranked[:top_n]) | set(c for c in legs if rank.get(c, 10 ** 6) < top_n + 2)
+        chosen = [c for c in ranked if c in keep]
+        raw_sum = sum(cand[c] for c in chosen) or 1.0
+        tgt = {c: total_target * cand[c] / raw_sum for c in chosen}
+        for c in legs:
+            if c not in tgt:
+                tgt[c] = 0.0            # 掉出候选 → 目标归零，按差额分级卖出
+        # 单只上限
+        cap = float(p['max_single_weight_pct'])
+        for c in list(tgt):
+            if tgt[c] > cap:
+                tgt[c] = cap
+
+        for code in list(tgt):
+            i = pos_of[code].get(d)
+            if i is None:
+                continue
+            cur = legs[code]['shares'] * px_close(code, d) / eq * 100 if code in legs else 0.0
+            gap = tgt.get(code, 0.0) - cur
+            if abs(gap) < float(p['gap_threshold_pct']) and tgt.get(code, 0.0) > 0:
+                continue          # 目标为 0 时不设阈值，允许清掉残余仓位
+            ind_c = ind[code]
+            close = ind_c['close'][i]
+            if gap > 0:
+                wk_up = _v3_pick((ind_c['wk_idx'], ind_c['wk_up']), d, False)
+                confirm = int(close > ind_c['ma10'][i]) + int(bool(ind_c['macd_pos'][i])) \
+                    + int(bool(ind_c['inflow2'][i]))
+                if not wk_up or confirm < 2:
+                    continue
+                orders.append(dict(code=code, side='buy', gap=gap,
+                                   reason='目标%.0f%% 现%.0f%% 差额买入' % (tgt[code], cur)))
+            else:
+                need = -gap
+                reason = '目标%.0f%% 现%.0f%%' % (tgt.get(code, 0.0), cur)
+                hard = False
+                lg = legs.get(code)
+                if lg and lg['entry_px'] > 0 and \
+                        (close / lg['entry_px'] - 1) * 100 <= float(p['hard_stop_pct']):
+                    hard = True
+                if hard or close < ind_c['ma60'][i] or bool(ind_c['below30_2d'][i]):
+                    sell = need
+                elif bool(ind_c['below20_2d'][i]):
+                    sell = need * 0.5
+                elif close < ind_c['ma10'][i]:
+                    sell = need
+                else:
+                    sell = need * 0.5       # 价格仍强，向目标缓慢靠拢
+                if sell > 0:
+                    orders.append(dict(code=code, side='sell', gap=sell,
+                                       reason=reason + ' 差额卖出'))
+
+        # ---- 3) 记录权益 ----
+        equity_rows.append(dict(date=pd.Timestamp(d), value=eq_close(d), cash=cash,
+                                positions=len(legs), stale=False))
+
+    eqdf = pd.DataFrame(equity_rows)
+    unrealized, urows = 0.0, []
+    for code, lg in legs.items():
+        px = px_close(code, dates[-1]) if dates else None
+        if px is None:
+            continue
+        upnl = (px - lg['entry_px']) * lg['shares']
+        unrealized += upnl
+        urows.append(dict(code=code, shares=lg['shares'], entry=round(lg['entry_px'], 4),
+                          last=round(px, 4), pnl=round(upnl, 2),
+                          pnl_pct=round((px / lg['entry_px'] - 1) * 100, 2)))
+    return dict(trades=trades, equity=eqdf, legs=legs, cash=cash,
+                partial_sells=partial, unrealized=round(unrealized, 2),
+                unrealized_rows=urows, stale_days=0, params=p)
 
 
 def run(df, p=None, cfg=None):
