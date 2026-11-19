@@ -12,6 +12,17 @@ from . import methodology as M
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_assets')
 
+
+def _national_team():
+    """读取宽基 ETF 份额快照（由 scripts/fetch_national_team.py 生成）。"""
+    path = os.path.join(config.ROOT, 'data', 'national_team.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            d = json.load(f)
+        return d if d.get('series') else None
+    except Exception:
+        return None
+
 SHELL = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -179,7 +190,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                     liquidity=market['liquidity'], macro=market['macro'],
                     news=market['news'], calendar=market['calendar'],
                     news_sentiment=market['news_sentiment'], policy_heat=market['policy_heat'],
-                    heat=heat, flow=flow,
+                    heat=heat, flow=flow, national_team=_national_team(),
                     regime=dict(regime=regime['regime'], fit_lo=regime['fit_lo'],
                                 fit_hi=regime['fit_hi'], stage_note=regime.get('stage_note', ''),
                                 leaders=regime.get('leaders', []),

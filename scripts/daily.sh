@@ -86,6 +86,11 @@ else
 fi
 
 # ---------- 5. 生成 + 校验 + 推送 ----------
+say "抓取宽基 ETF 份额（国家队动向，失败沿用上次快照）"
+if ! "$PY_BIN" scripts/fetch_national_team.py --latest; then
+  printf '\n[警告] 宽基份额抓取失败，本次沿用上次快照。\n' >&2
+fi
+
 say "取数并生成页面（实时源失败会自动降级）"
 "$PY_BIN" scripts/run_update.py --json --push
 code=$?
