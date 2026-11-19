@@ -1638,37 +1638,34 @@ function linkStrip(){
   }
   return txt;
 }
-/* 国家队动向：宽基 ETF 份额（只作背景，不参与规则定仓） */
-function nationalTeamSection(){
+/* 国家队动向：宽基 ETF 份额（只作背景，不参与规则定仓；嵌入行业表内） */
+function nationalTeamInline(){
   var nt=D.market&&D.market.national_team;
   if(!nt||!nt.series||!nt.series.length) return '';
   var s=nt.series, last=s[s.length-1];
   var prev=s.length>1?s[s.length-2]:null;
   var base=s.length>4?s[s.length-5]:null;          /* 近四周：周采样 4 期前 */
-  var ORDER=nt.order||[];
   var TOTAL='全宽基合计';
-  var keys=ORDER.filter(function(k){ return k!==TOTAL; });
+  var keys=(nt.order||[]).filter(function(k){ return k!==TOTAL; });
   function val(x,k){ return x&&x.groups&&x.groups[k]!=null?n(x.groups[k]):null; }
-  var rows=[], totalChg=null;
-  keys.forEach(function(k){
+  var rows=keys.map(function(k){
     var a=val(last,k), b=val(prev,k), c=val(base,k);
     var d1=(a!=null&&b)?(a/b-1)*100:null;
     var d4=(a!=null&&c)?(a/c-1)*100:null;
     var dir=d4==null?'—':(d4>0.5?'增持':(d4<-0.5?'减持':'持平'));
     var kind=d4==null?'':(d4>0.5?'buy':(d4<-0.5?'sell':'hold'));
-    rows.push(tr([esc(k), a==null?'—':f2(a)+' 亿份',
+    return tr([esc(k), a==null?'—':f2(a)+' 亿份',
       d1==null?'—':col(d1), d4==null?'—':col(d4),
-      '<span class="tag '+kind+'">'+dir+'</span>']));
+      '<span class="tag '+kind+'">'+dir+'</span>']);
   });
-  var ta=val(last,TOTAL), tc=val(base,TOTAL);
-  if(ta!=null&&tc) totalChg=(ta/tc-1)*100;
+  var ta=val(last,TOTAL), tp=val(prev,TOTAL), tc=val(base,TOTAL);
+  var t4=(ta!=null&&tc)?(ta/tc-1)*100:null;
   rows.push(tr(['<b>'+TOTAL+'</b>', ta==null?'—':f2(ta)+' 亿份',
-    (function(){ var p=val(prev,TOTAL); return (ta!=null&&p)?col((ta/p-1)*100):'—'; })(),
-    totalChg==null?'—':col(totalChg),
-    '<span class="tag '+(totalChg==null?'':(totalChg>0.5?'buy':(totalChg<-0.5?'sell':'hold')))+'">'+
-      (totalChg==null?'—':(totalChg>0.5?'增持':(totalChg<-0.5?'减持':'持平')))+'</span>']));
-  return box(bt('国家队动向（宽基 ETF 份额）')+
-    tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']));
+    (ta!=null&&tp)?col((ta/tp-1)*100):'—', t4==null?'—':col(t4),
+    '<span class="tag '+(t4==null?'':(t4>0.5?'buy':(t4<-0.5?'sell':'hold')))+'">'+
+      (t4==null?'—':(t4>0.5?'增持':(t4<-0.5?'减持':'持平')))+'</span>']));
+  return '<div class="bt" style="margin-top:14px">国家队动向（宽基 ETF 份额）</div>'+
+    tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']);
 }
 
 /* ---------------- v3 仓位运营：状态 → 目标 → 差额 ----------------
@@ -1758,9 +1755,6 @@ function page1(){
 
   h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅');
 
-  /* 国家队动向：宽基 ETF 份额，只作背景，不参与规则定仓 */
-  h+=nationalTeamSection();
-
   h+=heatMap(m.heat);
 
   var flow=(m.flow||[]).slice().sort(function(a,b){ return b.turnover-a.turnover; });
@@ -1768,7 +1762,7 @@ function page1(){
     tbl(['行业','成交额','占比','涨跌幅','流通市值'],flow.map(function(x){
       return tr([esc(x.sector), f2(x.turnover)+' 亿', f2(x.share)+'%', col(x.chg),
                  Math.round(n(x.cap)).toLocaleString()+' 亿']);
-    }),['','r','r','r','r']));
+    }),['','r','r','r','r'])+nationalTeamInline());
   h+='<div class="grid2">'+box(bt('轮动与主线')+
       kv([['阶段',esc(rg.regime)],['主线方向',esc((rg.leaders||[]).join('、'))],
           ['落后方向',esc((rg.laggards||[]).join('、'))]]))+
