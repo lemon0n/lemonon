@@ -278,18 +278,42 @@ def main():
         l['vol_factor'] = round(min(1.0, vol), 2)
         l['raw'] = (0.6 + 0.4 * l['score'] / 100) * l['vol_factor']
 
-    # L3 目标权重：按 cap_total 归一，受评分档上限约束
-    cap_total = min(reg['cap'], 100)
-    sraw = sum(l['raw'] for l in legs) or 1.0
+    # ===== L1 个股：结构 → 评分档 → 个股目标（不含环境） =====
+    TREND_FACTOR = {'多头排列': 1.0, '金叉初期': 0.9, '低位粘合': 0.7,
+                    '走平': 0.7, '空头/死叉': 0.35}
     for l in legs:
-        w = cap_total * l['raw'] / sraw
-        l['target'] = round(min(w, l['cap'], 25.0), 1)
-    # 归一后若超出上限，剩余进现金
+        l['trend_factor'] = TREND_FACTOR.get(l['week']['state'], 0.7)
+        l['own_target'] = round(l['cap'] * l['trend_factor'], 1)
+    own_sum = round(sum(l['own_target'] for l in legs), 1)
+
+    # ===== L2 组合：加总、集中度、现金 =====
     pos_pct = round(total_pos / total * 100, 2)
-    target_sum = round(sum(l['target'] for l in legs), 1)
     cash_pct = round(CASH / total * 100, 2)
 
-    # L4 差额与动作
+    # ===== L3 环境：锚 + 容差带（不是硬顶） =====
+    anchor = min(reg['cap'], 100)
+    band = 10
+    ceiling = anchor + band
+    keep_ratio = 1.0
+    spill = 0.0
+    if own_sum > ceiling:
+        spill = round(own_sum - ceiling, 1)
+        keep_ratio = 1.0 - 0.5 * spill / own_sum   # 超出容差的部分只留一半
+    for l in legs:
+        l['target'] = round(l['own_target'] * keep_ratio, 1)
+    target_sum = round(sum(l['target'] for l in legs), 1)
+    env_gap = round(target_sum - anchor, 1)
+    if own_sum > ceiling:
+        env_note = ('个股合计 %.1f%% 高于锚 %d%% 的容差带（+%d），超出部分 %.1f%% 只留一半，采纳 %.1f%%。'
+                    % (own_sum, anchor, band, spill, target_sum))
+    elif own_sum < anchor - band:
+        env_note = ('个股合计 %.1f%% 低于锚 %d%% 的容差带（-%d），不强行补足，差额 %.1f pct 留现金。'
+                    % (own_sum, anchor, band, anchor - own_sum))
+    else:
+        env_note = '个股合计 %.1f%% 落在锚 %d%% 的容差带（±%d）内，直接采纳。' % (own_sum, anchor, band)
+    reg['env_note'] = env_note
+
+    # ===== L4 执行：差额 + 节奏 + 确认 =====
     for l in legs:
         gap = round(l['target'] - l['weight'], 1)
         l['gap'] = gap
@@ -299,27 +323,37 @@ def main():
         l['confirm'] = confirm
         if abs(gap) < 3:
             l['action'], l['action_kind'] = '持有', 'hold'
+            l['pace'] = '差额不足 3pct，不动作'
         elif gap > 0:
             if not wk_up:
                 l['action'], l['action_kind'] = '等待（周线向下）', 'hold'
+                l['pace'] = '周线未修复，买入不执行'
             elif confirm < 2:
                 l['action'], l['action_kind'] = '等待确认 %d/3' % confirm, 'hold'
+                l['pace'] = '确认条件不足，等确认'
             else:
                 l['action'], l['action_kind'] = '加仓 %.1fpct' % gap, 'buy'
+                l['pace'] = '按差额一次执行'
         else:
-            if l['day']['state'] == '弱' and l['month']['state'] != '牛':
-                l['action'], l['action_kind'] = '减仓 %.1fpct' % (-gap), 'sell'
-            elif l['week']['state'] in ('空头/死叉',):
-                l['action'], l['action_kind'] = '减仓 %.1fpct' % (-gap), 'sell'
+            need = -gap
+            step = round(min(need, max(5.0, need / 3.0)), 1)
+            weeks = int(np.ceil(need / step)) if step else 1
+            if l['week']['state'] in ('空头/死叉',):
+                why = '周线空头'
+            elif l['day']['state'] == '弱':
+                why = '日线走弱'
             else:
-                l['action'], l['action_kind'] = '减半差额 %.1fpct' % (abs(gap) / 2), 'sell'
+                why = '结构转弱'
+            l['action'] = '%s·减 %.1fpct（%d 周）' % (why, step, weeks)
+            l['action_kind'] = 'sell'
+            l['pace'] = '分 %d 周减到目标，不一次清仓' % weeks
 
-    # 每层解读（由数据生成，不是固定模板）
-    reg['read'] = ('基准 %.2f，%sMA20 %.2f、%sMA60 %.2f，20 日波动 %.2f%%（60 日 %.2f%%）→ %s，总仓位上限 %d%%。'
-                   '改判：收盘站上 MA20 且 MA5 上穿 MA20 → 上限回到 65%%。'
+    # 每层解读（数据生成）
+    reg['read'] = ('基准 %.2f，%sMA20 %.2f、%sMA60 %.2f，20 日波动 %.2f%%（60 日 %.2f%%）→ %s。'
+                   '它给的是锚 %d%% 与 ±%d 的容差，不是硬顶。'
                    % (reg['close'], '高于' if reg['close'] > reg['ma20'] else '低于', reg['ma20'],
                       '高于' if reg['close'] > reg['ma60'] else '低于', reg['ma60'],
-                      reg['vol20'], reg['vol60'], reg['state'], reg['cap']))
+                      reg['vol20'], reg['vol60'], reg['state'], anchor, band))
 
     for l in legs:
         note = ''
@@ -327,14 +361,22 @@ def main():
             note = ' 分歧：日线转强但周线未修复，方向以周线为准，日线只用于执行节奏。'
         elif l['month']['state'] == '转换' and l['week']['state'] in ('空头/死叉',):
             note = ' 月线在转换期、周线仍空头，按周线处理，不提前加仓。'
-        l['read2'] = ('月线%s（%s，20 月线 %s）、周线%s、日线%s（量比 %s）→ %d 分，%s 档，单只上限 %d%%。%s'
+        l['read2'] = ('月线%s（%s，20 月线 %s）、周线%s、日线%s（量比 %s）→ %d 分，%s 档。'
+                      '个股目标 = 档位上限 %d%% × 趋势系数 %.2f = %.1f%%。%s'
                       % (l['month']['state'], l['month']['div'],
                          '—' if l['month']['ma20'] is None else '%.2f' % l['month']['ma20'],
                          l['week']['state'], l['day']['state'],
                          '—' if l['day']['vol_ratio'] is None else '%.2f' % l['day']['vol_ratio'],
-                         l['score'], l['grade'], l['cap'], note))
+                         l['score'], l['grade'], l['cap'], l['trend_factor'],
+                         l['own_target'], note))
 
     conflicts = []
+    if own_sum > ceiling:
+        conflicts.append(('组合', '个股合计 %.1f%% / 环境锚 %d%%' % (own_sum, anchor),
+                          '超出容差部分折价一半，采纳 %.1f%%' % target_sum))
+    elif own_sum < anchor - band:
+        conflicts.append(('组合', '个股合计 %.1f%% / 环境锚 %d%%' % (own_sum, anchor),
+                          '环境偏宽松但不强行补足，差额留现金'))
     for l in legs:
         if l['day']['state'] == '强' and l['week']['state'] in ('空头/死叉',):
             conflicts.append((l['code'], '日线强 / 周线空头', '方向以周线为准：不加仓，只按差额减或持有'))
@@ -343,7 +385,7 @@ def main():
         p5 = l['prob'].get('d5')
         if p5 and p5['p'] < 40 and l['gap'] < 0:
             conflicts.append((l['code'], '5 日上涨概率 %.1f%% / 差额为负' % p5['p'],
-                              '概率只做参考，不改变档位；减仓按差额执行'))
+                              '概率只做参考，不改变档位；减仓按差额与节奏执行'))
         if l['chan'].get('point') == '跌破中枢下沿' and l['day']['state'] == '强':
             conflicts.append((l['code'], '缠论跌破中枢 / 日线转强', '结构只影响卖出时点：仍按差额减，不因日线转强加仓'))
     conflicts = list(dict.fromkeys(conflicts))
@@ -375,7 +417,8 @@ def main():
 
     payload = dict(reg=reg, legs=legs, cash=CASH, total=round(total, 2),
                    total_pos=round(total_pos, 2), pos_pct=pos_pct, cash_pct=cash_pct,
-                   cap_total=cap_total, target_sum=target_sum,
+                   cap_total=anchor, anchor=anchor, band=band, own_sum=own_sum,
+                   target_sum=target_sum, env_gap=env_gap, env_note=env_note,
                    sectors=sectors[:8], top_sector=top_sector,
                    sentiment=sent, national_team=nt, overall=overall, conflicts=conflicts,
                    data_date=str(load_bars('510300')['date'].iloc[-1].date()))
@@ -499,52 +542,52 @@ h+=box('三条风险',[
   '现金：'+f2(d.cash_pct,1)+'%，'+(d.cash_pct<5?'低于下限':'高于下限')
 ].map(function(x){return '<div class="muted">· '+x+'</div>';}).join(''));
 
-/* ============ 二、持仓分析（分层深入） ============ */
+/* ============ 二、持仓分析（分层深入：个股 → 组合 → 环境 → 执行 → 解释） ============ */
 h+=sec('二、持仓分析','分层');
 
-/* L1 环境 */
-h+='<div class="layer-box">'+sec('L1 环境层：决定总仓位上限（不决定个股）');
+/* L1 个股 */
+h+='<div class="layer-box">'+sec('L1 个股层：从每只持仓出发，结构定档位与个股目标');
+h+=box('三周期状态与评分卡',tbl(
+ ['代码','月线','周线','日线','评分','档位','档位上限','趋势系数','个股目标'],
+ d.legs.map(function(l){
+  return tr([l.code,l.month.state+(l.month.div!=='无'?' · '+l.month.div:''),l.week.state,l.day.state,
+    '<b>'+l.score+'</b>',l.grade,l.cap+'%',f2(l.trend_factor),f2(l.own_target,1)+'%']);
+ }),['','','','','r','','r','r','r']));
+h+='<div class="one sm" style="margin-top:10px"><b>解读：</b>'+
+ d.legs.map(function(l){return l.code+'：'+l.read2;}).join('<br>')+'</div>';
+h+='<div class="note">估值、宏观景气、资金三日流入未接入，评分按可得项归一；D 档为观察仓，不清零。趋势系数：多头 1.0 / 金叉 0.9 / 走平 0.7 / 空头 0.35。</div></div>';
+
+/* L2 组合 */
+h+='<div class="layer-box">'+sec('L2 组合层：个股目标加总，再查集中度与现金');
+h+=box('板块暴露（按持仓映射）',tbl(['板块','暴露占比','关系'],
+ d.sectors.map(function(x){return tr([x[0],f2(x[1],1)+'%',x[1]>25?'超配':(x[1]<5?'低配':'中性')]);}),['','r','']));
+h+='<div class="one sm" style="margin-top:10px"><b>解读：</b>个股目标合计 '+f2(d.own_sum,1)+'%，'+
+ '最大板块 '+d.top_sector[0]+' '+f2(d.top_sector[1],1)+'%'+(d.top_sector[1]>25?'（超配，需在组合层压低）':'（未超配）')+
+ '；现金 '+f2(d.cash_pct,1)+'%。集中度与相关性只在组合层处理，不改个股结论。</div>'+
+ '<div class="note">行业映射仅覆盖 4 只宽基；其余标的名称为关键字兜底，未映射标「未映射」。</div></div>';
+
+/* L3 环境 */
+h+='<div class="layer-box">'+sec('L3 环境层：给锚与容差带，不直接砍个股结论');
 h+='<div class="grid2">'+
  box('市场状态',tbl(['项目','值'],[
    tr(['状态',d.reg.state]),tr(['基准收盘',d.reg.close]),tr(['MA20 / MA60',d.reg.ma20+' / '+d.reg.ma60]),
-   tr(['20日波动 vs 60日',d.reg.vol20+'% vs '+d.reg.vol60+'%']),tr(['总仓位上限',d.cap_total+'%'])
+   tr(['MA5 是否高于 MA20',d.reg.ma5_above?'是':'否']),tr(['20日波动 vs 60日',d.reg.vol20+'% vs '+d.reg.vol60+'%'])
  ],['','r']))+
- box('背景（只调倾向，不突破上下限）',tbl(['项目','读数'],[
-   tr(['市场情绪',(d.sentiment.label||'—')+' '+(d.sentiment.score||'')+'/100']),
-   tr(['国家队宽基份额', d.national_team?'已接入 '+d.national_team.series.length+' 期':'未接入']),
-   tr(['舆情定性','偏多/偏空/震荡（环境层，不进规则）'])
- ],['','r']))+'</div>'+
- '<div class="one sm" style="margin-top:10px"><b>解读：</b>'+d.reg.read+'</div></div>';
+ box('校准（锚 ± 容差）',tbl(['项目','值'],[
+   tr(['个股合计',f2(d.own_sum,1)+'%']),
+   tr(['环境锚 / 容差','±'+d.band+'pct（'+d.anchor+'%）']),
+   tr(['采纳目标',f2(d.target_sum,1)+'%']),
+   tr(['与锚偏离',(d.env_gap>0?'+':'')+f2(d.env_gap,1)+'pct'])
+ ],['','r']))+'</div>';
+h+='<div class="one sm" style="margin-top:10px"><b>解读：</b>'+d.env_note+'</div></div>';
 
-/* L2 结构 */
-h+='<div class="layer-box">'+sec('L2 结构层：月线定方向 → 周线定节奏 → 日线定点位');
-h+=box('三周期状态与评分卡',tbl(
- ['代码','月线','周线','日线','月35','周25','日15','总分','档位','上限'],
- d.legs.map(function(l){
-  return tr([l.code,l.month.state+(l.month.div!=='无'?' · '+l.month.div:''),l.week.state,l.day.state,
-    l.month.score,l.week.score,l.day.score,'<b>'+l.score+'</b>',l.grade,l.cap+'%']);
- }),['','','','','r','r','r','r','','r']));
-h+='<div class="one sm" style="margin-top:10px"><b>解读：</b>'+
- d.legs.map(function(l){return l.code+'：'+l.read2;}).join('<br>')+'</div>';
-h+='<div class="note">估值、宏观景气、资金三日流入未接入，评分按可得项归一；D 档 = 观察仓（5%），不清零。'+
-  '目标合计 '+f2(d.target_sum,1)+'%，低于上限 '+d.cap_total+'%，差额留在现金。</div></div>';
-
-/* L3 组合 */
-h+='<div class="layer-box">'+sec('L3 组合层：目标权重 = 评分档 × 波动，合计不超过 L1 上限');
-h+=box('板块暴露（按持仓映射）',tbl(['板块','暴露占比','关系'],
- d.sectors.map(function(x){return tr([x[0],f2(x[1],1)+'%',x[1]>25?'超配':(x[1]<5?'低配':'中性')]);}),['','r','']));
-h+='<div class="note">行业映射仅覆盖 4 只宽基；其余标的名称为关键字兜底，未映射标「未映射」。</div>'+
- '<div class="one sm" style="margin-top:10px"><b>解读：</b>四只按评分系数（0.6+0.4×评分）与波动系数归一后，'+
- '被各自档位上限截断，目标合计 '+f2(d.target_sum,1)+'%；上限 '+d.cap_total+'% 没用满，差额 '+f2(d.cap_total-d.target_sum,1)+
- 'pct 留现金，不用额度倒推动作。</div></div>';
-
-/* L4 个股（深入） */
-h+='<div class="layer-box">'+sec('L4 个股层：缠论结构 + 执行位 + 多周期概率');
+/* L4 执行 */
+h+='<div class="layer-box">'+sec('L4 执行层：差额 + 节奏 + 缠论时点');
 d.legs.forEach(function(l,i){
   var pr=l.prob;
   h+='<div class="legcard"><h3>'+l.code+' '+l.name+
     '<span class="tag '+(l.action_kind==='sell'?'sell':(l.action_kind==='buy'?'buy':'hold'))+'">'+l.action+'</span>'+
-    '<span class="muted">评分 '+l.score+' · '+l.grade+' 档（上限 '+l.cap+'%）</span></h3>';
+    '<span class="muted">评分 '+l.score+' · '+l.grade+' 档 · 个股目标 '+f2(l.own_target,1)+'%</span></h3>';
   h+=tbl(['周期','状态','关键位'],[
     tr(['月线',l.month.state,'20月线 '+(l.month.ma20==null?'—':f2(l.month.ma20))+' · '+l.month.div]),
     tr(['周线',l.week.state,'20周线 '+(l.week.ma20==null?'—':f2(l.week.ma20))]),
@@ -564,12 +607,13 @@ d.legs.forEach(function(l,i){
   h+=tbl(['执行','值'],[
     tr(['当前 → 目标',f2(l.weight,1)+'% → '+f2(l.target,1)+'%（差额 '+(l.gap>0?'+':'')+f2(l.gap,1)+'pct）']),
     tr(['确认条件','周线 '+l.week.state+' · 日线确认 '+l.confirm+'/3']),
+    tr(['节奏',l.pace]),
     tr(['执行位','买点参考 MA10 '+f2(l.day.ma[10])+'；失效 收盘跌破 MA20 '+f2(l.day.ma[20])]),
-    tr(['改判条件','若周线转多头且站上 MA20 → 差额可执行；若跌破 MA30 两日 → 卖出全部差额'])
+    tr(['改判条件','若周线转多头且站上 MA20 → 目标回到 '+f2(l.own_target,1)+'%；若跌破 MA30 两日 → 卖出全部差额'])
   ],['','']);
   h+='<div class="one sm" style="margin-top:8px"><b>解读：</b>当前 '+f2(l.weight,1)+'% 对目标 '+f2(l.target,1)+
-    '%，差额 '+(l.gap>0?'+':'')+f2(l.gap,1)+'pct；周线'+l.week.state+'、日线确认 '+l.confirm+'/3，'+
-    (l.action_kind==='sell'?'因此按差额减，不减到 0。':(l.action_kind==='buy'?'因此可执行差额买入。':'差额不足 3pct 或条件未齐，保持不动。'))+
+    '%，差额 '+(l.gap>0?'+':'')+f2(l.gap,1)+'pct；周线'+l.week.state+'，'+
+    (l.action_kind==='sell'?'因此按节奏分批减，不一次清仓。':(l.action_kind==='buy'?'差额可执行。':'条件未齐或差额不足，保持不动。'))+
     '</div>';
   h+='<canvas class="mini" id="cv_'+i+'"></canvas></div>';
 });
