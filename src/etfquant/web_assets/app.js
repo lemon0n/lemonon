@@ -2033,8 +2033,8 @@ function rsSectorExposure(p){
     });
   });
   var rows=Object.keys(acc).map(function(k){
-    /* 暴露 = 该行业占总资产的比例（权重本身就是占总资产的口径），不再除持仓市值 */
-    return {sector:k, pct: acc[k], weight: acc[k]};
+    /* 暴露 = 该行业占**持仓市值**的比例；阈值 25%/5% 是按这个口径定的 */
+    return {sector:k, pct: total>0?acc[k]/total*100:0, weight:acc[k]};
   }).sort(function(a,b){ return b.pct-a.pct; });
   return {rows:rows,total:total};
 }
@@ -2342,7 +2342,7 @@ function rsFetchWeekly(code,cb){
          vols:arr.map(function(x){ return parseFloat(x[5]); })});
   };
   s.onerror=function(){ fin(null); };
-  s.src='https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+sym+',week,,,80,qfq&_var='+vn;
+  s.src='https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+sym+',week,,,260,qfq&_var='+vn;
   document.head.appendChild(s);
   setTimeout(function(){ fin(null); },9000);
 }
@@ -2491,17 +2491,17 @@ function rsBriefSections(p){
 function rsRenderBrief(p,s1){
   var el=document.getElementById('rsBrief');
   if(!el||!p) return;
-  var blocks=null, src='', concl='';
+  var blocks=null, concl='';
   if(D.brief&&D.brief.blocks&&D.brief.blocks.length){
     blocks=D.brief.blocks; concl=D.brief.conclusion||'';
   }else{
-    blocks=rsBriefSections(p); src='（本机引擎）';
+    blocks=rsBriefSections(p);
   }
   var hasTail=blocks.some(function(x){ return String(x.v||'').indexOf('不保证成交')>=0; });
   var body=blocks.map(function(x){
     return '<div class="rs-note" style="margin-top:6px"><b>'+esc(x.k)+'</b>：'+esc(x.v)+'</div>';
   }).join('');
-  el.innerHTML='<div class="bt">今日点评'+src+'</div>'+
+  el.innerHTML='<div class="bt">今日点评</div>'+
     (concl?'<div class="one sm" style="margin:0 0 6px">'+esc(concl)+'</div>':'')+
     body+(hasTail?'':'<div class="rs-note" style="margin-top:8px">价格是执行价，不保证成交。</div>');
 }
@@ -2923,7 +2923,7 @@ function rsRenderDetail(){
     '第 3 步 回踩确认：'+tick('回踩不破关键位',stand)+' '+tick('缩量',shrink)+' '+(fake?'<span class="tag sell">✗ 假突破（放量下跌）</span>':'')+
     '<br><span class="muted">突破当天只标关注，回踩才是确认；三条缺一条写「突破不成立」。</span></div></div>'+
     '<div class="box"><div class="bt">三周期</div><table class="tbl"><thead><tr><th>周期</th><th>位置</th><th>结论</th></tr></thead><tbody>'+
-    tr(['月线',(sc.month?('收 '+f3(sc.month.last)+' / 20 月线 '+(sc.month.ma20==null?'—':f3(sc.month.ma20))):'周线数据不足'),
+    tr(['月线',(sc.month?('收 '+f3(sc.month.last)+' / 20 月线 '+(sc.month.ma20==null?'—':f3(sc.month.ma20))):'月线数据不足'),
       (sc.month&&sc.month.ma20!=null)?(n(sc.month.last)>n(sc.month.ma20)?'20 月线上方，可重仓区':'20 月线下方，上涨当反弹'):'—'])+
     tr(['周线',[sc.week.ma5,sc.week.ma10,sc.week.ma20,sc.week.ma30].map(f3).join(' / '),
       (sc.items.week==null)?'—':(sc.items.week>=15?'多头排列':(sc.items.week>=10?'金叉初期':(sc.items.week>=5?'粘合':'空头')))])+
@@ -3175,7 +3175,7 @@ function rsRenderSector(){
       '<span class="k">持有 / 有效只数</span><span class="v">'+RS_PORT.rows.length+' / '+(eff==null?'—':f2(eff))+'</span>'+
       '<span class="k">现金比例</span><span class="v">'+f2(RS_PORT.cashPct)+'%'+(n(RS_PORT.cashPct)<5?'（低于 5%）':'')+'</span>'+
       '<span class="k">TMT 合并（电子+计算机+通信）</span><span class="v">'+f2(tech)+'%'+(tech>35?'（超 35%）':'')+'</span>'+
-      '</div><div class="rs-note">有效只数 = 1 ÷ HHI，衡量集中度；TMT 合并按同主题口径看，半导体、科创与存储都在其中。</div>';
+      '</div><div class="rs-note">暴露按**占持仓市值**计，现金单列；有效只数 = 1 ÷ HHI；TMT 合并按同主题口径看，半导体、科创与存储都在其中。</div>';
   }
   var readEl=document.getElementById('rsPortfolioRead');
   if(readEl){
@@ -3192,7 +3192,8 @@ function rsRenderSector(){
     readEl.innerHTML='<div class="rs-note" style="margin-top:0">最大暴露 '+(topName?esc(topName)+' '+f2(top.pct)+'%':'—')+'，'+
       (aligned==null?'主线数据不足，无法判断一致性':(aligned?'属于当前主线':'不属于当前主线（'+esc(leaders.join('、'))+'）'))+'。</div>'+
       '<div class="rs-note">'+(over.length?'超配：'+esc(over.join('、')):'无超配')+'；'+
-        (under.length?'低配：'+esc(under.join('、')):'无低配')+'。</div>'+
+        (under.length?('低配 '+under.length+' 个（最小的几个：'+esc(under.slice(0,3).join('、'))+
+          (under.length>3?' 等':'')+'）'):'无低配')+'。</div>'+
       '<div class="rs-note">'+(weakS.length?'走弱但仍有暴露：'+esc(weakS.join('、'))+'，个股层不加仓、按差额收紧':
         '没有「评级 C/D 且暴露 ≥10%」的板块')+'。</div>'+
       '<div class="rs-note" style="margin-top:6px">覆盖度：'+esc(coverageText(exp))+'</div>'+

@@ -20,7 +20,8 @@ import subprocess
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 from etfquant import config, packet, pipeline  # noqa: E402
 
-PRODUCTS = ['web/index.html', 'web/analysis_packet.json', 'data/last_run.json']
+PRODUCTS = ['web/index.html', 'web/analysis_packet.json', 'data/last_run.json',
+            'data/national_team.json']
 # 持仓分析产物：只有本地跑过 analyze_positions.py 才存在，存在才纳入同一次提交
 OPTIONAL_PRODUCTS = ['docs/持仓分析报告.md', 'data/packets/positions_packet.json']
 
