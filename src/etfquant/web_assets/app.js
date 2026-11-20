@@ -1478,12 +1478,26 @@ function linkStrip(){
   return txt;
 }
 /* 国家队动向：宽基 ETF 份额（只作背景，不参与规则定仓；独立卡与行业表内各一份） */
+/* 近四周基准：按日期回溯 25 天取最近一期，避免日频记录被当成周频 */
+function ntWindow(series){
+  if(!series||!series.length) return null;
+  var last=series[series.length-1];
+  var ld=new Date(String(last.date)+'T00:00:00Z').getTime();
+  var base=null;
+  for(var i=series.length-2;i>=0;i--){
+    var d=new Date(String(series[i].date)+'T00:00:00Z').getTime();
+    if(ld-d>=25*86400000){ base=series[i]; break; }
+  }
+  if(!base) base=series[0];
+  var span=Math.round((ld-new Date(String(base.date)+'T00:00:00Z').getTime())/86400000);
+  return {last:last, base:base, span:span};
+}
 function nationalTeamTable(){
   var nt=D.market&&D.market.national_team;
   if(!nt||!nt.series||!nt.series.length) return '';
   var s=nt.series, last=s[s.length-1];
   var prev=s.length>1?s[s.length-2]:null;
-  var base=s.length>4?s[s.length-5]:null;          /* 近四周：周采样 4 期前 */
+  var win=ntWindow(s), base=win?win.base:null;   /* 近四周：按日期回溯 25 天 */
   var TOTAL='全宽基合计';
   var keys=(nt.order||[]).filter(function(k){ return k!==TOTAL; });
   function val(x,k){ return x&&x.groups&&x.groups[k]!=null?n(x.groups[k]):null; }
@@ -1503,7 +1517,8 @@ function nationalTeamTable(){
     (ta!=null&&tp)?col((ta/tp-1)*100):'—', t4==null?'—':col(t4),
     '<span class="tag '+(t4==null?'':(t4>0.5?'buy':(t4<-0.5?'sell':'hold')))+'">'+
       (t4==null?'—':(t4>0.5?'增持':(t4<-0.5?'减持':'持平')))+'</span>']));
-  return tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']);
+  return tbl(['宽基','最新份额','较上次','近四周'+(win?'（'+esc(win.base.date)+' 起 '+win.span+' 天）':''),'方向'],
+    rows,['','r','r','r','']);
 }
 function nationalTeamSection(){
   var t=nationalTeamTable();
@@ -2132,54 +2147,119 @@ function nationalTeamText(code){
   var nt=D.market&&D.market.national_team;
   var g=NT_GROUP_OF[String(code)];
   if(!nt||!g||!nt.series||nt.series.length<2) return '—';
-  var s=nt.series, last=s[s.length-1], base=s[Math.max(0,s.length-5)];
-  var a=(last.groups||{})[g], b=(base.groups||{})[g];
+  var win=ntWindow(nt.series); if(!win) return '—';
+  var a=(win.last.groups||{})[g], b=(win.base.groups||{})[g];
   if(a==null||b==null) return '未纳入';
   var chg=(a/b-1)*100;
   return esc(g+' '+(chg>0.5?'增持':(chg<-0.5?'减持':'持平'))+' '+f2(Math.abs(chg))+'%');
 }
 /* 今日点评：由当次数据生成（环境→结构→执行→改判），环境口径与第三部分同源 */
+/* 今日点评
+   1) 若 data/brief.json 存在且数据日一致（由 portfolio-brief skill 产出），直接渲染；
+   2) 否则用下面的引擎现场生成：每句都由当次数字与分支条件拼出，不含固定套话。 */
+function rsBriefSections(p,s1){
+  var v=marketOutlook(), pl=D.plan||{}, out=[];
+  var pos=p.positionPct, anchor=pl.total_target;
+  var rows=adv5RowsCache||[];
+  var cnt=(PDEC&&PDEC.orders)?PDEC.orders.length:0;
+  var acts=(PDEC&&PDEC.orders)||[];
+  var nC=0,nT=0,nA=0,nHold=0;
+  rows.forEach(function(x){
+    var a=x.a||{};
+    if(a.action==='CLEAR') nC++;
+    else if(a.action==='TRIM') nT++;
+    else if(a.action==='ADD') nA++;
+    else nHold++;
+  });
+  var LEVEL_RANK={D:0,C:1,B:2,A:3}, weakest=null, weakRank=9;
+  rows.forEach(function(x){
+    var rk=LEVEL_RANK[(x.a&&x.a.level)||'B']; if(rk==null) rk=2;
+    if(rk<weakRank){ weakRank=rk; weakest=x; }
+  });
+  var exp=(RS_PORT?rsSectorExposure(RS_PORT):{rows:[]});
+  var top=null;
+  exp.rows.forEach(function(x){ if(!top && x.sector!=='其他' && x.sector!=='未映射') top=x; });
+
+  /* 环境 */
+  var nt=D.market&&D.market.national_team, ntTxt='';
+  if(nt&&nt.series&&nt.series.length>4){
+    var win0=ntWindow(nt.series), a0=(win0&&win0.last.groups)||{}, b0=(win0&&win0.base.groups)||{};
+    var ta=a0['全宽基合计'], tb=b0['全宽基合计'];
+    if(ta&&tb){
+      var ch=(ta/tb-1)*100;
+      if(Math.abs(ch)>15){
+        ntTxt='国家队近四周变化 '+f2(ch)+'%（幅度异常，仅展示，不作判断）';
+      }else{
+        ntTxt='国家队近四周'+(ch>0.5?'增持':(ch<-0.5?'减持':'持平'))+' '+f2(Math.abs(ch))+'%（全宽基合计）';
+      }
+    }
+  }
+  var posTxt;
+  if(anchor==null||pos==null) posTxt='仓位锚不可用';
+  else if(pos>anchor+3) posTxt='仓位 '+f2(pos)+'%，高于锚 '+f2(anchor)+'% 达 '+f2(pos-anchor)+'pct';
+  else if(pos<anchor-3) posTxt='仓位 '+f2(pos)+'%，低于锚 '+f2(anchor)+'% 达 '+f2(anchor-pos)+'pct';
+  else posTxt='仓位 '+f2(pos)+'%，贴近锚 '+f2(anchor)+'%';
+  var amt=v.amountChg==null?'成交额数据缺失':
+    ('成交额环比 '+(v.amountChg>0?'+':'')+f2(v.amountChg)+'%'+(v.amountChg<-5?'（缩量）':(v.amountChg>10?'（放量）':'（平量）')));
+  var env=[v.session.label+'：大盘'+v.regime+'，定性'+v.verdict+'（'+v.reasons[0]+'）',
+           posTxt+'；温度 '+v.temp+'/100',
+           '上涨家数占 '+f2(v.breadthPct)+'%，'+amt+(ntTxt?'；'+ntTxt:'')];
+  out.push({k:'环境',v:env.join('；')+'。'});
+
+  /* 结构 */
+  var parts=[];
+  if(nC) parts.push(nC+' 只触发退出');
+  if(nT) parts.push(nT+' 只减仓');
+  if(nA) parts.push(nA+' 只可加仓');
+  if(nHold) parts.push(nHold+' 只维持');
+  var st=[];
+  st.push('逐腿分布：'+(parts.length?parts.join('、'):'无可用判定'));
+  if(weakest) st.push('最弱 '+weakest.code+'（'+((weakest.a&&weakest.a.level)||'—')+' 级，'+((weakest.a&&weakest.a.action_text)||'—')+'）');
+  if(top) st.push('最大暴露 '+top.sector+' '+f2(top.pct)+'%'+(top.pct>25?'（超配）':'（未超配）'));
+  st.push('现金 '+f2(p.cashPct)+'%'+(p.cashPct<5?'（低于 5% 下限）':''));
+  out.push({k:'结构',v:st.join('；')+'。'});
+
+  /* 执行 */
+  var ex=[];
+  if(cnt){
+    ex.push('今日 '+cnt+' 笔：'+acts.map(function(o){ return o.action+' '+o.code; }).join('、'));
+    var rest=rows.length-acts.length;
+    if(rest>0) ex.push('其余 '+rest+' 只差额不足 3pct 或确认条件未齐');
+  }else{
+    ex.push('今日无订单：差额不足 3pct 或确认条件未齐');
+  }
+  out.push({k:'执行',v:ex.join('；')+'。'});
+
+  /* 改判 */
+  var ch2=[];
+  ch2.push(v.ma20==null?'基准数据恢复后重算锚':
+    ('基准收盘站上 MA20 '+f2(v.ma20)+' 且 MA5 上穿 MA20 → 仓位锚由 '+f2(anchor)+'% 上调 10pct'));
+  ch2.push('任一腿收盘跌破 MA30 两日 → 卖出该腿全部差额');
+  out.push({k:'改判',v:ch2.join('；')+'。'});
+
+  var conclusion;
+  if(nC+nT>nA) conclusion='今日基调：先降后看';
+  else if(nA>0) conclusion='今日基调：按差额补，不满仓';
+  else conclusion='今日基调：不动，等条件';
+  return {conclusion:conclusion,sections:out};
+}
+
 function rsRenderBrief(p,s1){
   var el=document.getElementById('rsBrief');
   if(!el||!p) return;
-  var v=marketOutlook();
-  var pl=D.plan||{};
-  var pos=p.positionPct, anchor=pl.total_target;
-  var acts=(PDEC&&PDEC.orders)||[];
-  var cnt=(PDEC&&PDEC.orders)?PDEC.orders.length:0;
-  var LEVEL_RANK={D:0,C:1,B:2,A:3};
-  var weakest=null, weakRank=9;
-  (adv5RowsCache||[]).forEach(function(x){
-    var rk=LEVEL_RANK[(x.a&&x.a.level)||'B'];
-    if(rk==null) rk=2;
-    if(rk<weakRank){ weakRank=rk; weakest=x; }
-  });
-  var nt=D.market&&D.market.national_team;
-  var ntTxt='';
-  if(nt&&nt.series&&nt.series.length>4){
-    var s0=nt.series, a=s0[s0.length-1].groups||{}, b=s0[s0.length-5].groups||{};
-    var ta=a['全宽基合计'], tb=b['全宽基合计'];
-    if(ta&&tb){ var ch=(ta/tb-1)*100;
-      ntTxt='；宽基份额近四周合计 '+(ch>0.5?'增持':(ch<-0.5?'减持':'持平'))+' '+f2(Math.abs(ch))+'%'; }
+  var brief=D.brief;
+  var data=null, src='';
+  if(brief&&brief.sections&&brief.sections.length&&(!brief.data_date||brief.data_date===(D.meta&&D.meta.data_date))){
+    data=brief; src='skill';
+  }else{
+    data=rsBriefSections(p,s1); src='engine';
   }
-  var l1=v.session.label+'（'+v.session.focus+'）：大盘'+esc(v.regime)+'，今日定性 '+esc(v.verdict)+
-    '；'+(v.reasons[0]||'')+'。仓位 '+f2(pos)+'%，锚 '+(anchor==null?'—':f2(anchor)+'%')+
-    (anchor==null?'':'（'+(pos>anchor?'高于':'低于')+' '+f2(Math.abs(pos-anchor))+'pct）')+
-    '；温度 '+v.temp+'/100'+ntTxt+'。';
-  var l2='结构上 '+(adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='CLEAR';}).length+' 只触发退出、'+
-    (adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='TRIM';}).length+' 只减仓、'+
-    (adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='ADD';}).length+' 只可加仓；'+
-    '最弱 '+(weakest?esc(weakest.code)+'（'+esc((weakest.a&&weakest.a.action_text)||'—')+'）':'—')+'。';
-  var l3=cnt?('执行层面，今日 '+cnt+' 笔：'+acts.map(function(o){ return o.action+' '+o.code; }).join('、')+'；其余按差额不足 3pct 不动。'):
-    '执行层面，今日无订单：差额不足 3pct 或确认条件未齐。';
-  var l4='改判：'+(v.ma20==null?'基准数据恢复后重算':'基准收复 MA20 '+f2(v.ma20)+' 且 MA5 上穿 MA20 → 仓位锚上调；')+
-    '任一持仓跌破 MA30 两日 → 卖出该腿全部差额。';
   var cf=outlookConflicts();
-  el.innerHTML='<div class="bt">今日点评</div>'+
-    '<div class="one sm" style="margin:0">'+l1+'</div>'+
-    '<div class="rs-note" style="margin-top:6px">'+l2+'</div>'+
-    '<div class="rs-note">'+l3+'</div>'+
-    '<div class="rs-note">'+l4+'</div>'+
+  el.innerHTML='<div class="bt">今日点评'+(src==='skill'?'':'（本机引擎）')+'</div>'+
+    '<div class="one sm" style="margin:0"><b>'+esc(data.conclusion||'')+'</b></div>'+
+    data.sections.map(function(x){
+      return '<div class="rs-note" style="margin-top:6px"><b>'+esc(x.k)+'：</b>'+esc(x.v)+'</div>';
+    }).join('')+
     (cf.length?'<div class="rs-note" style="color:#b45309">环境与动作存在分歧：'+
       cf.map(function(x){ return esc(x[0])+' → '+esc(x[1]); }).join('；')+'</div>':'');
 }
@@ -2220,7 +2300,7 @@ function rsPageHTML(p,s1,adv){
       '<td>'+nationalTeamText(r.code)+'</td>'+
       '<td>'+(a?tag(a.action_text,actKind(a.action)):'—')+'</td></tr>';
   });
-  h+='</tbody></table><div class="rs-note">上涨占比来自历史相似条件统计（5/20 日），样本不足显示“样本不足”；目标权重来自仓位账本；建议后数量按目标权重与现价折算，100 份取整。</div></div>';
+  h+='</tbody></table></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
