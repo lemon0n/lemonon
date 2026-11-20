@@ -1,0 +1,15 @@
+{
+  "slug": "topnews",
+  "name": "股票舆情智能AI助手",
+  "version": "8.8.8",
+  "installedAt": 1793167997183,
+  "source": "skillhub",
+  "namespace": "user_8c7f0f65",
+  "canonicalName": "@user_8c7f0f65/topnews",
+  "iconSource": "https://skillhub-1388575217.cos.accelerate.myqcloud.com/skill-icons/uploads/422983/d09f9d5997214419b951113811029b37.png",
+  "labels": {
+    "requires_api_key": "false"
+  },
+  "iconLocalPath": "C:\\Users\\cloud\\.workbuddy\\skills\\topnews__user_8c7f0f65__skillhub\\_icon.png",
+  "iconDownloadedFrom": "https://skillhub-1388575217.cos.accelerate.myqcloud.com/skill-icons/uploads/422983/d09f9d5997214419b951113811029b37.png"
+}
