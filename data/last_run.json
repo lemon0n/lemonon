@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "OK",
-  "ran_at": "2026-11-20 08:00:35",
+  "ran_at": "2026-11-20 08:01:54",
   "mode": "live",
   "data_date": "2026-11-19",
   "degraded": false,
@@ -30,8 +30,8 @@
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261120T080030-de2182c16b861dd2",
+  "run_id": "20261120T080124-de2182c16b861dd2",
   "input_hash": "de2182c16b861dd2",
   "config_hash": "7dc121bf9c53564c",
-  "html": "/workspace/web/index.html"
+  "html": "/home/runner/work/lemonon/lemonon/web/index.html"
 }

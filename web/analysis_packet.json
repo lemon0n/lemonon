@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261120T080030-de2182c16b861dd2",
+  "run_id": "20261120T080124-de2182c16b861dd2",
   "status": "OK",
-  "generated_at": "2026-11-20 08:00:30",
+  "generated_at": "2026-11-20 08:01:24",
   "data_date": "2026-11-19",
-  "code_version": "93b0387",
+  "code_version": "fb0d313",
   "config_hash": "7dc121bf9c53564c",
   "input_hash": "de2182c16b861dd2",
   "data_quality": {
@@ -19,7 +19,7 @@
     "premium_ok": false,
     "market_snapshot": true,
     "sector_snapshot": false,
-    "checked_at": "2026-11-20 08:00:35"
+    "checked_at": "2026-11-20 08:01:54"
   },
   "regime": {
     "regime": "下行趋势",
@@ -50,7 +50,7 @@
       "observations": [
         "close=4.060",
         "MA5=4.059 MA10=4.095 MA20=4.115",
-        "vol_ratio=1.765308157904377",
+        "vol_ratio=1.7653081951568672",
         "ret5=-1.31 ret20=-1.14"
       ],
       "signal_id": "R-D1",
@@ -78,7 +78,7 @@
       "observations": [
         "close=6.286",
         "MA5=6.348 MA10=6.503 MA20=6.546",
-        "vol_ratio=2.9629950109361927",
+        "vol_ratio=2.9629950937316902",
         "ret5=-5.16 ret20=-5.95"
       ],
       "signal_id": "R-D1",
@@ -106,7 +106,7 @@
       "observations": [
         "close=1.344",
         "MA5=1.319 MA10=1.334 MA20=1.326",
-        "vol_ratio=0.9935748186671304",
+        "vol_ratio=0.9935748164998747",
         "ret5=-2.68 ret20=-2.4"
       ],
       "signal_id": "R-C2",
@@ -134,7 +134,7 @@
       "observations": [
         "close=2.308",
         "MA5=2.344 MA10=2.430 MA20=2.493",
-        "vol_ratio=0.918149352397125",
+        "vol_ratio=0.9181493553862737",
         "ret5=-8.56 ret20=-10.96"
       ],
       "signal_id": "R-D1",
