@@ -1,10 +1,10 @@
 {
   "schema_version": "2.0",
-  "run_id": "20261120T165502-4dab71c87ac9b01f",
+  "run_id": "20261120T171835-4dab71c87ac9b01f",
   "status": "OK",
-  "generated_at": "2026-11-20 16:55:02",
+  "generated_at": "2026-11-20 17:18:35",
   "data_date": "2026-11-20",
-  "code_version": "0c0d7ca",
+  "code_version": "11bdd1c",
   "config_hash": "7dc121bf9c53564c",
   "input_hash": "4dab71c87ac9b01f",
   "data_quality": {
@@ -19,7 +19,7 @@
     "premium_ok": false,
     "market_snapshot": true,
     "sector_snapshot": false,
-    "checked_at": "2026-11-20 16:55:05"
+    "checked_at": "2026-11-20 17:18:40"
   },
   "regime": {
     "regime": "下行趋势",
@@ -48,10 +48,10 @@
       "data_status": "OK",
       "data_date": "2026-11-20",
       "observations": [
-        "close=4.020",
-        "MA5=4.047 MA10=4.085 MA20=4.107",
-        "vol_ratio=2.3821608693014134",
-        "ret5=-1.54 ret20=-3.78"
+        "close=4.018",
+        "MA5=4.046 MA10=4.084 MA20=4.107",
+        "vol_ratio=2.3821608508862475",
+        "ret5=-1.59 ret20=-3.83"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -61,6 +61,7 @@
         "R-D1"
       ],
       "counter_evidence": [
+        "5 日跑输基准 -0.05pct",
         "突破四条仅 1/4",
         "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
       ],
@@ -76,10 +77,10 @@
       "data_status": "OK",
       "data_date": "2026-11-20",
       "observations": [
-        "close=6.050",
-        "MA5=6.259 MA10=6.445 MA20=6.506",
-        "vol_ratio=2.632316460739231",
-        "ret5=-6.85 ret20=-11.77"
+        "close=6.053",
+        "MA5=6.260 MA10=6.445 MA20=6.506",
+        "vol_ratio=2.632316512282901",
+        "ret5=-6.81 ret20=-11.73"
       ],
       "signal_id": "R-D1",
       "signal_state": "EXIT",
@@ -105,7 +106,7 @@
       "observations": [
         "close=1.300",
         "MA5=1.308 MA10=1.332 MA20=1.320",
-        "vol_ratio=0.9614640875653677",
+        "vol_ratio=0.9614640939554846",
         "ret5=-3.99 ret20=-8.58"
       ],
       "signal_id": "R-B1",
@@ -134,7 +135,7 @@
       "observations": [
         "close=2.230",
         "MA5=2.302 MA10=2.405 MA20=2.469",
-        "vol_ratio=1.3736531127846252",
+        "vol_ratio=1.3736531039088267",
         "ret5=-8.68 ret20=-17.47"
       ],
       "signal_id": "R-D1",
