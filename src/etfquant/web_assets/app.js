@@ -2150,8 +2150,130 @@ function rsRsi(vals,n){
   return 100-100/(1+ag/al);
 }
 
+/* 月线/周线/双评分卡：全部从已取到的日线与周线算，缺项标「未接入」 */
+function rsEma(a,k){
+  var out=[], e=null;
+  for(var i=0;i<a.length;i++){ e=(e==null)?a[i]:e+(a[i]-e)*2/(k+1); out.push(e); }
+  return out;
+}
+function rsMacd(a){
+  if(!a||a.length<35) return null;
+  var e12=rsEma(a,12), e26=rsEma(a,26);
+  var dif=a.map(function(_,i){ return e12[i]-e26[i]; });
+  var dea=rsEma(dif,9);
+  return {dif:dif, dea:dea, hist:dif.map(function(v,i){ return (v-dea[i])*2; })};
+}
+function rsMonthly(w){
+  if(!w||!w.closes||!w.dates) return null;
+  var m={}, order=[];
+  for(var i=0;i<w.closes.length;i++){
+    var k=String(w.dates[i]||'').slice(0,7);
+    if(!k||!isFinite(w.closes[i])) continue;
+    if(!m[k]){ m[k]={c:w.closes[i],h:w.highs[i],l:w.lows[i],v:w.vols[i]||0}; order.push(k); }
+    else{
+      m[k].c=w.closes[i];
+      m[k].h=Math.max(m[k].h,w.highs[i]);
+      m[k].l=Math.min(m[k].l,w.lows[i]);
+      m[k].v+=w.vols[i]||0;
+    }
+  }
+  if(order.length<6) return null;
+  return {dates:order, closes:order.map(function(k){return m[k].c;}),
+          highs:order.map(function(k){return m[k].h;}), lows:order.map(function(k){return m[k].l;}),
+          vols:order.map(function(k){return m[k].v;})};
+}
+function rsMaLast(a,k){ return maOf(a,k); }
+function rsMaSeries(a,k){
+  var out=[],s=0;
+  for(var i=0;i<a.length;i++){ s+=a[i]; if(i>=k) s-=a[i-k]; out.push(i>=k-1?s/k:null); }
+  return out;
+}
+/* 双评分卡：估值/领先股/景气/资金/龙头未接入，按已有项折算到百分制 */
+function legScore(code){
+  var lb=LBARS[code], wk=RS_WEEK[code];
+  var dc=(lb&&lb.closes)?lb.closes.filter(function(x){ return isFinite(x)&&x>0; }):[];
+  var wc=(wk&&wk.closes)?wk.closes.filter(function(x){ return isFinite(x)&&x>0; }):[];
+  var mo=rsMonthly(wk);
+  var mm=mo?rsMacd(mo.closes):null;
+  var wm=wc.length>=35?rsMacd(wc):null;
+  var bottom=[], top=[];
+  function push(arr,w,v){ if(v!=null) arr.push([v,w]); }
+
+  /* 月线底背离 25 */
+  var md=null;
+  if(mo&&mm&&mo.closes.length>=14){
+    var sub=mo.closes.slice(-13,-1), lo=Math.min.apply(null,sub);
+    var idx=mo.closes.length-13+sub.indexOf(lo);
+    if(mo.closes[mo.closes.length-1]<=lo) md=(mm.dif[mm.dif.length-1]>mm.dif[idx])?25:15;
+    else md=(mm.dif[mm.dif.length-1]<0)?8:0;
+  }
+  push(bottom,25,md);
+
+  /* 月线倍量站上 20 月线 20 */
+  var m20=mo?rsMaLast(mo.closes,20):null;
+  var mmv=null;
+  if(mo&&m20!=null&&mo.closes.length>=21){
+    var v5=mo.vols.slice(-6,-1).reduce(function(a,b){return a+b;},0)/5;
+    var on=mo.closes[mo.closes.length-1]>m20;
+    mmv=on?(mo.vols[mo.vols.length-1]>v5*1.5?20:10):0;
+  }
+  push(bottom,20,mmv);
+
+  /* 周线多头排列 15 */
+  var w5=rsMaLast(wc,5), w10=rsMaLast(wc,10), w20=rsMaLast(wc,20), w30=rsMaLast(wc,30);
+  var wkScore=null;
+  if(w5!=null&&w10!=null&&w20!=null&&w30!=null){
+    wkScore=(w5>w10&&w10>w20&&w20>w30)?15:((w5>w10&&wc[wc.length-1]>w30)?10:((Math.abs(w5/w20-1)<0.02)?5:0));
+  }
+  push(bottom,15,wkScore);
+
+  /* 顶部：月线顶背离 30 */
+  var td=null;
+  if(mo&&mm&&mo.closes.length>=14){
+    var hi=Math.max.apply(null,mo.closes.slice(-13,-1));
+    if(mo.closes[mo.closes.length-1]>=hi){
+      var h4=mm.hist.slice(-5,-1), mx=Math.max.apply(null,h4);
+      td=(mm.hist[mm.hist.length-1]<mx)?30:15;
+    } else td=(mm.dif[mm.dif.length-1]<0&&mm.dif[mm.dif.length-1]<mm.dif[mm.dif.length-2])?10:0;
+  }
+  push(top,30,td);
+
+  /* 跌破 10 月线 20 */
+  var m10=mo?rsMaLast(mo.closes,10):null;
+  push(top,20,(mo&&m10!=null)?(mo.closes[mo.closes.length-1]<m10?20:0):null);
+
+  /* 周线死叉 15 */
+  var wd=null;
+  if(wm&&w5!=null&&w10!=null&&w30!=null){
+    wd=(w5<w10&&wc[wc.length-1]<w30)?15:((w5<w10)?10:0);
+  }
+  push(top,15,wd);
+
+  /* 情绪过热 10：所属板块成交占比 ≥15% */
+  var sec=rsSectorMap(code)[0][0], f=rsFindFlow(sec);
+  push(top,10,f?(n(f.share)>=15?10:(n(f.share)>=10?5:0)):null);
+
+  function norm(list){
+    if(!list.length) return null;
+    var ws=list.reduce(function(a,x){ return a+x[1]; },0);
+    return Math.round(list.reduce(function(a,x){ return a+x[0]*x[1]; },0)/ws);
+  }
+  var b=norm(bottom), t=norm(top);
+  var grade=b==null?'—':(b>=85?'S':(b>=75?'A':(b>=60?'B':(b>=50?'C':'D'))));
+  var cap=b==null?null:{S:25,A:20,B:10,C:5,D:3}[grade];
+  if(cap!=null&&t!=null){
+    if(t>=80) cap=0; else if(t>=60) cap=Math.min(cap,5); else if(t>=40) cap=Math.round(cap*0.5);
+  }
+  return {bottom:b,top:t,grade:grade,cap:cap,
+          missBottom:7-bottom.length,missTop:6-top.length,
+          items:{div:md,ma20m:mmv,week:wkScore,topDiv:td,break10m:(mo&&m10!=null)?(mo.closes[mo.closes.length-1]<m10):null,
+                 weekDeath:wd},
+          month:mo?{last:mo.closes[mo.closes.length-1],ma20:m20,ma10:m10}:null,
+          week:{ma5:w5,ma10:w10,ma20:w20,ma30:w30},
+          day:{close:dc.length?dc[dc.length-1]:null}};
+}
+
 function rsForecast(bars){
-  if(!bars||!bars.closes) return null;
   var c=(bars.closes||[]).filter(function(x){ return isFinite(x)&&x>0; });
   if(c.length<45) return null;
   function feat(t){
@@ -2681,25 +2803,6 @@ function rsPageHTML(p,s1,adv){
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自观察池（A/B 级、非持仓、相对基准不弱，同类别只留一只）；环境额度不足时只写“观察”。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
   return h;
 }
-function rsVerdict(a,r,l){
-  var label='中性', cls='', conf=4.5;
-  if(!a||a.data_status==='ABSTAIN'){ label='数据不足'; cls='warn'; conf=0; }
-  else if(a.action==='CLEAR'||a.action==='TRIM'){ label='看空'; cls='sell'; conf=a.level==='D'?6.8:5.8; }
-  else if(a.action==='ADD'){ label='看多'; cls='buy'; conf=a.level==='A'?6.4:5.6; }
-  else { label='中性'; cls=''; conf=a.level==='B'?4.2:5.0; }
-  var reasons=[];
-  if(l&&l.ma_state) reasons.push(l.ma_state);
-  if(l&&l.below_ma10>=2) reasons.push('连续 '+l.below_ma10+' 日低于 MA10');
-  if(l&&l.vol) reasons.push(l.vol+(l.vol_ratio!=null?'（量比 '+f2(l.vol_ratio)+'）':''));
-  else if(l&&l.vol_desc) reasons.push(l.vol_desc+(l.vol_ratio!=null?'（量比 '+f2(l.vol_ratio)+'）':''));
-  if(l&&l.rs&&l.rs.known&&l.rs.excess5!=null) reasons.push('5 日相对基准 '+f2(l.rs.excess5)+'pct');
-  if(!reasons.length) reasons.push('行情或关键字段不足');
-  var actionText=label==='看空'?'先降低风险，不抄底':(label==='看多'?'可以分批考虑':'先观察，不追');
-  var text='一句话：'+actionText+'。理由：'+reasons.join('；')+'。'+
-    (a&&a.entry!=null?'关键价位：参考 '+f2(a.entry)+(a.stop!=null?'，失效 '+f2(a.stop):'')+(a.tp!=null?'，目标 '+f2(a.tp):'')+'。':'');
-  return {label:label,cls:cls,conf:conf,text:text,actionText:actionText};
-}
-
 function rsAfterBars(){
   if(!RS_PORT) return;
   rsRenderBrief(RS_PORT,RS_S1);
@@ -2751,6 +2854,16 @@ function rsSelect(code){
   rsRenderDetail();
 }
 
+function rsPlanRow(code){
+  for(var i=0;i<(RS_PLAN||[]).length;i++){
+    if(String(RS_PLAN[i].r.code)===String(code)) return RS_PLAN[i];
+  }
+  return null;
+}
+function tick(txt,ok){
+  return '<span class="tag '+(ok===null?'hold':(ok?'buy':'sell'))+'">'+
+    (ok===null?'—':(ok?'✓':'✗'))+'</span> '+esc(txt);
+}
 function rsRenderDetail(){
   var el=document.getElementById('rsDetail');
   if(!el) return;
@@ -2758,64 +2871,107 @@ function rsRenderDetail(){
   if(!code){ el.innerHTML='<div class="notice">当前没有持仓。</div>'; return; }
   var row=(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
   var l=legOf(code)||localLeg(code,row);
-  var a=null;
-  if(RS_ADV){ for(var i=0;i<RS_ADV.rows.length;i++){ if(String(RS_ADV.rows[i].r.code)===String(code)){ a=RS_ADV.rows[i].a; break; } } }
   if(!l){ el.innerHTML='<div class="notice">'+esc(code)+' 行情不足，暂不展示个股结构。</div>'; return; }
-  var v=rsVerdict(a,row,l);
+  var pr=rsPlanRow(code)||{};
+  var o=pr.order||{};
   var f=rsForecast(LBARS[code]);
-  var levels=['强烈看空','看空','中性观望','看多','强烈看多'];
-  var active=v.label==='看空'?1:(v.label==='看多'?3:2);
-  var vcolor=v.cls==='sell'?'var(--down)':(v.cls==='buy'?'var(--up)':'var(--blue-d)');
-  var h='<div class="rs-verdict" style="border-top-color:'+vcolor+'"><div class="vh">'+
-    '<span class="rs-pill '+v.cls+'">结论：'+v.label+'</span>'+
-    '<span class="rs-pill warn">信心 '+f2(v.conf)+' / 10</span>'+
-    '<span class="rs-pill">'+esc(code)+' · 日线 · '+esc((D.meta&&D.meta.data_date)||'—')+'</span>'+
-    (f&&f.d5?'<span class="rs-pill">5日上涨占比 '+f2(f.d5.p)+'%</span>':'')+
-    '</div><div class="big" style="color:'+vcolor+'">'+v.label+'</div>'+
-    '<div class="scale">'+levels.map(function(x,i){ return '<span class="'+(i===active?'on':'')+'">'+x+'</span>'; }).join('')+'</div>'+
-    '<p>'+esc(v.text)+'</p>'+
+  var sc=legScore(code);
+  var b=LBARS[code]||{};
+  var dc=(b.closes||[]).filter(function(x){ return isFinite(x)&&x>0; });
+  var dl=(b.lows||[]).slice(-20);
+  var low20=dl.length?Math.min.apply(null,dl):null;
+  var cap=(D.plan&&D.plan.total_target!=null)?n(D.plan.total_target):null;
+  var kind=pr.action==='ADD'?'buy':(pr.action==='TRIM'?'sell':'');
+
+  /* 1 结论 */
+  var h='<div class="rs-verdict" style="border-top-color:'+
+    (kind==='sell'?'var(--down)':(kind==='buy'?'var(--up)':'var(--blue-d)'))+'">'+
+    '<div class="vh"><span class="rs-pill '+kind+'">结论：'+esc(pr.text||'目标缺失')+'</span>'+
+    '<span class="rs-pill">'+esc(code)+' · '+(pr.grade||'—')+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%')+'</span>'+
+    '<span class="rs-pill">现价 '+f3(l.last)+' · '+esc((D.meta&&D.meta.data_date)||'—')+'</span></div>'+
     '<div class="kpis">'+
-      '<div class="kpi"><div class="k">现价 / MA20</div><div class="v">'+f2(l.last)+' / '+(l.ma20==null?'—':f2(l.ma20))+'</div><div class="d">'+esc(l.ma_state||'—')+'</div></div>'+
-      '<div class="kpi"><div class="k">参考买点</div><div class="v">'+(a&&a.entry!=null?f2(a.entry):'—')+'</div><div class="d">规则与回踩</div></div>'+
-      '<div class="kpi"><div class="k">失效 / 止损</div><div class="v">'+(a&&a.stop!=null?f2(a.stop):'—')+'</div><div class="d">收盘为准</div></div>'+
-      '<div class="kpi"><div class="k">20日上涨占比</div><div class="v">'+(f&&f.d20?f2(f.d20.p)+'%':'—')+'</div><div class="d">'+(f&&f.d20?('样本 '+f.d20.n):'样本不足')+'</div></div>'+
+      '<div class="kpi"><div class="k">仓位</div><div class="v">'+f2(row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</div><div class="d">差额 '+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</div></div>'+
+      '<div class="kpi"><div class="k">挂单价</div><div class="v">'+(o.limit!=null?f3(o.limit):'—')+'</div><div class="d">'+(o.note||'限价保护')+'</div></div>'+
+      '<div class="kpi"><div class="k">本次操作</div><div class="v">'+(o.delta==null?'—':((o.delta>0?'+':'')+o.delta.toLocaleString()))+'</div><div class="d">'+(o.first?('首批 '+o.first.toLocaleString()+' 份'):'—')+'</div></div>'+
+      '<div class="kpi"><div class="k">费用</div><div class="v">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</div><div class="d">佣金+滑点</div></div>'+
     '</div></div>';
-  h+='<div class="rs-grid2"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点</span><div class="rs-legend">'+
+
+  /* 2 进场检查 */
+  var maOk=(l.ma5!=null&&l.ma10!=null&&l.ma20!=null)?(n(l.ma5)>n(l.ma10)&&n(l.ma10)>n(l.ma20)):null;
+  var bodyOk=null;
+  if(b.opens&&b.highs&&b.lows&&b.closes&&b.closes.length){
+    var i0=b.closes.length-1, o0=n(b.opens[i0]||b.closes[i0]), c0=n(b.closes[i0]),
+        h0=n(b.highs[i0]), l0=n(b.lows[i0]);
+    bodyOk=(c0>o0)&&((h0-c0)<=Math.max((h0-l0)*0.3,1e-9));
+  }
+  var above120=(l.ma120!=null&&l.last!=null)?(n(l.last)>n(l.ma120)):null;
+  var notNewLow=(low20!=null&&dc.length)?(dc[dc.length-1]>low20):null;
+  var stand=l.stand_back==null?null:!!l.stand_back;
+  var shrink=l.shrink==null?null:!!l.shrink;
+  var fake=l.false_breakout==null?null:!!l.false_breakout;
+  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
+    '环境：总仓位上限 '+(cap==null?'缺失':f2(cap)+'%')+'，上限不足时只做试错仓。<br>'+
+    '第 1 步 底部震荡：'+tick(notNewLow===null?'数据不足':(notNewLow?'近 20 日未创新低':'仍在创新低'),notNewLow)+'<br>'+
+    '第 2 步 放量突破：'+tick('均线多头（5>10>20）',maOk)+' '+tick('实体阳线、无长上影',bodyOk)+' '+tick('站上 120 日线',above120)+'<br>'+
+    '第 3 步 回踩确认：'+tick('回踩不破关键位',stand)+' '+tick('缩量',shrink)+' '+(fake?'<span class="tag sell">✗ 假突破（放量下跌）</span>':'')+
+    '<br><span class="muted">突破当天只标关注，回踩才是确认；三条缺一条写「突破不成立」。</span></div></div>'+
+    '<div class="box"><div class="bt">三周期</div><table class="tbl"><thead><tr><th>周期</th><th>位置</th><th>结论</th></tr></thead><tbody>'+
+    tr(['月线',(sc.month?('收 '+f3(sc.month.last)+' / 20 月线 '+(sc.month.ma20==null?'—':f3(sc.month.ma20))):'周线数据不足'),
+      (sc.month&&sc.month.ma20!=null)?(n(sc.month.last)>n(sc.month.ma20)?'20 月线上方，可重仓区':'20 月线下方，上涨当反弹'):'—'])+
+    tr(['周线',[sc.week.ma5,sc.week.ma10,sc.week.ma20,sc.week.ma30].map(f3).join(' / '),
+      (sc.items.week==null)?'—':(sc.items.week>=15?'多头排列':(sc.items.week>=10?'金叉初期':(sc.items.week>=5?'粘合':'空头')))])+
+    tr(['日线','MA5 '+f3(l.ma5)+' / MA10 '+f3(l.ma10)+' / MA20 '+f3(l.ma20)+' / MA60 '+f3(l.ma60)+' / MA120 '+f3(l.ma120),
+      (l.vol_ratio!=null?'量比 '+f2(l.vol_ratio):'量比缺失')+'；'+(l.ma_state||'—')])+
+    '</tbody></table><div class="rs-note">日线服从周线：周线向上，日线回踩是买点；周线向下，日线反弹是卖点。</div></div></div>';
+
+  /* 3 双评分卡（只解释强弱，不改目标；评级与上限以顶部唯一出口为准） */
+  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
+    '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
+    '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
+    '<span class="k">未接入</span><span class="v">'+sc.missBottom+' 项（估值/领先股/景气/资金）</span></div>'+
+    '<div class="rs-note">月线底背离 '+(sc.items.div==null?'—':sc.items.div)+'/25；月线倍量站上 20 月线 '+
+      (sc.items.ma20m==null?'—':sc.items.ma20m)+'/20；周线排列 '+(sc.items.week==null?'—':sc.items.week)+'/15。</div></div>'+
+    '<div class="box"><div class="bt">顶部风险</div>'+
+    '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.top==null?'—':sc.top)+' / 100</span>'+
+    '<span class="k">风险提示</span><span class="v">'+(sc.top==null?'—':(sc.top>=80?'高位风险高':(sc.top>=60?'高位风险偏高':(sc.top>=40?'有警惕信号':'正常'))))+'</span>'+
+    '<span class="k">未接入</span><span class="v">'+sc.missTop+' 项（估值/龙头）</span></div>'+
+    '<div class="rs-note">月线顶背离 '+(sc.items.topDiv==null?'—':sc.items.topDiv)+'/30；跌破 10 月线 '+
+      (sc.items.break10m==null?'—':(sc.items.break10m?'是':'否'))+'；周线死叉 '+(sc.items.weekDeath==null?'—':sc.items.weekDeath)+'/15。'+
+      '<br>两张卡只解释强弱，不改目标；评级、上限、数量以顶部结论与明细表为准。</div></div></div>';
+
+  /* 4 结构图 */
+  h+='<div class="rs-grid2" style="margin-top:10px"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
     '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
     '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
-    '<div class="rs-note" id="rsChanNote"></div></div>'+
-    '<div><div class="box"><div class="bt">量化操作建议</div><div class="rs-advice">'+
-      '<div class="ar"><span class="k">动作</span><span class="v"><b>'+esc(a?a.action_text:'—')+'</b></span></div>'+
-      '<div class="ar"><span class="k">参考仓位</span><span class="v">'+(a&&a.action==='CLEAR'?'0–10%':a&&a.action==='TRIM'?'10–20%':a&&a.action==='ADD'?'30–40%':'20–30%')+'（参考区间）</span></div>'+
-      '<div class="ar"><span class="k">买点</span><span class="v">'+(a&&a.entry!=null?f2(a.entry):'—')+'</span></div>'+
-      '<div class="ar"><span class="k">卖点 / 止损</span><span class="v">'+(a&&a.stop!=null?f2(a.stop):'—')+'</span></div>'+
-      '<div class="ar"><span class="k">说明</span><span class="v">'+esc((a&&a.price_note)||'价格是执行政策，不保证成交')+'</span></div>'+
-    '</div></div><div class="box"><div class="bt">日线 ↔ 周线联动</div><table class="tbl rs-weekly"><thead><tr><th>观察</th><th>日线</th><th>周线</th></tr></thead><tbody id="rsWeeklyBody"></tbody></table><div class="rs-note">周线定方向，日线找点位；周线数据失败时只显示日线。</div></div></div></div>';
+    '<div class="rs-note" id="rsChanNote">分型 → 笔 → 中枢 → 背驰 → 买卖点；不含线段与多级别递归。</div></div>'+
+    '<div class="box"><div class="bt">概率（历史相似条件）</div><div class="kpis">'+
+      ['d5','d20','d60'].map(function(k){
+        var it=f&&f[k];
+        return '<div class="kpi"><div class="k">'+k.slice(1)+' 日上涨占比</div><div class="v">'+
+          (it?f2(it.p)+'%':'—')+'</div><div class="d">'+(it?('样本 '+it.n):'样本不足')+'</div></div>';
+      }).join('')+
+    '</div><div class="rs-note">'+(f&&f.d20?('20 日中位涨幅 '+f2(f.d20.med)+'%，样本区间 '+(f.d20.span||'—')):'样本不足 30 个，整列不显示')+
+    '；概率只作参考，不改评级、不改动作。</div></div></div>';
+
+  /* 5 怎么做 */
+  var conf=[];
+  if(l.ma10!=null&&n(l.last)>n(l.ma10)) conf.push('站上 10 日线');
+  if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
+  if(n(l.vol_ratio)>1.2) conf.push('量能放大');
+  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">怎么做</div>'+
+    '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2(row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
+    '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</span>'+
+    '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
+    '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span></div>'+
+    '<div class="rs-note">挂单价 = 买 现价×1.0001（进位）/ 卖 现价×0.9999（截断），到 0.001；数量向下取整到 100 份；价格是执行价，不保证成交。</div></div>'+
+    '<div class="box"><div class="bt">改判</div><div class="rs-note" style="margin-top:0">'+
+    '转好：站上 20 日线且周线转多 → 评级重估，目标回到 '+(pr.target==null?'—':f2(pr.target)+'%')+'。<br>'+
+    '恶化：收盘连续两日跌破 30 日线'+(l.ma30!=null?('（'+f3(l.ma30)+'）'):'')+' → 卖出该只全部剩余差额。<br>'+
+    '<span class="muted">止损分两套：交易仓（C/B）破 10 日线 2 日出局；核心仓（A/S）破 20 日线 2 日减半、破 30 日线 2 日清差额、破 60 日线立即。</span></div></div></div>';
+
   el.innerHTML=h;
   rsDrawChart(code);
   setTimeout(function(){ if(RS_SELECTED) rsDrawChart(RS_SELECTED); },60);
-  rsRenderWeekly(code);
-}
-
-function rsRenderWeekly(code){
-  var body=document.getElementById('rsWeeklyBody');
-  if(!body) return;
-  var d=LBARS[code], w=RS_WEEK[code];
-  var dc=d&&d.closes?d.closes.filter(function(x){ return isFinite(x)&&x>0; }):[];
-  var wc=w&&w.closes?w.closes.filter(function(x){ return isFinite(x)&&x>0; }):[];
-  var dLast=dc.length?dc[dc.length-1]:null, wLast=wc.length?wc[wc.length-1]:null;
-  var dMa5=dc.length>=5?dc.slice(-5).reduce(function(a,b){return a+b;},0)/5:null;
-  var dMa20=dc.length>=20?dc.slice(-20).reduce(function(a,b){return a+b;},0)/20:null;
-  var wMa5=wc.length>=5?wc.slice(-5).reduce(function(a,b){return a+b;},0)/5:null;
-  var wMa20=wc.length>=20?wc.slice(-20).reduce(function(a,b){return a+b;},0)/20:null;
-  var rows=[
-    ['收盘',dLast==null?'—':f2(dLast),wLast==null?'—':f2(wLast)],
-    ['MA5',dMa5==null?'—':f2(dMa5),wMa5==null?'—':f2(wMa5)],
-    ['MA20',dMa20==null?'—':f2(dMa20),wMa20==null?'—':f2(wMa20)],
-    ['方向',dLast!=null&&dMa20!=null?(dLast>dMa20?'均线上方':'均线下方'):'—',wLast!=null&&wMa20!=null?(wLast>wMa20?'向上':'向下'):'不可用'],
-    ['RSI14',rsRsi(dc,14)==null?'—':f2(rsRsi(dc,14)),rsRsi(wc,14)==null?'—':f2(rsRsi(wc,14))]
-  ];
-  body.innerHTML=rows.map(function(r){ return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>'; }).join('');
 }
 
 function rsDrawChart(code){
