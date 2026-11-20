@@ -11,6 +11,30 @@ from . import config
 from . import methodology as M
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_assets')
+SECTOR_WEIGHTS_PATH = os.path.join(config.ROOT, 'data', 'snapshot', 'index_sector_weights.json')
+
+
+def _load_sector_weights():
+    """指数 → 申万一级行业权重（scripts/fetch_index_sector_weights.py 生成）。
+
+    结构不合法就当作没有：页面显示「未覆盖」，不猜。
+    """
+    try:
+        with open(SECTOR_WEIGHTS_PATH, encoding='utf-8') as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict):
+        return None
+    if not isinstance(d.get('indices'), dict) or not isinstance(d.get('etf_index'), dict):
+        return None
+    for idx, w in d['indices'].items():
+        if not isinstance(w, dict):
+            return None
+        for k, v in w.items():
+            if not isinstance(k, str) or not isinstance(v, (int, float)):
+                return None
+    return d
 
 
 def _national_team():
@@ -22,6 +46,54 @@ def _national_team():
         return d if d.get('series') else None
     except Exception:
         return None
+
+BRIEF_PATH = os.path.join(config.ROOT, 'data', 'brief.json')
+BANNED_PATH = os.path.join(config.ROOT, 'config', 'brief_banned.txt')
+
+
+def _banned():
+    """禁词表由 config/brief_banned.txt 维护；读不到就拒收全部点评（回退本机引擎）。"""
+    try:
+        with open(BANNED_PATH, encoding='utf-8') as f:
+            words = tuple(w.strip() for w in f if w.strip())
+    except OSError:
+        return None
+    return words or None
+
+
+def _brief(data_date):
+    """读取 skill 产出的 data/brief.json；日期不符、结构不合法、含禁词都不用。
+
+    返回 None 时页面回退到本机引擎生成点评，并标注来源。
+    """
+    banned = _banned()
+    if not banned:
+        return None
+    try:
+        with open(BRIEF_PATH, encoding='utf-8') as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict) or not isinstance(d.get('blocks'), list) or not d['blocks']:
+        return None
+    if data_date and d.get('data_date') != data_date:
+        return None
+    blocks, text = [], []
+    for b in d['blocks']:
+        if not isinstance(b, dict):
+            return None
+        k, v = b.get('k'), b.get('v')
+        if not isinstance(k, str) or not isinstance(v, str) or not k.strip() or not v.strip():
+            return None
+        blocks.append(dict(k=k.strip(), v=v.strip(), refs=b.get('refs') or []))
+        text.append(v)
+    conclusion = d.get('conclusion') or ''
+    if not isinstance(conclusion, str):
+        return None
+    joined = conclusion + ''.join(text)
+    if any(w in joined for w in banned):
+        return None
+    return dict(data_date=d.get('data_date'), conclusion=conclusion.strip(), blocks=blocks)
 
 SHELL = '''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -109,35 +181,6 @@ def _r(x, d=3):
         return None
 
 
-BRIEF_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), 'data', 'brief.json')
-
-
-def _brief():
-    """读取 portfolio-brief skill 的产出；不存在或结构不合法则返回 None。
-
-    契约（由 skills/portfolio-brief/SKILL.md 规定）：
-        {"data_date": "YYYY-MM-DD", "conclusion": "一句话",
-         "sections": [{"k": "环境|结构|执行|改判", "v": "…"}], "source": "llm"}
-    这里只做格式校验，不做内容判断；页面会用数据日比对是否可用。
-    """
-    try:
-        with open(BRIEF_PATH, encoding='utf-8') as f:
-            d = json.load(f)
-    except (OSError, ValueError):
-        return None
-    if not isinstance(d, dict):
-        return None
-    secs = d.get('sections')
-    if not isinstance(secs, list) or not secs:
-        return None
-    clean = [x for x in secs if isinstance(x, dict) and x.get('k') and x.get('v')]
-    if len(clean) != len(secs):
-        return None
-    return dict(data_date=d.get('data_date'), conclusion=d.get('conclusion') or '',
-                sections=clean, source=d.get('source') or 'llm')
-
-
 def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=None,
                plan=None):
     """组装前端数据：公开行情 + 逐腿证据卡 + 权威数据包摘要 + 决策契约参数。"""
@@ -205,6 +248,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                   status=meta.get('status', 'OK'), run_id=meta.get('run_id'),
                   source=meta['source'], skipped=meta.get('skipped', []),
                   version=meta.get('version', '3.0'),
+                  dashboard_version='4.0',
                   tz=meta.get('tz', 'Asia/Shanghai'),
                   benchmark_date=meta.get('benchmark_date')),
         packet=dict(schema_version=pkt.get('schema_version'), status=pkt.get('status'),
@@ -227,7 +271,12 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                                 observations=regime.get('observations', []),
                                 as_of=regime.get('as_of'),
                                 close=regime.get('close'), ma5=regime.get('ma5'),
-                                ma20=regime.get('ma20'), ma60=regime.get('ma60'),
+                                ma10=regime.get('ma10'), ma20=regime.get('ma20'),
+                                ma30=regime.get('ma30'), ma60=regime.get('ma60'),
+                                ma120=regime.get('ma120'),
+                                ma_spread_pct=regime.get('ma_spread_pct'),
+                                days_above_ma5=regime.get('days_above_ma5'),
+                                gaps=regime.get('gaps') or [],
                                 vol20=regime.get('vol20'), vol60=regime.get('vol60'),
                                 position=regime.get('position'))),
         legs=legcards,
@@ -236,7 +285,8 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
         plan=plan,
-        brief=_brief(),
+        brief=_brief(meta.get('data_date')),
+        sector_weights=_load_sector_weights(),
         contract=dict(
             version='1.0',
             config_hash=(pkt or {}).get('config_hash'),

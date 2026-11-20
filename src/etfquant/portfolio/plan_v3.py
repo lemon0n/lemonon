@@ -16,6 +16,20 @@ TARGET_VOL = 15.0
 MAX_SINGLE = 25.0
 GAP_THRESHOLD = 3.0
 TOP_N = 6
+# 评级 → 单只上限（与 page 决策链同一套分档）；D 级不清零，留 3% 观察仓
+CAP_OF = {'S': 25.0, 'A': 20.0, 'B': 10.0, 'C': 5.0, 'D': 3.0}
+
+
+def grade_of(score):
+    if score >= 85:
+        return 'S'
+    if score >= 75:
+        return 'A'
+    if score >= 60:
+        return 'B'
+    if score >= 50:
+        return 'C'
+    return 'D'
 
 
 def _ema(s, span):
@@ -113,7 +127,9 @@ def build(bars_by_code, bench_bars, regime, names=None):
     items = []
     for code in ranked:
         r = rows[code]
-        w = min(MAX_SINGLE, total * cand[code] / denom)
+        grade = grade_of(r['score'])
+        cap = CAP_OF[grade]
+        w = min(MAX_SINGLE, cap, total * cand[code] / denom)
         if r['below60'] or r['below30']:
             tier = '跌破MA30：差额可一次性卖出'
         elif r['below20']:
@@ -124,7 +140,8 @@ def build(bars_by_code, bench_bars, regime, names=None):
             tier = '结构未坏：只减差额一半，向目标靠拢'
         items.append(dict(
             code=str(code), name=names.get(code, ''),
-            score=round(r['score'], 0), vol20=_num(r['vol20']),
+            score=round(r['score'], 0), grade=grade, cap=cap,
+            vol20=_num(r['vol20']),
             target_weight=round(w, 1), wk_up=bool(r['wk_up']),
             confirm=r['confirm'], tier=tier,
             ma10=_num(r['ma10']), ma20=_num(r['ma20']),

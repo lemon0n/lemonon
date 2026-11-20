@@ -1,0 +1,6 @@
+{
+  "display_name": "股票舆情智能AI助手",
+  "display_name_en": "Stock Sentiment AI Assistant",
+  "description_zh": "一句话生成全时段 A 股舆情简报：财联社电报、美股隔夜、期货大宗、主力资金、两融数据全量采集，自动情感评分 + 板块关联 + 偏多偏空定性，免配置 API Key。",
+  "description_en": "One-line full-day A-share sentiment briefing: Cailianpress telegraph, US stocks, futures, main fund flow and margin data, with quantified sentiment scoring, sector mapping and market verdicts. No API key required."
+}

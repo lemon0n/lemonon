@@ -99,10 +99,11 @@ def test_refresh_quotes_does_not_recompute_daily_signal():
 
 
 def test_page5_has_single_order_count_source():
-    """页面不得再用第二套过滤条件数订单；必须只读 PDEC。"""
+    """页面订单只能来自唯一出口 RS_PLAN；不得再用第二套过滤条件数订单。"""
     with open(os.path.join(ROOT, 'src', 'etfquant', 'web_assets', 'app.js'),
               encoding='utf-8') as f:
         src = f.read()
     assert 'sim.rows.filter' not in src
     assert 'refreshOrderListBox' not in src
-    assert 'PDEC.orders.length' in src
+    assert 'RS_PLAN||[]' in src
+    assert 'PDEC.orders.length' not in src
