@@ -10,7 +10,7 @@ var PQ = {};                      /* 持仓里不在观察池的 ETF 实时价�
 var QNAME = {};                   /* 行情源返回的基金名称缓存 {code: name}，用于补名与自动分类 */
 var PERF = null, PERF_BUSY = false;
 var ENC = null, ENC_LOADING = null;   /* 云端密文包 */
-var PDEC = null;                  /* 唯一组合决策契约（浏览器执行层） */
+var PDEC = null;                  /* 组合执行契约：只做同源校验，不渲染动作 */
 var SIGNAL_STALE = false;         /* 已刷新盘中价：日频信号仍基于收盘 */
 
 /* ---------------- 基础工具 ---------------- */
@@ -808,7 +808,7 @@ function observePortfolioSections(){
   },{root:root,rootMargin:'-90px 0px -65% 0px'});
   sections.forEach(function(s){window.PORTFOLIO_OBSERVER.observe(s);});
 }
-function page5CashOnly(h,p,s1,adv,pdec){
+function page5CashOnly(h,p,s1,adv){
   var cash=n(HOLD.cash),asset=(p&&p.totalAsset!=null)?n(p.totalAsset):cash;
   h+='<section id="portfolio-overview" class="portfolio-section">'+secLg('组合概览');
   h+='<div class="grid4">'+
@@ -842,7 +842,7 @@ function page5(){
   var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
   PDEC=buildPdec(p,s1,adv);
   RS_PORT=p; RS_S1=s1; RS_ADV=adv; adv5RowsCache=adv.rows;
-  if(!HOLD.rows.length) return page5CashOnly(h+portfolioNav(),p,s1,adv,PDEC);
+  if(!HOLD.rows.length) return page5CashOnly(h+portfolioNav(),p,s1,adv);
   h+=rsPageHTML(p,s1,adv);
   setTimeout(rsInit,0);
   return h;
@@ -2165,50 +2165,135 @@ function nationalTeamText(code){
   var chg=(a/b-1)*100;
   return esc(g+' '+(chg>0.5?'增持':(chg<-0.5?'减持':'持平'))+' '+f2(Math.abs(chg))+'%');
 }
-/* 今日点评：由当次数据生成（环境→结构→执行→改判），环境口径与第三部分同源 */
+/* 今日点评：七类信息按八步顺序拼，每句都带数字；不写死句子。
+   与第三部分共用 marketOutlook()，与明细表共用 RS_PLAN（同一出口）。 */
+function ntWindow(series){
+  if(!series||!series.length) return null;
+  var last=series[series.length-1];
+  var ld=new Date(String(last.date)+'T00:00:00Z').getTime();
+  for(var i=series.length-2;i>=0;i--){
+    var d=new Date(String(series[i].date)+'T00:00:00Z').getTime();
+    if(ld-d>=25*86400000) return {last:last,base:series[i],span:Math.round((ld-d)/86400000)};
+  }
+  return {last:last,base:series[0],span:null};
+}
+function rsBriefSections(p){
+  var v=marketOutlook();
+  var b=(D.market&&D.market.breadth)||{}, rg=(D.market&&D.market.regime)||{};
+  var pl=D.plan||{}, out=[];
+  var pos=(p&&p.positionPct!=null)?n(p.positionPct):null;
+  var cap=(pl.total_target!=null)?n(pl.total_target):null;
+  var amtChg=(b.amount_chg_pct==null)?null:n(b.amount_chg_pct);
+  var amtKind=amtChg==null?'成交额环比缺失':(amtChg<=-5?'缩量':(amtChg>=10?'放量':'平量'));
+  var panic=sentItem('恐慌判定')||'未接入';
+
+  /* 1 今天是什么日子 */
+  var globItems=(D.market&&D.market.glob&&D.market.glob.items)||[];
+  var globTxt=globItems.length?globItems.slice(0,2).map(function(x){ return x.k+' '+x.v; }).join('，'):'隔夜未取到';
+  out.push({k:'今天是什么日子',v:v.session.label+'（'+v.session.focus+'）；数据日 '+
+    ((D.meta&&D.meta.data_date)||'—')+'；'+globTxt+'。'});
+
+  /* 2 大盘处在什么阶段 */
+  out.push({k:'大盘处在什么阶段',v:'基准 '+(rg.regime||'未知')+
+    (rg.close!=null?'，收在 '+f2(rg.close):'')+
+    (rg.ma5!=null&&rg.ma20!=null&&rg.ma60!=null?('，MA5 '+f2(rg.ma5)+' / MA20 '+f2(rg.ma20)+
+      ' / MA60 '+f2(rg.ma60)):'')+
+    '；总仓位上限 '+(cap==null?'缺失':f2(cap)+'%')+
+    '；成交额 '+f2(b.amount_yi)+' 亿'+(amtChg==null?'':'，环比 '+(amtChg>0?'+':'')+f2(amtChg)+'%（'+amtKind+'）')+
+    '；恐慌判定 '+panic+
+    (v.pos?('；现价距前低 '+f2(v.pos.low_dist_pct)+'%、距前高 '+f2(v.pos.high_dist_pct)+
+      '%，赔率 '+(v.pos.odds==null?'—':f2(v.pos.odds)+' : 1')):'')+'。'});
+
+  /* 3 今天的主要矛盾在哪 */
+  var exp=(typeof rsSectorExposure==='function'&&p)?rsSectorExposure(p):{rows:[]};
+  var top=exp.rows[0]||null;
+  var flow=(D.market&&D.market.flow)||[];
+  var hot=flow.filter(function(x){ return n(x.share)>=15; }).slice(0,2);
+  var weakest=null, biggest=null, wr=9, LR={D:0,C:1,B:2,A:3,S:4};
+  (RS_PLAN||[]).forEach(function(x){
+    var rk=LR[x.grade||'B']; if(rk==null) rk=2;
+    if(rk<wr){ wr=rk; weakest=x; }
+    if(!biggest||n(x.r.weight)>n(biggest.r.weight)) biggest=x;
+  });
+  var contra;
+  if(pos!=null&&cap!=null&&pos>cap)
+    contra='仓位 '+f2(pos)+'% 比上限高 '+f2(pos-cap)+'pct，今天的矛盾是总量，不是选哪只';
+  else if(top&&top.pct>=25)
+    contra='最大暴露 '+top.sector+' '+f2(top.pct)+'%（超 25%），矛盾在结构，不在总量';
+  else if(weakest&&biggest&&weakest.r.code===biggest.r.code)
+    contra='最大权重压在最低评级（'+(weakest.r.name||weakest.r.code)+' '+(weakest.grade||'—')+'），属于结构错配';
+  else if(pos!=null&&cap!=null)
+    contra='仓位 '+f2(pos)+'%，离上限 '+f2(cap)+'% 还有 '+f2(Math.abs(cap-pos))+'pct，结构上没有硬矛盾，按差额小步调';
+  else contra='仓位或上限缺失，今天只描述事实，不推动作';
+  out.push({k:'今天的主要矛盾',v:contra+'。'});
+
+  /* 4 行业给了什么信号 */
+  var leaders=(rg.leaders||[]).slice(0,3), laggards=(rg.laggards||[]).slice(0,3);
+  out.push({k:'行业给了什么信号',v:
+    (leaders.length?'主线 '+leaders.join('、'):'主线缺失')+
+    (hot.length?'；成交占比过热 '+hot.map(function(x){ return x.sector+' '+f2(x.share)+'%'; }).join('、'):'；无板块成交占比≥15%')+
+    (laggards.length?'；落后 '+laggards.join('、')+'（没跌够的不追反弹）':'')+
+    (top?('；组合最大暴露 '+top.sector+' '+f2(top.pct)+'%'):'')+'。'});
+
+  /* 5 资金背景帮不帮忙 */
+  var liq=((D.market&&D.market.liquidity&&D.market.liquidity.items)||[]).slice(0,3)
+    .map(function(x){ return x.k+' '+x.v; });
+  var nt=(D.market&&D.market.national_team)?ntWindow(D.market.national_team.series):null;
+  var ntTxt='国家队未纳入';
+  if(nt&&nt.last&&nt.base){
+    var a=(nt.last.groups||{})['全宽基合计'], c=(nt.base.groups||{})['全宽基合计'];
+    if(a!=null&&c!=null){
+      var ch=(a/c-1)*100;
+      ntTxt='国家队宽基份额 '+(nt.span?nt.span+' 天':'区间')+' '+(ch>0.5?'增':(ch<-0.5?'减':'平'))+
+        ' '+f2(Math.abs(ch))+'%'+(Math.abs(ch)>15?'（单期变化大，仅展示不作判断）':'');
+    }
+  }
+  out.push({k:'资金背景',v:(liq.length?liq.join('；'):'主力/两融未接入')+'；'+ntTxt+
+    '。资金只调倾向，最多影响总上限 ±5 个百分点。'});
+
+  /* 6 我们自身偏差多少 */
+  var gradeCnt={S:0,A:0,B:0,C:0,D:0};
+  (RS_PLAN||[]).forEach(function(x){ if(gradeCnt[x.grade]!=null) gradeCnt[x.grade]++; });
+  out.push({k:'自身偏差',v:'当前仓位 '+(pos==null?'—':f2(pos)+'%')+
+    '，上限 '+(cap==null?'—':f2(cap)+'%')+
+    (pos!=null&&cap!=null?('（'+(pos>cap?'高':'低')+' '+f2(Math.abs(pos-cap))+'pct）'):'')+
+    '；评级分布 S'+gradeCnt.S+'/A'+gradeCnt.A+'/B'+gradeCnt.B+'/C'+gradeCnt.C+'/D'+gradeCnt.D+
+    (weakest?('；最弱 '+(weakest.r.name||weakest.r.code)+'（'+(weakest.grade||'—')+' 级，仓位 '+
+      f2(weakest.r.weight)+'%）'):'')+
+    '；现金 '+(p&&p.cashPct!=null?f2(p.cashPct)+'%':'—')+'。'});
+
+  /* 7 今天动什么 */
+  var acts=(RS_PLAN||[]).filter(function(x){ return x.order&&x.order.delta; });
+  var actTxt;
+  if(!acts.length) actTxt='今天没有订单：差额都不到 3pct，或目标/价格缺失。';
+  else actTxt='今天 '+acts.length+' 笔：'+acts.map(function(x){
+    var o=x.order, s=(o.delta>0?'买 ':'卖 ')+Math.abs(o.delta).toLocaleString()+' 份';
+    return (x.r.name||x.r.code)+' '+s+'，挂 '+f3(o.limit)+(o.first?'（首批 '+o.first.toLocaleString()+' 份）':'');
+  }).join('；')+'。';
+  out.push({k:'今天动什么',v:actTxt});
+
+  /* 8 什么情况下改判 */
+  out.push({k:'什么情况下改判',v:
+    '转好：基准收复 '+(v.ma20==null?'MA20（数据缺失）':'MA20 '+f2(v.ma20))+' 且 MA5 上穿 MA20，按判据表重算上限；'+
+    '恶化：任一只收盘连续两日跌破 '+(rg.ma30!=null?'MA30 '+f2(rg.ma30):'MA30')+'，卖出该只全部剩余差额。'});
+  return out;
+}
 function rsRenderBrief(p,s1){
   var el=document.getElementById('rsBrief');
   if(!el||!p) return;
-  var v=marketOutlook();
-  var pl=D.plan||{};
-  var pos=p.positionPct, anchor=pl.total_target;
-  var acts=(PDEC&&PDEC.orders)||[];
-  var cnt=(PDEC&&PDEC.orders)?PDEC.orders.length:0;
-  var LEVEL_RANK={D:0,C:1,B:2,A:3};
-  var weakest=null, weakRank=9;
-  (adv5RowsCache||[]).forEach(function(x){
-    var rk=LEVEL_RANK[(x.a&&x.a.level)||'B'];
-    if(rk==null) rk=2;
-    if(rk<weakRank){ weakRank=rk; weakest=x; }
-  });
-  var nt=D.market&&D.market.national_team;
-  var ntTxt='';
-  if(nt&&nt.series&&nt.series.length>4){
-    var s0=nt.series, a=s0[s0.length-1].groups||{}, b=s0[s0.length-5].groups||{};
-    var ta=a['全宽基合计'], tb=b['全宽基合计'];
-    if(ta&&tb){ var ch=(ta/tb-1)*100;
-      ntTxt='；宽基份额近四周合计 '+(ch>0.5?'增持':(ch<-0.5?'减持':'持平'))+' '+f2(Math.abs(ch))+'%'; }
+  var blocks=null, src='', concl='';
+  if(D.brief&&D.brief.blocks&&D.brief.blocks.length){
+    blocks=D.brief.blocks; concl=D.brief.conclusion||'';
+  }else{
+    blocks=rsBriefSections(p); src='（本机引擎）';
   }
-  var l1=v.session.label+'（'+v.session.focus+'）：大盘'+esc(v.regime)+'，今日定性 '+esc(v.verdict)+
-    '；'+(v.reasons[0]||'')+'。仓位 '+f2(pos)+'%，锚 '+(anchor==null?'—':f2(anchor)+'%')+
-    (anchor==null?'':'（'+(pos>anchor?'高于':'低于')+' '+f2(Math.abs(pos-anchor))+'pct）')+
-    '；温度 '+v.temp+'/100'+ntTxt+'。';
-  var l2='结构上 '+(adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='CLEAR';}).length+' 只触发退出、'+
-    (adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='TRIM';}).length+' 只减仓、'+
-    (adv5RowsCache||[]).filter(function(x){return x.a&&x.a.action==='ADD';}).length+' 只可加仓；'+
-    '最弱 '+(weakest?esc(weakest.code)+'（'+esc((weakest.a&&weakest.a.action_text)||'—')+'）':'—')+'。';
-  var l3=cnt?('执行层面，今日 '+cnt+' 笔：'+acts.map(function(o){ return o.action+' '+o.code; }).join('、')+'；其余按差额不足 3pct 不动。'):
-    '执行层面，今日无订单：差额不足 3pct 或确认条件未齐。';
-  var l4='改判：'+(v.ma20==null?'基准数据恢复后重算':'基准收复 MA20 '+f2(v.ma20)+' 且 MA5 上穿 MA20 → 仓位锚上调；')+
-    '任一持仓跌破 MA30 两日 → 卖出该腿全部差额。';
-  var cf=outlookConflicts();
-  el.innerHTML='<div class="bt">今日点评</div>'+
-    '<div class="one sm" style="margin:0">'+l1+'</div>'+
-    '<div class="rs-note" style="margin-top:6px">'+l2+'</div>'+
-    '<div class="rs-note">'+l3+'</div>'+
-    '<div class="rs-note">'+l4+'</div>'+
-    (cf.length?'<div class="rs-note" style="color:#b45309">环境与动作存在分歧：'+
-      cf.map(function(x){ return esc(x[0])+' → '+esc(x[1]); }).join('；')+'</div>':'');
+  var hasTail=blocks.some(function(x){ return String(x.v||'').indexOf('不保证成交')>=0; });
+  var body=blocks.map(function(x){
+    return '<div class="rs-note" style="margin-top:6px"><b>'+esc(x.k)+'</b>：'+esc(x.v)+'</div>';
+  }).join('');
+  el.innerHTML='<div class="bt">今日点评'+src+'</div>'+
+    (concl?'<div class="one sm" style="margin:0 0 6px">'+esc(concl)+'</div>':'')+
+    body+(hasTail?'':'<div class="rs-note" style="margin-top:8px">价格是执行价，不保证成交。</div>');
 }
 var adv5RowsCache=null;
 
@@ -2973,9 +3058,9 @@ function rsRenderMarket(){
 /* 第三部分与第一部分的冲突：环境与动作方向相反时标出来 */
 function outlookConflicts(){
   var v=marketOutlook(), out=[];
-  var acts=(PDEC&&PDEC.orders)||[];
-  var buys=acts.filter(function(o){ return o.action==='ADD'; }).length;
-  var sells=acts.filter(function(o){ return o.action==='CLEAR'||o.action==='TRIM'; }).length;
+  var acts=RS_PLAN||[];
+  var buys=acts.filter(function(x){ return x.action==='ADD'; }).length;
+  var sells=acts.filter(function(x){ return x.action==='TRIM'; }).length;
   if(v.verdict==='偏空'&&buys){ out.push(['环境偏空 / 存在加仓','加仓需先满足周线不向下与确认条件，否则只观察']); }
   if(v.verdict==='偏多'&&sells&&!buys){ out.push(['环境偏多 / 全是减仓','减仓按差额执行，环境不改变单只档位']); }
   if(v.amountChg!=null&&v.amountChg<-5&&v.verdict==='偏多'){

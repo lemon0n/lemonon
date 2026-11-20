@@ -47,6 +47,54 @@ def _national_team():
     except Exception:
         return None
 
+BRIEF_PATH = os.path.join(config.ROOT, 'data', 'brief.json')
+BANNED_PATH = os.path.join(config.ROOT, 'config', 'brief_banned.txt')
+
+
+def _banned():
+    """禁词表由 config/brief_banned.txt 维护；读不到就拒收全部点评（回退本机引擎）。"""
+    try:
+        with open(BANNED_PATH, encoding='utf-8') as f:
+            words = tuple(w.strip() for w in f if w.strip())
+    except OSError:
+        return None
+    return words or None
+
+
+def _brief(data_date):
+    """读取 skill 产出的 data/brief.json；日期不符、结构不合法、含禁词都不用。
+
+    返回 None 时页面回退到本机引擎生成点评，并标注来源。
+    """
+    banned = _banned()
+    if not banned:
+        return None
+    try:
+        with open(BRIEF_PATH, encoding='utf-8') as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict) or not isinstance(d.get('blocks'), list) or not d['blocks']:
+        return None
+    if data_date and d.get('data_date') != data_date:
+        return None
+    blocks, text = [], []
+    for b in d['blocks']:
+        if not isinstance(b, dict):
+            return None
+        k, v = b.get('k'), b.get('v')
+        if not isinstance(k, str) or not isinstance(v, str) or not k.strip() or not v.strip():
+            return None
+        blocks.append(dict(k=k.strip(), v=v.strip(), refs=b.get('refs') or []))
+        text.append(v)
+    conclusion = d.get('conclusion') or ''
+    if not isinstance(conclusion, str):
+        return None
+    joined = conclusion + ''.join(text)
+    if any(w in joined for w in banned):
+        return None
+    return dict(data_date=d.get('data_date'), conclusion=conclusion.strip(), blocks=blocks)
+
 SHELL = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -232,6 +280,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
         plan=plan,
+        brief=_brief(meta.get('data_date')),
         sector_weights=_load_sector_weights(),
         contract=dict(
             version='1.0',
