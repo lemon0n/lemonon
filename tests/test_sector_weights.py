@@ -86,3 +86,27 @@ def test_fetch_failure_keeps_previous_weights(tmp_path, monkeypatch):
     assert d['stale'] is True
     assert d['indices']['000300'] == {'电子': 100.0}
     assert d['errors']
+
+
+def test_webgen_loader_missing_file(tmp_path, monkeypatch):
+    sys.path.insert(0, os.path.join(ROOT, 'src'))
+    from etfquant import webgen
+    monkeypatch.setattr(webgen, 'SECTOR_WEIGHTS_PATH', str(tmp_path / 'nope.json'))
+    assert webgen._load_sector_weights() is None
+
+
+def test_webgen_loader_rejects_bad_shape(tmp_path, monkeypatch):
+    sys.path.insert(0, os.path.join(ROOT, 'src'))
+    from etfquant import webgen
+    bad = tmp_path / 'bad.json'
+    bad.write_text(json.dumps({'indices': [], 'etf_index': {}}), encoding='utf-8')
+    monkeypatch.setattr(webgen, 'SECTOR_WEIGHTS_PATH', str(bad))
+    assert webgen._load_sector_weights() is None
+
+
+def test_webgen_loader_accepts_snapshot():
+    sys.path.insert(0, os.path.join(ROOT, 'src'))
+    from etfquant import webgen
+    d = webgen._load_sector_weights()
+    assert d and d['etf_index'].get('510300') == '000300'
+

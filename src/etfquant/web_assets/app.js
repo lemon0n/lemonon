@@ -1968,26 +1968,45 @@ function changePass(){
 var RS_PORT=null, RS_S1=null, RS_ADV=null, RS_SELECTED=null;
 var RS_WEEK={}, RS_TRIED={}, RS_WTRIED={}, RS_IDEA_TRIED={};
 var RS_IDEAS=[];   /* 由观察池动态生成，见 buildIdeas() */
-var RS_SECTOR_MAP={
-  '510300':[['银行',25],['食品饮料',18],['非银金融',12],['电子',10],['电力设备',8],['医药生物',7],['其他',20]],
-  '510500':[['医药生物',15],['电子',15],['电力设备',12],['基础化工',8],['有色金属',8],['其他',42]],
-  '588000':[['电子',45],['计算机',20],['电力设备',10],['医药生物',8],['机械设备',7],['其他',10]],
-  '159915':[['电力设备',30],['医药生物',18],['电子',15],['计算机',10],['其他',27]]
-};
-
+/* 行业归属只有一个来源：后端注入的 sector_weights（指数→申万一级权重）。
+   没有该指数的权重就写「未覆盖」，不按名称猜。 */
+var RS_SECTOR_CACHE={};
 function rsClamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function rsSectorMap(code,name,category){
-  code=String(code||''); name=String(name||''); category=String(category||'');
-  if(RS_SECTOR_MAP[code]) return RS_SECTOR_MAP[code];
-  if(name.indexOf('红利')>=0) return [['银行',30],['煤炭',15],['公用事业',10],['交通运输',10],['其他',35]];
-  if(name.indexOf('黄金')>=0) return [['黄金',100]];
-  if(name.indexOf('国债')>=0||name.indexOf('债')>=0||category==='债券') return [['债券',100]];
-  if(name.indexOf('恒生')>=0||name.indexOf('纳指')>=0||name.indexOf('海外')>=0||category==='海外') return [['海外',100]];
-  if(name.indexOf('科创')>=0) return RS_SECTOR_MAP['588000'];
-  if(name.indexOf('创业板')>=0) return RS_SECTOR_MAP['159915'];
-  if(name.indexOf('中证500')>=0||name.indexOf('500')>=0) return RS_SECTOR_MAP['510500'];
-  if(name.indexOf('沪深300')>=0||name.indexOf('300')>=0) return RS_SECTOR_MAP['510300'];
-  return [['未映射',100]];
+  code=String(code||''); category=String(category||'');
+  if(RS_SECTOR_CACHE[code]) return RS_SECTOR_CACHE[code];
+  var sw=D.sector_weights, out=null;
+  if(sw&&sw.indices&&sw.etf_index){
+    var idx=sw.etf_index[code];
+    var w=idx&&sw.indices[idx];
+    if(w){
+      out=Object.keys(w).map(function(k){ return [k,n(w[k])]; })
+              .sort(function(a,b){ return b[1]-a[1]; });
+    }
+  }
+  /* 非股票类：债券/海外/商品本来就是另一种暴露，按类别单列 */
+  if(!out){
+    if(category==='债券') out=[['债券',100]];
+    else if(category==='海外') out=[['海外',100]];
+    else if(category==='商品') out=[['商品',100]];
+    else out=[['未覆盖',100]];
+  }
+  RS_SECTOR_CACHE[code]=out;
+  return out;
+}
+function rsSectorAsOf(){
+  var sw=D.sector_weights;
+  return (sw&&sw.as_of)?String(sw.as_of):null;
+}
+/* 明细表「主要板块」：最大权重行业；没有权重就写未覆盖与数据日 */
+function rsSectorLabel(code,name,category){
+  var sm=rsSectorMap(code,name,category);
+  var top=sm&&sm[0]?sm[0][0]:'未覆盖';
+  if(top==='未覆盖'){
+    var asOf=rsSectorAsOf();
+    return asOf?('未覆盖（数据日 '+asOf+'）'):'未覆盖';
+  }
+  return top;
 }
 
 function rsSectorExposure(p){
@@ -1996,6 +2015,7 @@ function rsSectorExposure(p){
     if(r.weight==null) return;
     total+=r.weight;
     rsSectorMap(r.code,r.name,r.category).forEach(function(x){
+      if(x[0]==='未覆盖') return;             /* 行业未知就不进暴露表，单独在看板上提示 */
       acc[x[0]]=(acc[x[0]]||0)+r.weight*x[1]/100;
     });
   });
@@ -2145,7 +2165,7 @@ function marketPosText(r){
     out.push((l.rs.excess5>0?'强于':'弱于')+'基准 '+f2(Math.abs(l.rs.excess5))+'pct');
   }
   var sm=rsSectorMap(r.code,r.name,r.category);
-  if(sm&&sm[0]&&sm[0][0]&&sm[0][0]!=='未映射'){
+  if(sm&&sm[0]&&sm[0][0]&&sm[0][0]!=='未覆盖'&&sm[0][0]!=='债券'&&sm[0][0]!=='海外'&&sm[0][0]!=='商品'){
     var f=rsFindFlow(sm[0][0]);
     if(f&&f.share!=null) out.push(sm[0][0]+'成交占比 '+f2(f.share)+'%');
   }
@@ -2232,10 +2252,9 @@ function rsPageHTML(p,s1,adv){
      '</tr></thead><tbody>';
   p.rows.forEach(function(r,i){
     var a=adv.rows[i]?adv.rows[i].a:null;
-    var sm=rsSectorMap(r.code,r.name,r.category);
     var tgt=planTargetOf(r.code);
     var sug=suggestedShares(r,tgt);
-    h+='<tr><td>'+esc(r.code)+'</td><td>'+esc(r.name)+'</td><td>'+esc(sm[0][0])+'</td>'+
+    h+='<tr><td>'+esc(r.code)+'</td><td>'+esc(r.name)+'</td><td>'+esc(rsSectorLabel(r.code,r.name,r.category))+'</td>'+
       '<td class="r">'+f2(r.weight)+'%'+(tgt==null?'':' → '+f2(tgt)+'%')+'</td>'+
       '<td class="r">'+(r.shares==null?'—':Math.round(n(r.shares)).toLocaleString())+
         (sug==null?'':' → '+sug.toLocaleString())+'</td>'+
@@ -2610,9 +2629,17 @@ function rsRenderSector(){
   var bars=document.getElementById('rsSectorBars');
   if(bars){
     var max=exp.rows.length?exp.rows[0].pct:1;
-    bars.innerHTML=exp.rows.slice(0,7).map(function(x){
+    var uncovered=0;
+    (RS_PORT.rows||[]).forEach(function(r){
+      if(r.weight==null) return;
+      var sm=rsSectorMap(r.code,r.name,r.category);
+      if(sm&&sm[0]&&sm[0][0]==='未覆盖') uncovered+=n(r.weight);
+    });
+    bars.innerHTML=(exp.rows.slice(0,7).map(function(x){
       return '<div class="rs-bar-row"><span class="n">'+esc(x.sector)+' '+f2(x.pct)+'%</span><span class="t"><i style="width:'+rsClamp(x.pct/max*100,0,100)+'%"></i></span><span class="v">'+(x.pct>=25?'超配':(x.pct<=5?'低配':'中性'))+'</span></div>';
-    }).join('')||'<div class="rs-note">暂无板块映射。</div>';
+    }).join('')||'<div class="rs-note">暂无板块映射。</div>')+
+    (uncovered>0?'<div class="rs-note">行业未覆盖 '+f2(uncovered)+'%'+
+      (rsSectorAsOf()?'（数据日 '+esc(rsSectorAsOf())+'）':'')+'，不计入上方暴露。</div>':'');
   }
   var portrait=document.getElementById('rsPortrait');
   var top=exp.rows[0]||null, top3=exp.rows.slice(0,3).reduce(function(a,x){return a+x.pct;},0);

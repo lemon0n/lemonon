@@ -11,6 +11,30 @@ from . import config
 from . import methodology as M
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_assets')
+SECTOR_WEIGHTS_PATH = os.path.join(config.ROOT, 'data', 'snapshot', 'index_sector_weights.json')
+
+
+def _load_sector_weights():
+    """指数 → 申万一级行业权重（scripts/fetch_index_sector_weights.py 生成）。
+
+    结构不合法就当作没有：页面显示「未覆盖」，不猜。
+    """
+    try:
+        with open(SECTOR_WEIGHTS_PATH, encoding='utf-8') as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict):
+        return None
+    if not isinstance(d.get('indices'), dict) or not isinstance(d.get('etf_index'), dict):
+        return None
+    for idx, w in d['indices'].items():
+        if not isinstance(w, dict):
+            return None
+        for k, v in w.items():
+            if not isinstance(k, str) or not isinstance(v, (int, float)):
+                return None
+    return d
 
 
 def _national_team():
@@ -176,6 +200,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                   status=meta.get('status', 'OK'), run_id=meta.get('run_id'),
                   source=meta['source'], skipped=meta.get('skipped', []),
                   version=meta.get('version', '3.0'),
+                  dashboard_version='4.0',
                   tz=meta.get('tz', 'Asia/Shanghai'),
                   benchmark_date=meta.get('benchmark_date')),
         packet=dict(schema_version=pkt.get('schema_version'), status=pkt.get('status'),
@@ -207,6 +232,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
         plan=plan,
+        sector_weights=_load_sector_weights(),
         contract=dict(
             version='1.0',
             config_hash=(pkt or {}).get('config_hash'),
