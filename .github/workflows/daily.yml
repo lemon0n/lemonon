@@ -1,13 +1,11 @@
-name: 每日更新
+name: 每日更新 / 发布
 
-# 每个交易日北京 06:50 自动跑一版（UTC 22:50 前一天），
-# 也支持在 GitHub 页面点「Run workflow」立即跑一版。
-# 说明：GitHub 免费版 cron 在高峰期可能延迟 10~30 分钟；06:50 触发是为了
-# 在 09:30 开盘前留足余量。失败会自动重试 3 次。
+# 定时任务已关闭：不再按 cron 自动取数，也不再在 push 时重新生成页面。
+# 每日由本地手动执行 `bash scripts/daily.sh`（或由模型代跑）后推送；
+# 推送到 main 只做 Pages 发布，用的是仓库里已有的 web/ 产物。
+# 需要在 GitHub 上重跑一次完整更新时，手动点「Run workflow」。
 
 on:
-  schedule:
-    - cron: '50 22 * * 0-4'
   workflow_dispatch:
     inputs:
       strict:
@@ -28,6 +26,7 @@ permissions:
 
 jobs:
   update:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -115,6 +114,8 @@ jobs:
 
   deploy:
     needs: update
+    # 本地推送触发的 run 里 update 会被跳过，这里仍要发布仓库里已有的 web/ 产物
+    if: always() && (needs.update.result == 'success' || needs.update.result == 'skipped')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

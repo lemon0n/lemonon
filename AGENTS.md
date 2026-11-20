@@ -20,7 +20,9 @@ bash scripts/daily.sh
    以及第 3 步生成的两份持仓文件；
 5. 打印状态、数据日、降级明细。
 
-推送后 GitHub Actions 会自动部署 Pages，通常几分钟内生效。
+推送后 GitHub Actions 只做 Pages 发布，不再重新取数或自动生成页面：
+定时 cron 已关闭，每日更新一律由本地手动执行本文件第 1 节的命令完成。
+Actions 里的「Run workflow」仍可手动触发一次完整更新（含取数与提交）。
 
 ## 退出码
 
