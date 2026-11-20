@@ -1,26 +1,26 @@
 {
   "ok": true,
   "status": "OK",
-  "ran_at": "2026-11-20 11:47:41",
+  "ran_at": "2026-11-20 16:21:09",
   "mode": "live",
-  "data_date": "2026-11-19",
+  "data_date": "2026-11-20",
   "degraded": false,
   "synthetic": false,
   "levels": 4,
   "level_count": {
     "A": 0,
-    "B": 0,
-    "C": 1,
+    "B": 1,
+    "C": 0,
     "D": 3
   },
   "action_count": {
     "CLEAR": 3,
-    "TRIM": 1,
+    "TRIM": 0,
     "ADD": 0,
-    "HOLD": 0,
+    "HOLD": 1,
     "ABSTAIN": 0
   },
-  "orders": 4,
+  "orders": 3,
   "skipped": [],
   "fallback": [],
   "validation": {
@@ -28,8 +28,8 @@
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261120T114553-de2182c16b861dd2",
-  "input_hash": "de2182c16b861dd2",
+  "run_id": "20261120T162009-4dab71c87ac9b01f",
+  "input_hash": "4dab71c87ac9b01f",
   "config_hash": "7dc121bf9c53564c",
   "html": "/home/runner/work/lemonon/lemonon/web/index.html"
 }
