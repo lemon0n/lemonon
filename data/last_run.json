@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "OK",
-  "ran_at": "2026-11-20 16:21:09",
+  "ran_at": "2026-11-20 16:22:13",
   "mode": "live",
   "data_date": "2026-11-20",
   "degraded": false,
@@ -22,14 +22,16 @@
   },
   "orders": 3,
   "skipped": [],
-  "fallback": [],
+  "fallback": [
+    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
+  ],
   "validation": {
     "ok": true,
     "errors": [],
     "warnings": []
   },
-  "run_id": "20261120T162009-4dab71c87ac9b01f",
+  "run_id": "20261120T162208-4dab71c87ac9b01f",
   "input_hash": "4dab71c87ac9b01f",
   "config_hash": "7dc121bf9c53564c",
-  "html": "/home/runner/work/lemonon/lemonon/web/index.html"
+  "html": "/workspace/web/index.html"
 }
