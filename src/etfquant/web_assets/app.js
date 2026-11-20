@@ -1504,13 +1504,26 @@ function linkStrip(){
   }
   return txt;
 }
+/* 均线排列：缠绕优先于多空（三线间距 <1.5%） */
+function maRegime(rg){
+  if(rg.ma5==null||rg.ma10==null||rg.ma20==null||rg.ma30==null)
+    return {txt:'均线数据不足',cls:'hold'};
+  var a=n(rg.ma5),b=n(rg.ma10),c=n(rg.ma20),d=n(rg.ma30),e=(rg.ma60==null?null:n(rg.ma60));
+  if(rg.ma_spread_pct!=null&&n(rg.ma_spread_pct)<1.5)
+    return {txt:'缠绕（5/20/60 间距 '+f2(rg.ma_spread_pct)+'%），等变盘',cls:'hold'};
+  if(a>b&&b>c&&c>d&&(e==null||n(rg.close)>e)) return {txt:'多头排列',cls:'buy'};
+  if(a<b&&b<c&&c<d&&(e==null||n(rg.close)<e)) return {txt:'空头排列',cls:'sell'};
+  return {txt:'排列不全，方向未定',cls:'hold'};
+}
+
 /* 国家队动向：宽基 ETF 份额（只作背景，不参与规则定仓；独立卡与行业表内各一份） */
 function nationalTeamTable(){
   var nt=D.market&&D.market.national_team;
   if(!nt||!nt.series||!nt.series.length) return '';
   var s=nt.series, last=s[s.length-1];
   var prev=s.length>1?s[s.length-2]:null;
-  var base=s.length>4?s[s.length-5]:null;          /* 近四周：周采样 4 期前 */
+  var win=ntWindow(s);
+  var base=win?win.base:null;                       /* 近四周：按日期回溯 25 天 */
   var TOTAL='全宽基合计';
   var keys=(nt.order||[]).filter(function(k){ return k!==TOTAL; });
   function val(x,k){ return x&&x.groups&&x.groups[k]!=null?n(x.groups[k]):null; }
@@ -1522,15 +1535,18 @@ function nationalTeamTable(){
     var kind=d4==null?'':(d4>0.5?'buy':(d4<-0.5?'sell':'hold'));
     return tr([esc(k), a==null?'—':f2(a)+' 亿份',
       d1==null?'—':col(d1), d4==null?'—':col(d4),
-      '<span class="tag '+kind+'">'+dir+'</span>']);
+      '<span class="tag '+kind+'">'+dir+'</span>'+(d4!=null&&Math.abs(d4)>15?' 仅展示':'')]);
   });
   var ta=val(last,TOTAL), tp=val(prev,TOTAL), tc=val(base,TOTAL);
   var t4=(ta!=null&&tc)?(ta/tc-1)*100:null;
   rows.push(tr(['<b>'+TOTAL+'</b>', ta==null?'—':f2(ta)+' 亿份',
     (ta!=null&&tp)?col((ta/tp-1)*100):'—', t4==null?'—':col(t4),
     '<span class="tag '+(t4==null?'':(t4>0.5?'buy':(t4<-0.5?'sell':'hold')))+'">'+
-      (t4==null?'—':(t4>0.5?'增持':(t4<-0.5?'减持':'持平')))+'</span>']));
-  return tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r','']);
+      (t4==null?'—':(t4>0.5?'增持':(t4<-0.5?'减持':'持平')))+'</span>'+
+      (t4!=null&&Math.abs(t4)>15?' 仅展示':'')]));
+  return tbl(['宽基','最新份额','较上次','近四周','方向'],rows,['','r','r','r',''])+
+    '<div class="rs-note">近四周按日期回溯 25 天（'+(win&&win.span?win.span+' 天':'区间不足')+
+    '）；单期变化 >15% 多为口径跳变，仅展示，不作判断。</div>';
 }
 function nationalTeamSection(){
   var t=nationalTeamTable();
@@ -2159,11 +2175,13 @@ function nationalTeamText(code){
   var nt=D.market&&D.market.national_team;
   var g=NT_GROUP_OF[String(code)];
   if(!nt||!g||!nt.series||nt.series.length<2) return '—';
-  var s=nt.series, last=s[s.length-1], base=s[Math.max(0,s.length-5)];
-  var a=(last.groups||{})[g], b=(base.groups||{})[g];
+  var win=ntWindow(nt.series);
+  if(!win) return '—';
+  var a=(win.last.groups||{})[g], b=(win.base.groups||{})[g];
   if(a==null||b==null) return '未纳入';
   var chg=(a/b-1)*100;
-  return esc(g+' '+(chg>0.5?'增持':(chg<-0.5?'减持':'持平'))+' '+f2(Math.abs(chg))+'%');
+  return esc(g+' '+(chg>0.5?'增持':(chg<-0.5?'减持':'持平'))+' '+f2(Math.abs(chg))+'%'+
+    (Math.abs(chg)>15?'（仅展示）':''));
 }
 /* 今日点评：七类信息按八步顺序拼，每句都带数字；不写死句子。
    与第三部分共用 marketOutlook()，与明细表共用 RS_PLAN（同一出口）。 */
@@ -2467,26 +2485,80 @@ function rsPageHTML(p,s1,adv){
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
-  /* (1) 市场环境：大盘走势、热度、国家队、舆情（先环境，后组合，再个股） */
+  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息 / 国家队 */
   h+='<div class="rs-sub">1. 市场环境</div>';
   var rg0=(D.market&&D.market.regime)||{}, br=(D.market&&D.market.breadth)||{};
-  h+='<div class="rs-grid2">'+
-    '<div class="box"><div class="bt">大盘走势</div>'+
+  var maR=maRegime(rg0);
+  var amtChg0=(br.amount_chg_pct==null)?null:n(br.amount_chg_pct);
+  var amtKind0=amtChg0==null?'环比缺失':(amtChg0<=-5?'缩量':(amtChg0>=10?'放量':'平量'));
+  var gapTxt0='近 20 日无未回补缺口';
+  if((rg0.gaps||[]).length){
+    gapTxt0=rg0.gaps.map(function(g){
+      return (g.type==='up'?'上方':'下方')+'缺口 '+f2(g.lo)+'–'+f2(g.hi)+'（'+esc(g.date)+'，未补）';
+    }).join('；');
+  }
+  var pos0=rg0.position||{};
+  h+='<div class="box"><div class="bt">大盘位置（基准指数）</div><table class="tbl"><thead><tr>'+
+     '<th>项</th><th>数值</th><th>判读</th></tr></thead><tbody>'+
+     tr(['指数点位',rg0.close==null?'—':f2(rg0.close),esc(rg0.as_of||'—')])+
+     tr(['均线排列','5/10/20/30/60/120：'+[rg0.ma5,rg0.ma10,rg0.ma20,rg0.ma30,rg0.ma60,rg0.ma120].map(f2).join(' / '),
+       '<span class="tag '+maR.cls+'">'+esc(maR.txt)+'</span>'])+
+     tr(['五均线开关',rg0.days_above_ma5==null?'—':('站上 MA5 第 '+rg0.days_above_ma5+' 天'),
+       (n(rg0.days_above_ma5)>=3?'连续 3 日以上，短线转多':'未满 3 日，只算反抽')])+
+     tr(['量能',f2(br.amount_yi)+' 亿'+(amtChg0==null?'':'，环比 '+(amtChg0>0?'+':'')+f2(amtChg0)+'%'),
+       esc(amtKind0)+(amtChg0!=null&&amtChg0<=-5?'（缩量下跌不计恐慌）':'')])+
+     tr(['缺口',gapTxt0,(rg0.gaps||[]).some(function(g){return g.type==='up';})?'上方缺口未补，多头没信心':'缺口已补或不存在'])+
+     tr(['空间',pos0.high120==null?'—':('距前高 '+f2(pos0.high_dist_pct)+'%、距前低 '+f2(pos0.low_dist_pct)),
+       pos0.odds==null?'—':('上下空间比 '+f2(pos0.odds)+' : 1，只描述位置')])+
+     tr(['波动',(rg0.vol20==null?'—':f2(rg0.vol20)+'% / '+f2(rg0.vol60)+'%'),
+       (rg0.vol20!=null&&rg0.vol60!=null&&n(rg0.vol20)>n(rg0.vol60)*1.25)?'波动抬升，总上限再降 10 个百分点':'波动未抬升'])+
+     '</tbody></table>'+
+     '<div class="rs-note">状态 '+esc(rg0.regime||'未知')+'，总仓位上限 '+
+       (D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':(rg0.fit_lo==null?'—':rg0.fit_lo+'~'+rg0.fit_hi+'%'))+
+       '；判据只看「收盘与 60 日线」「5 日线与 20 日线」两条。</div>'+
+     '<details class="sec-details"><summary class="sec"><span class="bar"></span>均线各自管什么 <span class="info">i</span></summary>'+
+     '<div class="sec-detail"><table class="tbl"><thead><tr><th>均线</th><th>作用</th><th>用法</th></tr></thead><tbody>'+
+     [['5 日线','短线多空分界','上方短线持有；跌破短线走弱'],
+      ['10 日线','短期趋势线 + 交易仓成本线','连续 2 日跌破，交易仓出局'],
+      ['20 日线','中期生命线','跌破且 2 日不收回，减半'],
+      ['30 日线','中期牛熊线','跌破且 2 日不收回，清差额'],
+      ['60 日线','长期趋势线','上方回调是正常调整；跌破趋势可能逆转'],
+      ['120 日线','多空转折点','站上才算主力进场；站不上多头结论降一档'],
+      ['20 月线','牛熊分界线','站上可重仓；之下一切上涨视为反弹']]
+       .map(function(x){ return tr([esc(x[0]),esc(x[1]),esc(x[2])]); }).join('')+
+     '</tbody></table></div></details></div>';
+
+  h+='<div class="rs-grid2" style="margin-top:10px">'+
+    '<div class="box"><div class="bt">热度与情绪</div>'+
       '<div class="kv">'+
-        '<span class="k">状态</span><span class="v">'+esc(rg0.regime||'未知')+'</span>'+
-        '<span class="k">仓位锚</span><span class="v">'+(D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':(rg0.fit_lo==null?'—':rg0.fit_lo+'~'+rg0.fit_hi+'%'))+'</span>'+
-        '<span class="k">基准日</span><span class="v">'+esc(rg0.as_of||'—')+'</span>'+
-      '</div>'+
-      '<div class="rs-note">'+esc((rg0.observations||[]).join('；')||'基准数据不足')+'</div></div>'+
-    '<div class="box"><div class="bt">市场热度与舆情</div>'+
+        '<span class="k">涨/跌/平</span><span class="v">'+n(br.advance)+' / '+n(br.decline)+' / '+n(br.flat)+
+          '（上涨占 '+(br.up_ratio!=null?f2(br.up_ratio):f2((n(br.advance)+n(br.decline))>0?n(br.advance)/(n(br.advance)+n(br.decline))*100:null))+'%）</span>'+
+        '<span class="k">涨停/跌停</span><span class="v">'+n(br.limit_up)+' / '+n(br.limit_down)+
+          (sentItem('连板高度')?'，连板高度 '+esc(sentItem('连板高度')):'')+'</span>'+
+        '<span class="k">成交额</span><span class="v">'+f2(br.amount_yi)+' 亿'+(amtChg0==null?'':'，环比 '+f2(amtChg0)+'%')+'</span>'+
+        '<span class="k">恐慌形态</span><span class="v">'+esc(sentItem('恐慌判定')||'未接入')+'</span>'+
+        '<span class="k">连续普跌</span><span class="v">'+esc(sentItem('连续普跌天数')||'—')+' 天</span>'+
+        '<span class="k">情绪温度</span><span class="v">'+n((D.market.sentiment||{}).score)+' / 100</span>'+
+      '</div><div class="rs-note">只有放量急杀才算恐慌，缩量阴跌不算；连续 2 日普涨次日易分歧，连续 3 日普跌只做试错仓。</div></div>'+
+    '<div class="box"><div class="bt">资金动向</div>'+
       '<div class="kv">'+
-        '<span class="k">上涨/下跌</span><span class="v">'+n(br.advance)+' / '+n(br.decline)+'</span>'+
-        '<span class="k">成交额</span><span class="v">'+f2(br.amount_yi)+' 亿</span>'+
-        '<span class="k">情绪</span><span class="v">'+esc((D.market.sentiment||{}).label||'—')+' '+n((D.market.sentiment||{}).score)+'/100</span>'+
-        '<span class="k">消息面</span><span class="v">'+esc((D.market.news_sentiment||{}).label||'—')+' '+n((D.market.news_sentiment||{}).score)+'/100</span>'+
+        (((D.market.liquidity&&D.market.liquidity.items)||[]).map(function(x){
+          return '<span class="k">'+esc(x.k)+'</span><span class="v">'+esc(x.v)+'</span>';
+        }).join('')||'<span class="k">主力/两融</span><span class="v">未接入</span>')+
+        '<span class="k">北向</span><span class="v">2024-08 起不再盘中披露净流入，本页不显示</span>'+
       '</div>'+
-      '<div class="rs-note">热度只做环境定性，不生成个股动作。</div></div>'+
+      '<div class="rs-note">板块成交占比 ≥15% 记过热：'+
+        (((D.market.flow||[]).filter(function(x){ return n(x.share)>=15; }).map(function(x){
+          return esc(x.sector)+' '+f2(x.share)+'%'; }).join('、'))||'暂无')+'。</div></div>'+
     '</div>';
+
+  h+='<div class="box" style="margin-top:10px"><div class="bt">隔夜与消息</div>'+
+     '<div class="rs-note" style="margin-top:0">隔夜：'+
+       (((D.market.glob&&D.market.glob.items)||[]).map(function(x){ return esc(x.k)+' '+esc(x.v); }).join('；')||'未取到')+
+     '。只算开盘扰动，不改自身周期。</div>'+
+     '<div class="rs-note">消息：'+
+       (((D.market.news||[]).slice(0,3).map(function(x){ return '['+esc(x.time)+'] '+esc(x.text); }).join('；'))||'未取到')+
+     '</div></div>';
   h+=nationalTeamSection();
 
   h+='<div class="rs-sub">2. 组合情况</div>';
