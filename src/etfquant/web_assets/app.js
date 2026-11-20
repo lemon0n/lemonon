@@ -2799,8 +2799,11 @@ function rsPageHTML(p,s1,adv){
   h+='<div class="rs-sub">4. 情景与触发</div>';
   h+='<div class="box"><div id="rsDir" class="rs-dir">加载中…</div></div>';
 
-  h+='<div class="rs-sub">5. 新方向候选（受环境额度约束）</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自观察池（A/B 级、非持仓、相对基准不弱，同类别只留一只）；环境额度不足时只写“观察”。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
+  h+='<div class="rs-sub">5. 复盘对照（上次计划 vs 今天）</div>';
+  h+='<div class="box"><div id="rsReview" class="rs-note">加载中…</div></div>';
+
+  h+='<div class="rs-sub">6. 新方向候选（受环境额度约束）</div>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自观察池（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只，不含不碰名单）；环境额度不足时只写「观察」。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
   return h;
 }
 function rsAfterBars(){
@@ -2812,6 +2815,8 @@ function rsAfterBars(){
   rsRenderDetail();
   rsRenderForecastCells();
   rsRenderIdeas();
+  rsRenderReview();
+  rsStoreSnapshot();
 }
 
 function rsInit(){
@@ -2825,6 +2830,8 @@ function rsInit(){
   rsRenderMarket();
   rsRenderDetail();
   rsRenderIdeas();
+  rsRenderReview();
+  rsStoreSnapshot();
   var pending=0;
   function done(){ if(--pending===0) rsAfterBars(); }
   (HOLD.rows||[]).forEach(function(r){
@@ -3399,6 +3406,49 @@ function outlookConflicts(){
   return out;
 }
 
+/* 复盘对照：计划快照存在本机，用来对照「上次目标 vs 今天目标」；不等于成交记录 */
+function rsStoreSnapshot(){
+  try{
+    var d=(D.meta&&D.meta.data_date)||'';
+    var cur=localStorage.getItem('rs_plan_cur');
+    if(cur){
+      var o=JSON.parse(cur);
+      if(o&&o.date===d) return;
+      localStorage.setItem('rs_plan_prev',cur);
+    }
+    var items=(RS_PLAN||[]).map(function(x){
+      return {code:String(x.r.code),name:x.r.name,target:x.target,grade:x.grade};
+    });
+    localStorage.setItem('rs_plan_cur',JSON.stringify({date:d,items:items}));
+  }catch(e){}
+}
+function rsRenderReview(){
+  var el=document.getElementById('rsReview');
+  if(!el) return;
+  var prev=null;
+  try{ prev=JSON.parse(localStorage.getItem('rs_plan_prev')||'null'); }catch(e){}
+  if(!prev||!prev.items||!prev.items.length){
+    el.innerHTML='首次运行，暂无上次计划可对照；从下一次运行起，这里会列出目标与评级的变化。';
+    return;
+  }
+  var map={}; prev.items.forEach(function(x){ map[String(x.code)]=x; });
+  var changed=0;
+  var rows=(RS_PLAN||[]).map(function(x){
+    var p=map[String(x.r.code)];
+    if(!p) return tr([esc(x.r.name||x.r.code),'—',x.target==null?'—':f2(x.target)+'%','—','新增到计划']);
+    var dt=(x.target==null||p.target==null)?null:x.target-p.target;
+    if(dt!=null&&Math.abs(dt)>=0.1) changed++;
+    var grade=(p.grade===x.grade)?'不变':(p.grade+' → '+x.grade);
+    return tr([esc(x.r.name||x.r.code),p.target==null?'—':f2(p.target)+'%',
+      x.target==null?'—':f2(x.target)+'%',dt==null?'—':((dt>0?'+':'')+f2(dt)+'pct'),grade]);
+  });
+  el.innerHTML='<table class="tbl"><thead><tr><th>标的</th><th class="r">上次目标</th>'+
+    '<th class="r">今天目标</th><th class="r">变化</th><th>评级</th></tr></thead><tbody>'+
+    rows.join('')+'</tbody></table>'+
+    '<div class="rs-note">上次快照 '+esc(prev.date||'—')+'，本次 '+esc((D.meta&&D.meta.data_date)||'—')+
+    '；目标变化 '+changed+' 只。快照只存在本机浏览器，对照的是计划，不是成交回报。</div>';
+}
+
 /* 新方向候选：从观察池动态生成，排除已持仓、同类别只留一只；
    额度不足时一律“观察”，不给买入建议，避免与组合层结论冲突。 */
 function buildIdeas(){
@@ -3406,22 +3456,27 @@ function buildIdeas(){
   var pl=D.plan||{};
   var pos=(RS_PORT&&RS_PORT.positionPct!=null)?n(RS_PORT.positionPct):null;
   var room=(pl.total_target!=null&&pos!=null)?pl.total_target-pos:null;
+  var NOPE=['军工','传媒','游戏','次新'];
   var out=[], seen={};
   (D.legs||[]).forEach(function(l){
-    var c=String(l.code);
+    var c=String(l.code), nm=String(l.name||'');
     if(held[c]) return;
-    if(l.level!=='A'&&l.level!=='B') return;
+    if(NOPE.some(function(w){ return nm.indexOf(w)>=0||String(l.category||'').indexOf(w)>=0; })) return;
+    var sec=rsSectorMap(c,nm,l.category)[0][0];
+    var ss=sectorScore(sec);
+    if(!ss||ss.grade==='C'||ss.grade==='D') return;      /* 板块评级需 B 及以上 */
     var cat=l.category||'未分类';
     if(seen[cat]) return;
     var ex=(l.rs&&l.rs.known)?l.rs.excess5:null;
-    if(ex!=null&&ex<0) return;
+    if(ex!=null&&ex<0) return;                            /* 近 5 日不弱于大盘 */
     var sug,why,risk;
-    if(room==null){ sug='<span class="tag">观察</span>'; why='仓位账本不可用，不推买入'; risk='缺目标仓位'; }
+    if(room==null){ sug='<span class="tag">观察</span>'; why='目标仓位表不可用，不推买入'; risk='缺目标仓位'; }
     else if(room<3){ sug='<span class="tag">观察</span>'; why='环境额度已用尽（剩余 '+f2(room)+'pct）'; risk='无额度时不新增'; }
-    else if(l.level==='A'){ sug='<span class="tag buy">可分批</span>'; why='规则 A 级；5 日相对基准 '+(ex==null?'—':(ex>0?'+':'')+f2(ex)+'pct'); risk='跌破 MA10 止损'; }
-    else { sug='<span class="tag warn">观察</span>'; why='B 级，等站上 MA10 与量能确认'; risk='趋势未确认'; }
+    else if(ss.grade==='A'||ss.grade==='S'){ sug='<span class="tag buy">可分批</span>';
+      why='板块 '+sec+' '+ss.score+' 分 '+ss.grade+' 级；5 日相对基准 '+(ex==null?'—':(ex>0?'+':'')+f2(ex)+'pct'); risk='跌破 MA10 止损'; }
+    else { sug='<span class="tag warn">观察</span>'; why='板块 '+sec+' '+ss.score+' 分 B 级，等站上 MA10 与量能确认'; risk='趋势未确认'; }
     seen[cat]=1;
-    out.push({code:c,name:l.name,dir:cat,sug:sug,why:why,risk:risk});
+    out.push({code:c,name:l.name,dir:sec,sug:sug,why:why,risk:risk});
   });
   return out.slice(0,6);
 }
@@ -3430,7 +3485,7 @@ function rsRenderIdeas(){
   if(!body) return;
   if(!RS_IDEAS.length) RS_IDEAS=buildIdeas();
   if(!RS_IDEAS.length){
-    body.innerHTML='<tr><td colspan="9" class="muted">观察池中没有满足条件的候选（A/B 级、非持仓、相对基准不弱）。</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="muted">观察池中没有满足条件的候选（板块 B 级以上、非持仓、近 5 日不弱于大盘、不含不碰名单）。</td></tr>';
   }else{
   body.innerHTML=RS_IDEAS.map(function(x){
     var f=rsForecast(LBARS[x.code]);
@@ -3439,16 +3494,6 @@ function rsRenderIdeas(){
     var med=f&&f.d20?f2(f.d20.med)+'%':'—';
     return '<tr><td>'+esc(x.dir)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td class="r">'+p5+'</td><td class="r">'+p20+'</td><td class="r">'+med+'</td><td>'+x.sug+'</td><td>'+esc(x.why)+'</td><td>'+esc(x.risk)+'</td></tr>';
   }).join('');
-  }
-  var body2=document.getElementById('rsRiskFacts');
-  if(body2&&RS_PORT){
-    var exp=rsSectorExposure(RS_PORT);
-    var top=exp.rows[0], top3=exp.rows.slice(0,3).reduce(function(a,x){return a+x.pct;},0);
-    var below=(RS_PORT.rows||[]).filter(function(r){ return n(r.pnl_pct)<0; }).length;
-    body2.innerHTML='<div class="kv"><span class="k">最大板块</span><span class="v">'+(top?esc(top.sector)+' '+f2(top.pct)+'%':'—')+'</span>'+
-      '<span class="k">前三大板块</span><span class="v">'+f2(top3)+'%</span>'+
-      '<span class="k">浮亏腿数</span><span class="v">'+below+' / '+RS_PORT.rows.length+'</span>'+
-      '<span class="k">现金比例</span><span class="v">'+f2(RS_PORT.cashPct)+'%</span></div>';
   }
 }
 
