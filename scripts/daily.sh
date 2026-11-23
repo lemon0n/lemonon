@@ -86,6 +86,11 @@ else
 fi
 
 # ---------- 5. 生成 + 校验 + 推送 ----------
+say "刷新市场快照（广度/分布/外盘/折溢价，抓取失败保留旧值）"
+if ! "$PY_BIN" scripts/fetch_market_snapshot.py; then
+  printf '\n[警告] 市场快照抓取失败，本次沿用旧快照。\n' >&2
+fi
+
 say "抓取宽基 ETF 份额（国家队动向，失败沿用上次快照）"
 if ! "$PY_BIN" scripts/fetch_national_team.py; then
   printf '\n[警告] 宽基份额抓取失败，本次沿用上次快照。\n' >&2
