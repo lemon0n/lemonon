@@ -143,37 +143,37 @@
     ">3%": 401
   },
   "premium": {
-    "avg_pct": 0.08,
+    "avg_pct": 0.0,
     "high_count": 0,
     "low_count": 0,
     "items": [
       {
         "code": "510300",
-        "name": "沪深300ETF",
-        "pct": 0.02,
+        "name": "沪深300ETF华泰柏瑞",
+        "pct": 0.0,
         "tag": "正常",
-        "url": "https://www.jisilu.cn/data/etf/"
+        "url": "https://www.jisilu.cn/data/"
       },
       {
         "code": "510500",
-        "name": "中证500ETF",
-        "pct": 0.05,
+        "name": "中证500ETF南方",
+        "pct": 0.0,
         "tag": "正常",
-        "url": "https://www.jisilu.cn/data/etf/"
+        "url": "https://www.jisilu.cn/data/"
       },
       {
         "code": "588000",
-        "name": "科创50ETF",
-        "pct": 0.09,
+        "name": "科创50ETF华夏",
+        "pct": 0.0,
         "tag": "正常",
-        "url": "https://www.jisilu.cn/data/etf/"
+        "url": "https://www.jisilu.cn/data/"
       },
       {
         "code": "159915",
-        "name": "创业板ETF",
-        "pct": 0.03,
+        "name": "创业板ETF易方达",
+        "pct": 0.0,
         "tag": "正常",
-        "url": "https://www.jisilu.cn/data/etf/"
+        "url": "https://www.jisilu.cn/data/"
       }
     ]
   },
