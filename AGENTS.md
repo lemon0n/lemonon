@@ -73,7 +73,8 @@ bash scripts/daily.sh
 | `scripts/run_update.py` | 取数、生成、校验、提交推送 |
 | `src/etfquant/` | 计算与页面打包（`webgen.py` 出 HTML） |
 | `data/snapshot/`、`data/cache/` | 输入快照与日线缓存 |
-| `docs/` | 设计文档与历史方案，**不参与每日流程** |
+| `docs/页面区块对照.md` | 页面上每一块由谁产出，排查时查这一份 |
+| `docs/` | 其余是设计文档与历史方案，**不参与每日流程** |
 
 ## 不要做的事
 
