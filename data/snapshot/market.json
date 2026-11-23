@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-11-12 09:05:00",
+  "as_of": "2026-11-24 07:30:47",
   "indices": [
     {
       "name": "上证指数",
@@ -209,32 +209,17 @@
     "items": [
       {
         "k": "纳斯达克",
-        "v": "+0.42%",
+        "v": "+369939.29%",
         "url": "https://finance.sina.com.cn/"
       },
       {
         "k": "标普500",
-        "v": "+0.18%",
+        "v": "+152905.71%",
         "url": "https://finance.sina.com.cn/"
       },
       {
-        "k": "恒生指数",
-        "v": "-0.33%",
-        "url": "https://finance.sina.com.cn/"
-      },
-      {
-        "k": "美元指数",
-        "v": "99.8",
-        "url": "https://finance.sina.com.cn/"
-      },
-      {
-        "k": "COMEX 黄金",
-        "v": "+0.6%",
-        "url": "https://finance.sina.com.cn/"
-      },
-      {
-        "k": "布伦特原油",
-        "v": "-0.4%",
+        "k": "道琼斯",
+        "v": "+1647584.67%",
         "url": "https://finance.sina.com.cn/"
       }
     ]
