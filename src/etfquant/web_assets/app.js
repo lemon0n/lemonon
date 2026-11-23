@@ -880,7 +880,7 @@ function fetchBarsTencent(code,cb){
     fin(arr?_barsFromTencent(arr):null);
   };
   s.onerror=function(){ fin(null); };
-  s.src='https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+sym+',day,,,300,qfq&_var='+vn;
+  s.src='https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+sym+',day,,,900,qfq&_var='+vn;
   document.head.appendChild(s);
   setTimeout(function(){ fin(null); },7000);
 }
@@ -909,7 +909,7 @@ function fetchBarsEm(code,cb){
   };
   s.onerror=function(){ fin(null); };
   s.src='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid='+mkt+'.'+c+
-    '&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&lmt=300&cb='+vn;
+    '&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&lmt=900&cb='+vn;
   document.head.appendChild(s);
   setTimeout(function(){ fin(null); },8000);
 }
@@ -2288,7 +2288,8 @@ function rsMaSeries(a,k){
 }
 /* 双评分卡：估值/领先股/景气/资金/龙头未接入，按已有项折算到百分制 */
 function legScore(code){
-  var lb=LBARS[code], wk=RS_WEEK[code];
+  var lb=LBARS[code];
+  var wk=RS_WEEK[code]||rsWeeklyFromDaily(lb);
   var dc=(lb&&lb.closes)?lb.closes.filter(function(x){ return isFinite(x)&&x>0; }):[];
   var wc=(wk&&wk.closes)?wk.closes.filter(function(x){ return isFinite(x)&&x>0; }):[];
   var mo=rsMonthly(wk);
@@ -2646,6 +2647,203 @@ function orderTicket(r,targetW,total,opt){
   out.note=out.note||'';
   return out;
 }
+/* ---------------- 持仓在观察池外时的目标仓位 ----------------
+   后端 plan_v3 只知道观察池里的代码，而持仓里常有池外标的（行业主题、债券、海外）。
+   这些标的原来没有目标，页面一片「不设目标/目标缺失」。这里按与 plan_v3 同一口径
+   在浏览器补算（日线已在本地），并对完全没有日线的持仓退到「类别结构目标」：
+   只给参考目标与「等待确认」，不生成买卖动作。 */
+var PLAN_CAP={S:25,A:20,B:10,C:5,D:3};
+var PLAN_MAX_SINGLE=25, PLAN_TARGET_VOL=15, PLAN_TOP_N=6;
+function gradeOfScore(s){
+  s=n(s);
+  return s>=85?'S':(s>=75?'A':(s>=60?'B':(s>=50?'C':'D')));
+}
+function rsCleanBars(b){
+  if(!b||!b.closes) return null;
+  var rows=[];
+  for(var i=0;i<b.closes.length;i++){
+    var c=+b.closes[i];
+    if(!isFinite(c)||c<=0) continue;
+    rows.push({d:b.dates?String(b.dates[i]||''):'',
+               o:+b.opens[i]||c, h:+b.highs[i]||c, l:+b.lows[i]||c,
+               c:c, v:+b.vols[i]||0});
+  }
+  return rows.length>=30?rows:null;
+}
+function rsWeekKey(d){
+  var t=new Date(String(d)+'T00:00:00');
+  if(isNaN(t.getTime())) return null;
+  var day=(t.getDay()+6)%7;                       /* 周一=0 */
+  var th=new Date(t.getTime()-(day-3)*86400000);  /* 取该周周四归组 */
+  return th.getFullYear()+'-'+('0'+(th.getMonth()+1)).slice(-2)+'-'+('0'+th.getDate()).slice(-2);
+}
+/* 日线 → 周线（周线接口失败时用，只保证均线与 MACD 可算） */
+function rsWeeklyFromDaily(b){
+  if(!b||!b.dates||!b.closes||!b.closes.length) return null;
+  var out={dates:[],opens:[],closes:[],highs:[],lows:[],vols:[]},idx={};
+  for(var i=0;i<b.closes.length;i++){
+    var d=b.dates[i], c=+b.closes[i];
+    if(!d||!isFinite(c)||c<=0) continue;
+    var k=rsWeekKey(d)||d;
+    if(!Object.prototype.hasOwnProperty.call(idx,k)){
+      idx[k]=out.dates.length;
+      out.dates.push(k); out.opens.push(+b.opens[i]||c);
+      out.highs.push(+b.highs[i]||c); out.lows.push(+b.lows[i]||c);
+      out.closes.push(c); out.vols.push(+b.vols[i]||0);
+    }else{
+      var j=idx[k];
+      out.closes[j]=c;
+      out.highs[j]=Math.max(out.highs[j],+b.highs[i]||c);
+      out.lows[j]=Math.min(out.lows[j],+b.lows[i]||c);
+      out.vols[j]+=+b.vols[i]||0;
+    }
+  }
+  return out.closes.length>=10?out:null;
+}
+function rsMaOfArr(a,k){
+  if(!a||a.length<k) return null;
+  var s=0;
+  for(var i=a.length-k;i<a.length;i++){ if(!isFinite(a[i])) return null; s+=a[i]; }
+  return s/k;
+}
+/* 池外标的的技术信号：口径与 plan_v3._indicators 一致 */
+function clientSignals(code,row){
+  var lb=LBARS[String(code)];
+  var rows=rsCleanBars(lb);
+  if(!rows) return null;
+  var c=rows.map(function(x){return x.c;}), v=rows.map(function(x){return x.v;}), ls=rows.map(function(x){return x.l;});
+  var n0=c.length, last=c[n0-1];
+  var ma5=rsMaOfArr(c,5), ma10=rsMaOfArr(c,10), ma20=rsMaOfArr(c,20),
+      ma30=rsMaOfArr(c,30), ma60=rsMaOfArr(c,60);
+  var low20=ls.slice(-20).length?Math.min.apply(null,ls.slice(-20)):null;
+  var vol20=null;
+  if(n0>=22){
+    var rets=[];
+    for(var i=n0-20;i<n0;i++) if(c[i-1]>0) rets.push(c[i]/c[i-1]-1);
+    if(rets.length>=19){
+      var m=rets.reduce(function(a,b){return a+b;},0)/rets.length;
+      var va=rets.reduce(function(a,b){return a+(b-m)*(b-m);},0)/rets.length;
+      vol20=Math.sqrt(va)*Math.sqrt(252)*100;
+    }
+  }
+  var macd=rsMacd(c), macdPos=null;
+  if(macd&&macd.dif&&macd.dif.length) macdPos=macd.dif[macd.dif.length-1]>macd.dea[macd.dea.length-1];
+  var inflow2=false;
+  if(n0>=8){
+    function inf(i){
+      var sum=0,cnt=0;
+      for(var k=i-5;k<=i-1;k++) if(k>=0){ sum+=v[k]; cnt++; }
+      return c[i]>c[i-1]&&v[i]>(sum/(cnt||1));
+    }
+    inflow2=inf(n0-1)&&inf(n0-2);
+  }
+  var wk=RS_WEEK[String(code)]||rsWeeklyFromDaily(lb), wkUp=false;
+  if(wk&&wk.closes){
+    var wc=wk.closes.filter(function(x){ return isFinite(x)&&x>0; });
+    var wm=rsMaOfArr(wc,20);
+    wkUp=wm!=null&&wc[wc.length-1]>wm;
+  }
+  var score=50;
+  if(ma20!=null) score+=last>ma20?15:-15;
+  if(ma5!=null&&ma10!=null&&ma20!=null){
+    if(ma5>ma10&&ma10>ma20) score+=10;
+    else if(ma5<ma10&&ma10<ma20) score-=10;
+  }
+  if(ma60!=null&&last>ma60) score+=5;
+  if(low20!=null&&last<=low20) score-=10;
+  score=Math.max(0,Math.min(100,score));
+  var confirm=0;
+  if(ma10!=null&&last>ma10) confirm++;
+  if(macdPos) confirm++;
+  if(inflow2) confirm++;
+  var below20=ma20!=null&&last<ma20, below30=ma30!=null&&last<ma30, below60=ma60!=null&&last<ma60;
+  var grade=gradeOfScore(score), cap=PLAN_CAP[grade];
+  var tier=(below60||below30)?'跌破MA30：差额可一次性卖出'
+    :(below20?'跌破MA20：先卖差额一半'
+    :((ma10!=null&&last<ma10)?'跌破MA10：只回到目标，不追卖'
+    :'结构未坏：只减差额一半，向目标靠拢'));
+  return {code:String(code),name:(row&&row.name)||'',score:Math.round(score),
+          grade:grade,cap:cap,vol20:vol20,wk_up:wkUp,confirm:confirm,tier:tier,
+          ma10:ma10,ma20:ma20,ma30:ma30,ma60:ma60,
+          above_ma10:ma10!=null&&last>ma10,client:true};
+}
+/* 补齐没有后端计划的行：有日线按评分分配；无日线按类别结构目标给参考值 */
+function synthesizePlanTargets(rows){
+  var need=false;
+  rows.forEach(function(x){ if(x.target==null) need=true; });
+  if(!need) return false;
+  var totCap=(D.plan&&D.plan.total_target!=null)?n(D.plan.total_target):null;
+  if(totCap==null){
+    var rg=(D.market&&D.market.regime)||{};
+    totCap=(rg.fit_lo!=null&&rg.fit_hi!=null)?(n(rg.fit_lo)+n(rg.fit_hi))/2:65;
+  }
+  rows.forEach(function(x){
+    if(x.target!=null) return;
+    if(!x.item){
+      var cs=clientSignals(x.r.code,x.r);
+      if(cs){ x.item=cs; x.grade=cs.grade; x.cap=cs.cap; }
+    }
+  });
+  var tech=rows.filter(function(x){ return x.item&&x.item.score!=null; });
+  tech.forEach(function(x){
+    var vol=x.item.vol20;
+    var volf=(vol==null||!isFinite(vol)||vol<=0)?1:Math.min(1,PLAN_TARGET_VOL/vol);
+    x._coef=(0.6+0.4*n(x.item.score)/100)*volf;
+  });
+  var ranked=tech.slice().sort(function(a,b){ return b._coef-a._coef; });
+  var top=ranked.slice(0,PLAN_TOP_N);
+  var denom=top.reduce(function(a,x){ return a+x._coef; },0)||1;
+  top.forEach(function(x){
+    x.target=Math.round(Math.min(PLAN_MAX_SINGLE,x.item.cap,totCap*x._coef/denom)*10)/10;
+  });
+  ranked.slice(PLAN_TOP_N).forEach(function(x){
+    x.target=Math.min(x.item.cap||3,3);
+  });
+  /* 完全取不到日线的持仓：用类别结构目标（占已投资市值的比例）折算 */
+  var struct=(D.targets||{}), holders={};
+  rows.forEach(function(x){
+    if(x.target!=null) return;
+    var cat=String(x.r.category||'未分类');
+    if(struct[cat]==null) return;
+    (holders[cat]=holders[cat]||[]).push(x);
+  });
+  Object.keys(holders).forEach(function(cat){
+    var share=totCap*n(struct[cat])/100, ncat=holders[cat].length||1;
+    holders[cat].forEach(function(x){
+      x.target=Math.round(Math.min(x.item?x.item.cap:PLAN_MAX_SINGLE,share/ncat)*10)/10;
+      x.structTarget=true;
+    });
+  });
+  /* 合计不得超过总上限 */
+  var sum=rows.reduce(function(a,x){ return a+(x.target||0); },0);
+  if(sum>totCap&&sum>0){
+    var f=totCap/sum;
+    rows.forEach(function(x){ if(x.target!=null) x.target=Math.round(x.target*f*10)/10; });
+  }
+  return true;
+}
+function applyRowDecision(x,total){
+  var it=x.item||{};
+  x.gap=(x.target==null||x.r.weight==null)?null:x.target-n(x.r.weight);
+  var below10=n(x.r.leg&&x.r.leg.below_ma10);
+  var a=planActionOf(x.gap,!!it.wk_up,n(it.confirm),below10>=2);
+  x.action=a.action; x.text=a.text; x.pace=a.pace;
+  if(x.target==null){
+    var cat=String(x.r.category||'未分类');
+    x.action='WAIT';
+    x.text='暂不设目标（'+(LBARS[String(x.r.code)]?'日线不足 30 根':'没有日线')+
+      (cat==='未分类'?'，类别也未知':'，类别「'+cat+'」无结构目标')+'）';
+    x.pace=null;
+  }else if(x.structTarget){
+    x.action='WAIT';
+    x.text='结构参考目标 '+f2(x.target)+'%，日线未到，暂不动';
+    x.pace='数据到位再定批次';
+  }
+  /* 没有日线不生成订单：目标只是参考，不能据此下单 */
+  x.order=(x.target==null||x.structTarget)?{note:x.structTarget?'行情未到，暂不挂单':'目标缺失'}
+    :orderTicket(x.r,x.target,total,{});
+}
+
 /* 每只持仓的计划行；板块上限由 S7 的 sectorCapOf 接管，未接入时只受单只上限约束 */
 var RS_PLAN=[];
 function rsPlanRows(p){
@@ -2654,14 +2852,12 @@ function rsPlanRows(p){
   var total=p.totalAsset;
   var rows=p.rows.map(function(r){
     var it=planItemOf(r.code);
-    var tgt=it?n(it.target_weight):null;
-    var gap=(tgt==null||r.weight==null)?null:tgt-r.weight;
-    var below10=n(r.leg&&r.leg.below_ma10);
-    var act=planActionOf(gap,it?!!it.wk_up:false,it?n(it.confirm):0,below10>=2);
-    var ord=orderTicket(r,tgt,total,{});
-    return {r:r,item:it,target:tgt,gap:gap,action:act.action,text:act.text,pace:act.pace,
-            order:ord,grade:it?it.grade:null,cap:it?it.cap:null};
+    return {r:r,item:it,target:it?n(it.target_weight):null,gap:null,
+            action:'WAIT',text:'',pace:null,order:{},
+            grade:it?it.grade:null,cap:it?it.cap:null};
   });
+  synthesizePlanTargets(rows);
+  rows.forEach(function(x){ applyRowDecision(x,total); });
   var capOf=(typeof sectorCapOf==='function')?sectorCapOf:null;
   if(capOf){                                   /* 板块上限：合计超限按比例压，不突破单只上限 */
     var bySec={};
@@ -2677,16 +2873,58 @@ function rsPlanRows(p){
       if(sum<=cap) return;
       bySec[s].forEach(function(x){
         x.target=Math.round(n(x.target)*cap/sum*10)/10;
-        x.gap=(x.r.weight==null)?null:x.target-n(x.r.weight);
-        var a=planActionOf(x.gap,x.item?!!x.item.wk_up:false,x.item?n(x.item.confirm):0,
-                           n(x.r.leg&&x.r.leg.below_ma10)>=2);
-        x.action=a.action; x.text=a.text; x.pace=a.pace;
-        x.order=orderTicket(x.r,x.target,total,{});
+        applyRowDecision(x,total);
         x.sectorCapped=true;
       });
     });
   }
   RS_PLAN=rows;
+  return rows;
+}
+function rsSortPlanRows(rows){
+  return rows.slice().sort(function(a,b){
+    var av=Math.abs(n(a.order&&a.order.delta)*n(a.r.last));
+    var bv=Math.abs(n(b.order&&b.order.delta)*n(b.r.last));
+    return bv-av;
+  });
+}
+function rsPlanRowHTML(x){
+  var r=x.r, o=x.order||{};
+  var kind=x.action==='ADD'?'buy':(x.action==='TRIM'?'sell':'hold');
+  var sharesTxt=(r.shares==null?'—':Math.round(n(r.shares)).toLocaleString())+
+    (o.shares==null?'':' → '+o.shares.toLocaleString());
+  var opTxt='—';
+  if(o.delta!=null){
+    opTxt=(o.delta>0?'+':'')+o.delta.toLocaleString()+
+      (o.first?'（首批 '+o.first.toLocaleString()+'）':'');
+  }
+  var priceTxt=o.limit!=null?f3(o.limit):('不挂单'+(o.note?'（'+esc(o.note)+'）':''));
+  var srcTag=(x.item&&x.item.client)
+    ?'<br><span class="muted">池外补算 · '+(x.item.score!=null?x.item.score+' 分 ':'')+(x.grade||'—')+' 级</span>'
+    :(x.structTarget?'<br><span class="muted">结构参考目标</span>':'');
+  return '<tr><td>'+esc(r.name||r.code)+'<br><span class="muted">'+esc(r.code)+'</span></td>'+
+    '<td>'+esc(rsSectorLabel(r.code,r.name,r.category))+'</td>'+
+    '<td class="r">'+f2(r.weight)+'% → '+(x.target==null?'—':f2(x.target)+'%')+srcTag+'</td>'+
+    '<td class="r">'+sharesTxt+'</td>'+
+    '<td class="r">'+opTxt+'</td>'+
+    '<td class="r">'+priceTxt+'</td>'+
+    '<td class="r">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</td>'+
+    '<td class="r">'+f3(r.cost)+' → '+f3(r.last)+'</td>'+
+    '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'<br><span class="muted">'+fy(r.pnl)+'</span></td>'+
+    '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td>'+
+    '<td>'+marketPosText(r)+'</td>'+
+    '<td><span class="tag '+kind+'">'+esc(x.text)+'</span>'+
+      (x.pace?'<br><span class="muted">'+esc(x.pace)+'</span>':'')+'</td></tr>';
+}
+function rsPlanRowsHTML(rows){
+  return (rows||[]).map(rsPlanRowHTML).join('');
+}
+/* 日线在页面渲染后异步到达：重算计划并刷新表格、点评、个股卡 */
+function rsRefreshPlanTable(){
+  if(!RS_PORT) return;
+  var rows=rsSortPlanRows(rsPlanRows(RS_PORT));
+  var body=document.getElementById('rsPlanBody');
+  if(body) body.innerHTML=rsPlanRowsHTML(rows);
   return rows;
 }
 
@@ -2710,44 +2948,18 @@ function rsPageHTML(p,s1,adv){
      '<div class="bt">今日点评</div><div class="rs-note">计算中…</div></div>';
 
   var planRows=rsPlanRows(p);
-  var orderRows=planRows.slice().sort(function(a,b){
-    var av=Math.abs(n(a.order&&a.order.delta)*n(a.r.last));
-    var bv=Math.abs(n(b.order&&b.order.delta)*n(b.r.last));
-    return bv-av;
-  });
+  var orderRows=rsSortPlanRows(planRows);
   h+='<div class="box tight rs-scroll" style="margin-top:11px"><table class="tbl"><thead><tr>'+
      '<th>名称 / 代码</th><th>板块</th><th class="r">仓位（现→目标）</th>'+
      '<th class="r">数量（现→建议）</th><th class="r">本次操作</th><th class="r">挂单价</th>'+
      '<th class="r">费用</th><th class="r">成本 → 现价</th><th class="r">盈亏</th>'+
      '<th class="r">5/20日上涨占比</th><th>全市场位置</th><th>动作</th>'+
-     '</tr></thead><tbody>';
-  orderRows.forEach(function(x){
-    var r=x.r, o=x.order||{};
-    var kind=x.action==='ADD'?'buy':(x.action==='TRIM'?'sell':'hold');
-    var sharesTxt=(r.shares==null?'—':Math.round(n(r.shares)).toLocaleString())+
-      (o.shares==null?'':' → '+o.shares.toLocaleString());
-    var opTxt='—';
-    if(o.delta!=null){
-      opTxt=(o.delta>0?'+':'')+o.delta.toLocaleString()+
-        (o.first?'（首批 '+o.first.toLocaleString()+'）':'');
-    }
-    var priceTxt=o.limit!=null?f3(o.limit):('不挂单'+(o.note?'（'+esc(o.note)+'）':''));
-    h+='<tr><td>'+esc(r.name||r.code)+'<br><span class="muted">'+esc(r.code)+'</span></td>'+
-      '<td>'+esc(rsSectorLabel(r.code,r.name,r.category))+'</td>'+
-      '<td class="r">'+f2(r.weight)+'% → '+(x.target==null?'不设目标':f2(x.target)+'%')+'</td>'+
-      '<td class="r">'+sharesTxt+'</td>'+
-      '<td class="r">'+opTxt+'</td>'+
-      '<td class="r">'+priceTxt+'</td>'+
-      '<td class="r">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</td>'+
-      '<td class="r">'+f3(r.cost)+' → '+f3(r.last)+'</td>'+
-      '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'<br><span class="muted">'+fy(r.pnl)+'</span></td>'+
-      '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td>'+
-      '<td>'+marketPosText(r)+'</td>'+
-      '<td><span class="tag '+kind+'">'+esc(x.text)+'</span>'+
-        (x.pace?'<br><span class="muted">'+esc(x.pace)+'</span>':'')+'</td></tr>';
-  });
-  h+='</tbody></table><div class="rs-note">排序按本次操作金额降序；挂单价为限价保护（买 ×1.0001 进位、卖 ×0.9999 截断到 0.001），不保证成交；'+
-     '目标权重来自目标仓位表，动作与订单由它派生；规则卡只决定最早减仓时点，不另给方向。</div></div>';
+     '</tr></thead><tbody id="rsPlanBody">'+rsPlanRowsHTML(orderRows)+'</tbody></table>'+
+     '<div class="rs-note">排序按本次操作金额降序；挂单价为限价保护（买 ×1.0001 进位、卖 ×0.9999 截断到 0.001），不保证成交；'+
+     '目标权重来自目标仓位表，动作与订单由它派生；规则卡只决定最早减仓时点，不另给方向。'+
+     (orderRows.some(function(x){ return x.item&&x.item.client; })
+       ?'标「池外补算」的行：观察池里没有这只，目标按同一口径用浏览器取到的日线现算。':'')+
+     '</div></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
@@ -2879,6 +3091,7 @@ function rsPageHTML(p,s1,adv){
 }
 function rsAfterBars(){
   if(!RS_PORT) return;
+  rsRefreshPlanTable();
   rsRenderBrief(RS_PORT,RS_S1);
   rsRenderSector();
   rsRenderMarket();
@@ -2941,31 +3154,52 @@ function tick(txt,ok){
     (ok===null?'—':(ok?'✓':'✗'))+'</span> '+esc(txt);
 }
 /* 行情缺失时的降级卡：不再用一句「暂不展示」把整块吞掉。
-   展示能确定的部分（现价、目标派生的动作），并说清缺什么、为什么缺、缺了不猜什么。 */
+   目标与动作仍来自同一张目标仓位表（RS_PLAN），这里只说明为什么没有技术块，并给重取入口。 */
 function rsDetailFallback(code,row){
   var pr=rsPlanRow(code)||{}, o=pr.order||{};
   var px=priceOf(code), nm=nameOfRow(row)||code;
   var w=(row&&row.weight!=null)?f2(row.weight)+'%':'—';
-  var tgt=(pr.target!=null)?f2(pr.target)+'%':'不设（池外标的）';
-  var opTxt=o.delta==null?(o.note||'目标未定，暂不挂单'):
-    ((o.delta>0?'买 ':'卖 ')+Math.abs(o.delta).toLocaleString()+' 份'+(o.limit!=null?'，挂 '+f3(o.limit):''));
+  var tgt=(pr.target!=null)?f2(pr.target)+'%':(pr.structTarget?'结构目标待定':'—');
+  var opTxt=o.delta!=null?((o.delta>0?'买 ':'卖 ')+Math.abs(o.delta).toLocaleString()+' 份'+
+      (o.limit!=null?'，挂 '+f3(o.limit):'')):(pr.text||o.note||'等待确认');
+  var bars=LBARS[String(code)];
+  var state=bars?'日线不足 30 根':'日线未取到';
   return '<div class="rs-verdict"><div class="vh">'+
     '<span class="rs-pill">'+esc(nm)+' · '+esc(code)+'</span>'+
     '<span class="rs-pill">'+(pr.grade?esc(pr.grade)+' 级':'未评级')+'</span>'+
     '<span class="rs-pill">现价 '+(px&&px.last!=null?f3(px.last):'—')+'</span></div>'+
     '<div class="kpis">'+
       kpi('仓位', w, '目标 '+tgt)+
-      kpi('本次操作', opTxt, o.note||'')+
-      kpi('挂单价', o.limit!=null?f3(o.limit):'—', '')+
-      kpi('数据状态', '日线未取到', '腾讯 / 东财两路都没返回', true)+
+      kpi('评级 / 上限', (pr.grade||'—')+' / '+(pr.cap==null?'—':pr.cap+'%'), '与目标仓位表同源')+
+      kpi('本次操作', opTxt, pr.pace||'')+
+      kpi('数据状态', state, '腾讯 / 东财两路都没给出可用 K 线', true)+
     '</div></div>'+
     '<div class="box" style="margin-top:10px"><div class="bt">为什么这块没有结构图和均线</div>'+
-    '<div class="rs-note" style="margin-top:0">'+esc(nm)+' 不在公开观察池里，日线由浏览器向腾讯、东财公开接口现取。'+
-    '这次两路都没有返回有效 K 线（可能是网络拦截、代码不在该源覆盖范围，或遇到停牌/长假）。'+
-    '在拿到日线之前，这里只给现价和目标派生的动作，不臆造均线、结构图和概率。</div>'+
-    '<div class="rs-note">能确定的部分：'+esc(opTxt)+'。</div>'+
-    '<div class="rs-note">如果它是行业主题 ETF，可以先在「组合板块结构」看它被自动归到哪个行业；'+
-    '行情恢复后刷新本页，这张卡会自动补出八块。</div></div>';
+    '<div class="rs-note" style="margin-top:0">'+esc(nm)+' 不在公开观察池里，日线由浏览器向腾讯、东财公开接口现取；'+
+    '这次没有拿到 30 根以上有效 K 线（网络拦截、源站未覆盖、停牌或长假都可能）。'+
+    '在行情到位之前，不臆造均线、结构图和概率；目标与动作仍按目标仓位表给出。</div>'+
+    '<div class="rs-note">目标 '+tgt+' 来自类别结构目标或观察池评分口径，只作参考；'+
+    '行情恢复后这张卡会自动补出八块（三周期、双评分卡、结构图、概率）。</div>'+
+    '<div class="rs-note"><button type="button" class="rs-pill" onclick="rsRetryBars(\''+
+      esc(code)+'\')">重新取行情</button></div></div>';
+}
+/* 重新取一只的日线/周线，然后重算计划并重绘 */
+function rsRetryBars(code){
+  code=String(code);
+  delete LBARS[code]; delete RS_WEEK[code];
+  delete RS_TRIED[code]; delete RS_WTRIED[code];
+  var el=document.getElementById('rsDetail');
+  if(el) el.innerHTML='<div class="notice">正在重新取 '+esc(code)+' 的日线与周线…</div>';
+  var pending=2;
+  function done(){
+    if(--pending>0) return;
+    rsRefreshPlanTable();
+    rsRenderForecastCells();
+    rsRenderDetail();
+    rsRenderBrief(RS_PORT,RS_S1);
+  }
+  fetchBars(code,function(o){ if(o) LBARS[code]=o; done(); });
+  rsFetchWeekly(code,function(o){ if(o) RS_WEEK[code]=o; done(); });
 }
 function rsRenderDetail(){
   var el=document.getElementById('rsDetail');
@@ -3095,6 +3329,15 @@ function rsDrawChart(code){
   var n=closes.length;
   var bars=[];
   for(var i=0;i<n;i++) bars.push({o:opens[i]||closes[i],h:highs[i]||closes[i],l:lows[i]||closes[i],c:closes[i],v:vols[i]||0});
+  /* 结构图只画最近 220 根，长历史仍留给均线/评分/概率 */
+  if(bars.length>220){
+    bars=bars.slice(-220);
+    closes=bars.map(function(x){ return x.c; });
+    highs=bars.map(function(x){ return x.h; });
+    lows=bars.map(function(x){ return x.l; });
+    vols=bars.map(function(x){ return x.v; });
+    n=closes.length;
+  }
   function maOf(arr,k){ if(arr.length<k) return null; var s=0; for(var i=arr.length-k;i<arr.length;i++) s+=arr[i]; return s/k; }
   function maSeries(arr,k){ var out=[],s=0; for(var i=0;i<arr.length;i++){ s+=arr[i]; if(i>=k) s-=arr[i-k]; out.push(i>=k-1?s/k:null); } return out; }
   var ma5=maSeries(closes,5), ma10=maSeries(closes,10), ma20=maSeries(closes,20);
