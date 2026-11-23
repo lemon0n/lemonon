@@ -2751,7 +2751,7 @@ function rsPageHTML(p,s1,adv){
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
-  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息 / 国家队 */
+  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息（国家队已移出持仓分析） */
   h+='<div class="rs-sub">1. 市场环境</div>';
   var rg0=(D.market&&D.market.regime)||{}, br=(D.market&&D.market.breadth)||{};
   var maR=maRegime(rg0);
