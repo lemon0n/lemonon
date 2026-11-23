@@ -3261,6 +3261,24 @@ function rsRenderDetail(){
       (l.vol_ratio!=null?'量比 '+f2(l.vol_ratio):'量比缺失')+'；'+(l.ma_state||'—')])+
     '</tbody></table><div class="rs-note">日线服从周线：周线向上，日线回踩是买点；周线向下，日线反弹是卖点。</div></div></div>';
 
+  /* 2.5 缠论结构（展示层）：只解释动作，不改目标与订单 */
+  var ch=rsChanText(code,l,pr,row);
+  if(ch){
+    h+='<div class="box" style="margin-top:10px"><div class="bt">缠论结构（展示层 · 不改动作）</div>'+
+      '<div class="kv">'+
+        '<span class="k">中枢</span><span class="v">'+esc(ch.pivotTxt)+'</span>'+
+        '<span class="k">现价位置</span><span class="v">'+esc(ch.posTxt)+'</span>'+
+        '<span class="k">最近一笔</span><span class="v">'+esc(ch.strokeTxt)+'</span>'+
+        '<span class="k">结构信号</span><span class="v">'+esc(ch.sigTxt)+'</span>'+
+        '<span class="k">与目标的关系</span><span class="v">'+esc(ch.rel)+'</span>'+
+        '<span class="k">持仓上下文</span><span class="v">'+ch.ctx+'</span>'+
+      '</div>'+
+      '<div class="rs-note">'+esc(ch.conflict)+'</div>'+
+      '<div class="rs-note">简化实现：分型→笔→中枢→背驰/买卖点，不含线段与多级别递归。'+
+      '缠论只解释买卖点位置，目标与订单以目标仓位表为准；'+
+      '要把它变成加仓过滤器，须先按 docs/缠论融合回测方案.md 跑 A/B 并通过门槛。</div></div>';
+  }
+
   /* 3 双评分卡（只解释强弱，不改目标；评级与上限以顶部唯一出口为准） */
   h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
     '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
@@ -3449,7 +3467,88 @@ function rsChanOf(highs,lows,closes){
     if(b.px<a.px&&difAt(b.i)>difAt(a.i)) out.signal={i:b.i,label:'底背驰',up:true};
   }
   if(!out.signal&&out.pivot&&lastPx>out.pivot.zg) out.signal={i:n-1,label:'三买',up:false};
+  /* 顶背驰：最后是上升笔，两个低点抬高但 DIF 走低 */
+  var ups=strokes.filter(function(p){ return p.kind==='L'; });
+  if(!out.signal&&ups.length>=2&&strokes[strokes.length-1].kind==='H'){
+    var c1=ups[ups.length-2], c2=ups[ups.length-1];
+    if(c2.px>c1.px&&difAt(c2.i)<difAt(c1.i)) out.signal={i:c2.i,label:'顶背驰',up:false};
+  }
   return out;
+}
+
+/* 缠论展示层：把结构翻译成人话，并和持仓上下文（目标、评级、板块、大盘）对照。
+   只解释动作，不改目标与订单——回测通过前不进入执行链。 */
+function rsChanText(code,l,pr,row){
+  var rows=rsCleanBars(LBARS[String(code)]);
+  if(!rows||rows.length<30) return null;
+  var closes=rows.map(function(x){ return x.c; });
+  var highs=rows.map(function(x){ return x.h; });
+  var lows=rows.map(function(x){ return x.l; });
+  var chan=rsChanOf(highs,lows,closes);
+  var last=closes[closes.length-1];
+  var pv=chan.pivot, st=chan.strokes||[], sig=chan.signal;
+
+  var pivotTxt=pv?('ZG '+f3(pv.zg)+' / ZD '+f3(pv.zd)):'尚未形成中枢';
+  var posTxt='—', posKey='none';
+  if(pv){
+    if(last>pv.zg){ posTxt='中枢上方（距 ZG +'+f2((last/pv.zg-1)*100)+'%）'; posKey='above'; }
+    else if(last<pv.zd){ posTxt='中枢下方（距 ZD '+f2((last/pv.zd-1)*100)+'%）'; posKey='below'; }
+    else { posTxt='中枢内（ZG 与 ZD 之间）'; posKey='inside'; }
+  }
+  var strokeTxt='笔不足';
+  if(st.length>=2){
+    var s0=st[st.length-2], s1=st[st.length-1];
+    strokeTxt=(s1.px>s0.px?'向上':'向下')+'笔 '+f3(s0.px)+' → '+f3(s1.px)+
+      '（'+(s1.px>s0.px?'+':'')+f2((s1.px/s0.px-1)*100)+'%）';
+  }
+  var sigTxt=sig?sig.label:'无（既非背驰也无买卖点）';
+  var sigKind=sig?sig.label:null;
+
+  var act=pr.action, gap=pr.gap;
+  var rel;
+  if(act==='TRIM'||act==='CLEAR'){
+    if(sigKind==='底背驰'||sigKind==='三买')
+      rel='结构有企稳迹象，但目标是减：仍按差额 50/30/20 分批，不必一根大阴线砍完，也别把底背驰当加仓理由';
+    else if(posKey==='below')
+      rel='价格在中枢下方，属弱势区：减仓不用等反弹到中枢内，按计划执行';
+    else
+      rel='结构没有给出反向买点：减仓按目标执行，缠论只解释卖点位置';
+  }else if(act==='ADD'){
+    if(sigKind==='顶背驰')
+      rel='结构出现顶背驰，不追高：目标要加也等回踩中枢上沿不破再执行';
+    else if(posKey==='below')
+      rel='价格仍在中枢下方：加仓只做试错仓，等站上 ZG '+f3(pv.zg)+' 再补';
+    else
+      rel='结构不反对加仓：按确认条件分批，首批不超一半差额';
+  }else{
+    if(sigKind==='底背驰')
+      rel='底背驰只是观察理由；差额没到 3pct 或确认不足，今天仍不动，等站上 10 日线再谈';
+    else if(sigKind==='顶背驰')
+      rel='顶背驰提示风险，但动作是持有/等待：不加仓，跌破 10 日线再按纪律减';
+    else
+      rel='当前是等待/持有：缠论只作背景，不构成提前买卖的理由';
+  }
+
+  var sec=rsSectorMap(code)[0][0], f=rsFindFlow(sec);
+  var rg=(D.market&&D.market.regime)||{};
+  var ctx=(pr.grade?esc(pr.grade)+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%'):'未评级')+
+    ' · 现仓 '+((row&&row.weight!=null)?f2(row.weight)+'%':'—')+
+    ' → 目标 '+(pr.target==null?'—':f2(pr.target)+'%')+
+    ' · 板块 '+(sec==='未覆盖'?'未覆盖':esc(sec)+(f?'（成交占比 '+f2(f.share)+'%）':''))+
+    ' · 大盘 '+esc(rg.regime||'未知');
+
+  var conflict;
+  if(posKey==='above'&&String(rg.regime||'').indexOf('下行')>=0)
+    conflict='冲突：个股在中枢上方，但大盘是下行趋势 → 以大盘定总仓位上限，个股强势只减不追。';
+  else if(sigKind==='顶背驰'&&act==='ADD')
+    conflict='冲突：缠论顶背驰 vs 目标要加 → 以目标为准，但加仓等回踩确认，不追高。';
+  else if((sigKind==='底背驰'||sigKind==='三买')&&(act==='TRIM'||act==='CLEAR'))
+    conflict='冲突：缠论有买点 vs 目标要减 → 以目标为准；买点只用来选更细的减仓节奏，不改变方向。';
+  else
+    conflict='缠论与目标同向或无冲突，按目标执行即可。';
+
+  return {pivotTxt:pivotTxt,posTxt:posTxt,strokeTxt:strokeTxt,sigTxt:sigTxt,
+          rel:rel,ctx:ctx,conflict:conflict};
 }
 
 function rsDrawMacd(closes){
