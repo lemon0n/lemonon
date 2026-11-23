@@ -220,7 +220,8 @@ def main():
     now = _now_bj()
     updated = {}
 
-    core_updated = False   # breadth / global 才算「核心」——决定 as_of 要不要刷新
+    core_updated = False   # 只有 breadth 成功才刷新总 as_of：它是「快照日」的唯一依据，
+                           # 情绪/新闻/政策仍是人工维护，刷新总时间戳会把旧内容说成今天
 
     # 1. breadth + distribution
     got = _fetch_breadth()
@@ -239,7 +240,6 @@ def main():
     got = _fetch_global()
     if got:
         updated['global'] = dict(items=got)
-        core_updated = True
         print(f'  global: {len(got)} 项外盘指数')
     else:
         print('  global：抓取失败，保留旧值', file=sys.stderr)
@@ -256,8 +256,8 @@ def main():
         print('全部实时抓取失败，market.json 保持不变', file=sys.stderr)
         return 0
 
-    # 4. as_of 时间戳：只有核心字段（breadth 或 global）成功时才刷新
-    #    否则 snapshot_date 会误导用户——as_of 变了但核心数据还是旧的
+    # 4. as_of 时间戳：只有 breadth 成功时才刷新（global/premium 是局部块，不能让
+    #    页面把旧的情绪/快讯当成今天的数据）
     if core_updated:
         updated['as_of'] = now.strftime('%Y-%m-%d %H:%M:%S')
 
