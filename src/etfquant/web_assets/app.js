@@ -1613,6 +1613,11 @@ function page1(){
   var m=D.market, rg=m.regime, b=m.breadth, s=m.sentiment;
   var h='<div class="pg-h"><h1>市场概况</h1>'+
     '</div>';
+  var snap=(D.meta&&D.meta.snapshot_date)||'';
+  if(snap&&snap!==((D.meta&&D.meta.data_date)||'')){
+    h+='<div class="notice">市场广度、情绪、快讯与政策热度来自离线快照 '+esc(snap)+
+      '，不是行情日 '+esc(D.meta.data_date)+' 当日数据；环境判断以基准指数与行情日为准。</div>';
+  }
 
   h+=sec('市场总览');
   h+='<div class="grid4">'+[

@@ -262,7 +262,8 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
 
     pkt = packet or {}
     news_sentiment = dict(market.get('news_sentiment') or {})
-    note = _news_note(meta.get('data_date'))
+    snapshot_date = str(market.get('as_of') or '')[:10] or None
+    note = _news_note(snapshot_date or meta.get('data_date'))
     if note and not news_sentiment.get('note'):
         news_sentiment['note'] = note
     return dict(
@@ -273,6 +274,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                   version=meta.get('version', '3.0'),
                   dashboard_version='4.0',
                   tz=meta.get('tz', 'Asia/Shanghai'),
+                  snapshot_date=snapshot_date,
                   benchmark_date=meta.get('benchmark_date')),
         packet=dict(schema_version=pkt.get('schema_version'), status=pkt.get('status'),
                     run_id=pkt.get('run_id'), generated_at=pkt.get('generated_at'),
