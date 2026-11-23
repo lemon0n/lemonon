@@ -1672,7 +1672,8 @@ function page1(){
   h+='</div><div class="grid2" style="margin-top:12px">';
   h+=box(bt('消息面情绪')+kv([['综合',esc(m.news_sentiment.label)+' '+m.news_sentiment.score+'/100'],
       ['正面',m.news_sentiment.positive+'%'],['中性',m.news_sentiment.neutral+'%'],
-      ['负面',m.news_sentiment.negative+'%']]));
+      ['负面',m.news_sentiment.negative+'%']])+
+    (m.news_sentiment.note?'<div class="rs-note" style="margin-top:6px">'+esc(m.news_sentiment.note)+'</div>':''));
   h+=box(bt('政策主题净热度')+tbl(['主题','热度','变化'],m.policy_heat.map(function(x){
     return tr([lnk(x.url,x.theme),String(x.heat),col(parseFloat(x.chg))]); })));
   h+='</div>';
@@ -2129,13 +2130,6 @@ function rsSectorHealth(exp){
       relation:x.pct>=25?'超配':(x.pct<=5?'低配':'中性'),
       state:(s&&s.grade)?({S:'强',A:'强',B:'中',C:'弱',D:'弱'}[s.grade]):'—'};
   });
-}
-
-function rsMacroRows(){
-  var out=[], m=D.market||{};
-  ((m.macro&&m.macro.items)||[]).forEach(function(x){ out.push(x); });
-  ((m.liquidity&&m.liquidity.items)||[]).forEach(function(x){ out.push(x); });
-  return out.slice(0,8);
 }
 
 function rsRsi(vals,n){
@@ -2778,8 +2772,6 @@ function rsPageHTML(p,s1,adv){
      '技术项需要行业代表 ETF 的周线，本页未接入，记缺失。缺项不补 0 分，按剩余权重折算（例：缺技术与政策 → 资金 62.5%、情绪 37.5%）。'+
      '评级与个股同一套分档，板块上限 S25/A20/B10/C5/D0；D 级只限制新增，已持有按个股规则处理。</div></details></div>';
 
-  h+='<div class="box" style="margin-top:11px"><div class="bt">宏观经济背景</div><table class="tbl"><thead><tr><th>指标</th><th>值</th></tr></thead><tbody id="rsMacroTable"></tbody></table></div>';
-
   h+='<div class="rs-sub">3. 个股分析</div>';
   h+='<div class="rs-stockpick" id="rsStockPick">';
   p.rows.forEach(function(r,i){
@@ -2810,7 +2802,6 @@ function rsAfterBars(){
   if(!RS_PORT) return;
   rsRenderBrief(RS_PORT,RS_S1);
   rsRenderSector();
-  rsRenderMacro();
   rsRenderMarket();
   rsRenderDetail();
   rsRenderForecastCells();
@@ -2826,7 +2817,6 @@ function rsInit(){
     RS_SELECTED=(HOLD.rows&&HOLD.rows[0])?String(HOLD.rows[0].code):null;
   }
   rsRenderSector();
-  rsRenderMacro();
   rsRenderMarket();
   rsRenderDetail();
   rsRenderIdeas();
@@ -3218,15 +3208,6 @@ function rsRenderSector(){
         '<td>'+esc(x.relation)+'</td><td>'+esc(x.state)+'</td></tr>';
     }).join('')||'<tr><td colspan="9" class="muted">暂无板块数据</td></tr>';
   }
-}
-
-function rsRenderMacro(){
-  var body=document.getElementById('rsMacroTable');
-  if(!body) return;
-  var rows=rsMacroRows();
-  body.innerHTML=rows.length?rows.map(function(x){
-    return '<tr><td>'+lnk(x.url,x.k)+'</td><td>'+esc(x.v)+'</td></tr>';
-  }).join(''):'<tr><td colspan="2" class="muted">宏观数据未接入</td></tr>';
 }
 
 /* 交易时段（决定结论口径：盘前看隔夜，盘中看量能，盘后看次日） */

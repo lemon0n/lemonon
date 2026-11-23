@@ -48,6 +48,7 @@ def _national_team():
         return None
 
 BRIEF_PATH = os.path.join(config.ROOT, 'data', 'brief.json')
+NEWS_NOTE_PATH = os.path.join(config.ROOT, 'data', 'news_note.json')
 BANNED_PATH = os.path.join(config.ROOT, 'config', 'brief_banned.txt')
 
 
@@ -59,6 +60,24 @@ def _banned():
     except OSError:
         return None
     return words or None
+
+
+def _news_note(data_date):
+    """消息面解读：由模型按当日快讯写 100 字以内，落 data/news_note.json。
+
+    只在日期一致时采用；没有就让页面只显示分数，不硬凑一句。
+    """
+    try:
+        with open(NEWS_NOTE_PATH, encoding='utf-8') as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict) or not isinstance(d.get('note'), str):
+        return None
+    if data_date and d.get('data_date') != data_date:
+        return None
+    note = d['note'].strip()
+    return note or None
 
 
 def _brief(data_date):
@@ -242,6 +261,10 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         ))
 
     pkt = packet or {}
+    news_sentiment = dict(market.get('news_sentiment') or {})
+    note = _news_note(meta.get('data_date'))
+    if note and not news_sentiment.get('note'):
+        news_sentiment['note'] = note
     return dict(
         meta=dict(as_of=meta['as_of'], data_date=meta.get('data_date', ''),
                   run_date=meta.get('run_date', ''), mode=meta.get('mode', 'live'),
@@ -262,7 +285,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                     valuation=market['valuation'], glob=market['global'],
                     liquidity=market['liquidity'], macro=market['macro'],
                     news=market['news'], calendar=market['calendar'],
-                    news_sentiment=market['news_sentiment'], policy_heat=market['policy_heat'],
+                    news_sentiment=news_sentiment, policy_heat=market['policy_heat'],
                     heat=heat, flow=flow, national_team=_national_team(),
                     regime=dict(regime=regime['regime'], fit_lo=regime['fit_lo'],
                                 fit_hi=regime['fit_hi'], stage_note=regime.get('stage_note', ''),

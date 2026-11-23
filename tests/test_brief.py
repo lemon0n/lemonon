@@ -63,3 +63,19 @@ def test_banned_list_is_configured():
     words = webgen._banned()
     assert words and len(words) >= 12
     assert '综合来看' in words and '胜率' in words
+
+
+def _note(tmp_path, doc):
+    p = tmp_path / 'news_note.json'
+    p.write_text(json.dumps(doc, ensure_ascii=False), encoding='utf-8')
+    return str(p)
+
+
+def test_news_note_date_and_shape(tmp_path, monkeypatch):
+    good = {'data_date': '2026-11-23', 'note': '央行逆回购为主，负面落在权重股。'}
+    monkeypatch.setattr(webgen, 'NEWS_NOTE_PATH', _note(tmp_path, good))
+    assert webgen._news_note('2026-11-23') == good['note']
+    assert webgen._news_note('2026-11-24') is None      # 日期不符不用
+    monkeypatch.setattr(webgen, 'NEWS_NOTE_PATH', _note(tmp_path, {'data_date': '2026-11-23', 'note': ''}))
+    assert webgen._news_note('2026-11-23') is None      # 空解读不采用
+
