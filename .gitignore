@@ -26,3 +26,15 @@ positions/
 data/research_latest.json
 data/ledger/
 data/.research.lock
+
+# IDE 临时产物与第三方技能源包（与本项目运行无关）
+.trae/
+.trae-*/
+skills_src/
+
+# 生成型演示产物：由 scripts/gen_page_demo.py、compare_*.py 重新生成，不进仓库
+docs/page_demo.html
+docs/rule_v3_demo.html
+docs/rule_compare_demo.html
+docs/backtest_compare_demo.html
+docs/rule_v3_compare.json

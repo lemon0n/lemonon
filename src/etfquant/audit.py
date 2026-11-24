@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""持续评估（P3）：引用覆盖率、数值一致性、无动作合理性、规则冲突、时间外回测。
+"""持续评估：引用覆盖率、数值一致性、无动作合理性、规则冲突、时间外回测。
 
 这里只做「可自动检查」的部分，不产出新的投资建议，也不以建议数量作为效果指标。
 """
@@ -81,7 +81,7 @@ def rule_conflicts(decision):
 
 def out_of_time(decision):
     """时间外回测：只检查报告存在且明确研究边界，不重跑历史。"""
-    path = os.path.join(config.ROOT, 'docs', '回测报告.md')
+    path = os.path.join(config.ROOT, 'docs', 'archive', '回测报告.md')
     if not os.path.exists(path):
         return dict(ok=False, note='缺少回测报告，无法声明研究边界')
     try:

@@ -10,7 +10,7 @@
 version: '2.0'
 
 meta:
-  distill_doc: 沉关河方法论蒸馏.md
+  distill_doc: docs/archive/沉关河方法论蒸馏.md
   corpus_articles: 41
   rules_total: 11
 

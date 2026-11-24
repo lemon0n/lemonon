@@ -346,7 +346,7 @@ def main():
     lines.append('- 当前规则版本：规则卡 v2.0（`config/methodology.yaml`），只有一套动作求值函数；\n')
     lines.append('- 回测与生产共用 `features.frame` 与 `methodology.decide`，不再维护简化版策略；\n')
     lines.append('- 旧回测结论（20.44% / 74.7% 等）已撤回，不得用于证明当前模型有效，'
-                 '见 `docs/回测报告.md` 的冻结说明；\n')
+                 '见 `docs/archive/回测报告.md` 的冻结说明；\n')
     lines.append('- 本报告不含真实账户绩效（没有交易流水），只有当前快照与浮动盈亏；\n')
     lines.append('- 没有任何价格是「保证成交价」：限价、止损与参考阻力都是执行政策。\n')
     lines.append('\n---\n仅供研究参考，不构成投资建议。\n')

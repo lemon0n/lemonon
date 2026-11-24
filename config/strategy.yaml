@@ -6,7 +6,7 @@ ma:
   stand_back: 收盘价 > MA5
   add_requires_days_above_ma5: 3
   stop_ma: 10
-  # 回退到方法论默认 2 日：此前的「1 日」由已被撤回的回测选参而来（见 docs/回测报告.md），
+  # 回退到方法论默认 2 日：此前的「1 日」由已被撤回的回测选参而来（见 docs/archive/回测报告.md），
   # 在时间外验证完成前不再沿用该优化值。
   stop_consecutive_days: 2
   stop_buy2_ma: 5
@@ -38,7 +38,7 @@ score:
   premium_penalty_threshold_pct: 1.0
 
 # 回测参数：仅保留成本与执行假设；信号本身必须来自生产规则卡，不再在此维护「简化版策略」。
-# 旧 3 轮优化结果已按指导书 P0-1 撤回，见 docs/回测报告.md 的冻结说明。
+# 旧 3 轮优化结果已按指导书 P0-1 撤回，见 docs/archive/回测报告.md 的冻结说明。
 backtest:
   start: '2023-01-01'
   end: '2026-11-12'
