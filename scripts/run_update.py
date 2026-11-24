@@ -88,6 +88,7 @@ def write_manifest(r):
         'skipped': r['skipped'],
         'fallback': r['source']['fallback'],
         'validation': r.get('validation'),
+        'research': r.get('research'),
         'run_id': r.get('run_id'),
         'input_hash': r.get('input_hash'),
         'config_hash': r.get('config_hash'),
@@ -135,6 +136,55 @@ def verify_products():
                 run_id=ids.get('packet'), ids=ids)
 
 
+def research_enabled():
+    """研究层的开关：llm.yaml enabled=true 且 provider 不是 mock 才自动跑。"""
+    try:
+        from etfquant.llm import policy as llm_policy
+        s = llm_policy.settings()
+        return bool(s.get('enabled')) and s.get('provider') != 'mock'
+    except Exception:
+        return False
+
+
+def run_research(r, collected):
+    """在确定性页面之后跑一次 LLM 研究，并把结果并回页面与数据包。
+
+    失败只降级：页面照常发布（数据更新不受影响），研究状态标 LLM_FAILED，
+    绝不把规则模板包装成新的模型建议（执行书 0.4）。
+    """
+    from etfquant import config, packet, webgen
+    from etfquant.llm import integration
+
+    state = dict(status='SKIPPED', run_id=None, violations=0, error=None,
+                 run_dir=None, provider=None)
+    try:
+        res = integration.run(collected)
+        payload = res['payload']
+        state.update(status=payload['meta']['status'], run_id=res['run_id'],
+                     run_dir=res['run_dir'], provider=res['provider'],
+                     violations=len((payload.get('final') or {}).get('violations') or []))
+        integration.attach_to_data(collected['data'], payload)
+        pkt = collected.get('packet') or {}
+        pkt.setdefault('extras', {})['research'] = dict(
+            status=state['status'], run_id=state['run_id'],
+            trade_date=payload['meta']['trade_date'],
+            executable=payload['meta']['executable'],
+            risk_status=(payload.get('final') or {}).get('risk_status'))
+        # 页面与数据包必须来自同一次运行：研究结果内嵌后再渲染一次，不重新取数
+        out = webgen.render(collected['data'], collected.get('cfg'))
+        r['html'], r['html_bytes'] = out['path'], out['bytes']
+        packet.write(pkt, archive_dir=os.path.join(config.ROOT, 'data', 'runs'),
+                     path=os.path.join(config.WEB, 'analysis_packet.json'))
+        r['research'] = state
+        return state
+    except Exception as exc:                     # 研究失败不得阻断发布
+        state.update(status='LLM_FAILED', error='%s: %s' % (type(exc).__name__, exc))
+        r['research'] = state
+        print('研究层未完成（%s），页面按确定性结果发布' % state['error'],
+              file=sys.stderr)
+        return state
+
+
 def main():
     ap = argparse.ArgumentParser(description='ETF 决策平台 · 单次更新')
     ap.add_argument('--snapshot', action='store_true', help='不联网，用离线快照（仅演示）')
@@ -143,6 +193,10 @@ def main():
     ap.add_argument('--json', action='store_true', help='输出机器可读 JSON')
     ap.add_argument('--push', action='store_true', help='生成后 commit + push 产物')
     ap.add_argument('--verify', action='store_true', help='只校验已生成的 analysis_packet')
+    ap.add_argument('--research', dest='research', action='store_true', default=None,
+                    help='运行 LLM 研究决策层（默认按 config/llm.yaml 自动判断）')
+    ap.add_argument('--no-research', dest='research', action='store_false',
+                    help='本次跳过研究层，只更新确定性页面')
     a = ap.parse_args()
 
     if a.verify:
@@ -150,8 +204,12 @@ def main():
         print(json.dumps(chk, ensure_ascii=False, indent=2))
         return 0 if chk['ok'] else 4
 
+    want_research = research_enabled() if a.research is None else a.research
+    collected = {}
+
     try:
-        r = pipeline.run(use_live=not a.snapshot)
+        r = pipeline.run(use_live=not a.snapshot,
+                         collect=(collected.update if want_research else None))
     except Exception as e:
         if a.json:
             print(json.dumps({'ok': False, 'status': 'ERROR', 'error': str(e)},
@@ -159,6 +217,9 @@ def main():
         else:
             print('运行失败：%s' % e)
         return 2
+
+    if want_research:
+        run_research(r, collected)
 
     manifest = write_manifest(r)
 

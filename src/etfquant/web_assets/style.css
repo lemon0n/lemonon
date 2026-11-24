@@ -360,3 +360,8 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rs-scroll .tbl{min-width:560px}
 .rs-pill.sell{background:#e8f6ef;border-color:#bfe6d2;color:var(--down)}
 .rs-pill.buy{background:#fdecea;border-color:#f3c6c0;color:var(--up)}
+
+/* ---- 模型研究页（research.js）：五块内容 ---- */
+.rp-list{margin:4px 0 10px;padding-left:18px;font-size:12px;line-height:1.8;color:var(--text)}
+.rp-list li{margin:2px 0}
+.rp-list li.warn{color:var(--warn)}

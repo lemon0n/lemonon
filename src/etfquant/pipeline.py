@@ -39,7 +39,7 @@ def now_tz(name='Asia/Shanghai'):
         return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
 
 
-def run(use_live=True, strict=False, write_packet=True):
+def run(use_live=True, strict=False, write_packet=True, collect=None, write_page=True):
     cfg = config.cfg()
     uni = universe.load()
     loader.reset(live_mode=use_live)
@@ -226,7 +226,13 @@ def run(use_live=True, strict=False, write_packet=True):
     data = webgen.build_data(market, sectors, regime, legs, cfg, meta, packet=pkt,
                              plan=plan_v3.build(bars_by_code, bench, regime,
                                                 {l['code']: l['name'] for l in legs}))
-    out = webgen.render(data, cfg)
+    # LLM 研究层从这里接管：拿到的是已冻结的事实（同一份 legs / regime / 数据日），
+    # 不重新取数、不重新算指标，避免「一边分析一边数据在变」。
+    if collect is not None:
+        collect(dict(legs=legs, regime=regime, meta=meta, source=src,
+                     bars_by_code=bars_by_code, market=market, sectors=sectors,
+                     cfg=cfg, data=data, packet=pkt, bench=bench))
+    out = webgen.render(data, cfg) if write_page else None
     if write_packet:
         runs_dir = os.path.join(config.ROOT, 'data', 'runs')
         packet.write(pkt, archive_dir=runs_dir)
@@ -244,8 +250,9 @@ def run(use_live=True, strict=False, write_packet=True):
                 orders=sum(1 for l in legs if l['decision']['action'] in ('CLEAR', 'TRIM', 'ADD')),
                 source=src, degraded=src['degraded'], synthetic=src.get('synthetic', False),
                 skipped=skipped, validation=chk,
-                html=out['path'], html_bytes=out['bytes'], legs=out['legs'],
-                self_contained=out['self_contained'])
+                html=(out or {}).get('path'), html_bytes=(out or {}).get('bytes', 0),
+                legs=(out or {}).get('legs', len(legs)),
+                self_contained=(out or {}).get('self_contained', True))
 
 
 def _r(v):

@@ -3976,6 +3976,8 @@ function render(){
               'ERROR':'运行或校验失败，未发布可执行建议'}[st]||st;
   }
   document.getElementById('p1').innerHTML=page1();
+  var p8=document.getElementById('p8');
+  if(p8) p8.innerHTML=(typeof researchPage==='function')?researchPage():'';
   document.getElementById('p5').innerHTML=page5();
   document.getElementById('p7').innerHTML=page7();
   layoutHeatmap();

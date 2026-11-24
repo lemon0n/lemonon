@@ -1,0 +1,37 @@
+# LLM 研究决策层配置（《ETF LLM 交易分析系统详细执行书》第 4 章）
+#
+# 设计原则：
+#   · 本文件只管「怎么调模型、看多少上下文」，不写任何投资阈值；
+#   · 投资硬约束一律在 config/risk_policy.yaml，且不得比 config/risk.yaml 更宽松；
+#   · provider=mock 只能用于测试与离线演示，运行结果会标 status=LLM_MOCK，
+#     永远不产生可执行订单（禁止把规则模板包装成新的模型建议）。
+enabled: true
+provider: openai_compatible        # openai_compatible | mock
+system:
+  timezone: Asia/Shanghai
+  max_llm_repairs: 1               # 风控退回后最多修复几次，仍失败即 REJECTED
+  require_redteam: true            # Red Team 与 Revision 不得永久删除
+  human_confirm_orders: true       # 第一阶段只出订单草案，不接券商
+model:
+  base_url: http://127.0.0.1:11434/v1
+  api_key: local-not-required
+  model_name: local-instruct-model
+  temperature: 0.2
+  top_p: 0.9
+  max_tokens: 12000
+  timeout_seconds: 300
+  json_mode: true
+  max_format_repairs: 1            # JSON 格式修复次数（不改投资内容）
+  # 环境变量覆盖（避免把地址写死）：LLM_BASE_URL / LLM_MODEL / LLM_API_KEY / LLM_PROVIDER
+context:
+  recent_daily_bars: 30
+  recent_weekly_bars: 12
+  previous_reports: 5
+  max_news_items: 20
+  max_focus_questions: 8
+  max_context_chars: 120000        # 超限按 context.py 的裁剪顺序处理，不截断 JSON
+analysis:
+  full_review_weekdays: [1]        # 周一做完整历史复核
+  force_full_on_regime_change: true
+report:
+  use_llm: false                   # 报告默认确定性渲染；开 LLM 报告也必须数字对齐

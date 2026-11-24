@@ -1,0 +1,29 @@
+# LLM 决策层的确定性风控政策（执行书第 4.2 / 12 章）
+#
+# 与 config/risk.yaml 的关系：
+#   risk.yaml  = 规则基线（市场状态→仓位区间、类别结构、执行步长）
+#   risk_policy.yaml = 模型建议能否落地的硬约束；**不得比 risk.yaml 更宽松**
+#   tests/test_llm_policy.py 会逐项断言这个方向，改宽了会直接失败。
+#
+# 权重一律用「占含现金总资产」的比例（0–1），不是百分数。
+portfolio:
+  max_gross_exposure: 0.95          # 总风险资产上限（risk.yaml: min_cash 5% → 0.95）
+  min_cash_weight: 0.05             # 现金下限（与 risk.yaml min_cash_pct=5 对齐）
+  max_single_weight: 0.25           # 单只上限（risk.yaml max_single_weight_pct=25）
+  max_category_weight: 0.60         # 单一类别上限（risk.yaml max_category_weight_pct=60）
+  max_legs: 8                       # 腿数上限（risk.yaml max_legs=8）
+  max_daily_turnover: 0.30          # 单日最大换手（单边/2 口径）
+  min_trade_value: 1000             # 最小交易金额（元），低于它只标 SUPERSEDED
+  no_trade_band_weight: 0.01        # 不换仓带：目标与现仓差小于此值不交易
+execution:
+  lot_size: 100
+  max_participation_rate: 0.05      # 单笔不超过近 20 日成交额的 5%
+  allow_market_orders: false
+  require_limit_rule: true          # 没有盘口时必须给条件式执行规则
+  commission_bps: 0.5
+  min_commission_cny: 5.0
+  slippage_bps: 1.0
+quality:
+  allow_stale_for_execution: false  # 过期数据不允许生成可执行建议
+  allow_degraded_for_execution: false
+  max_cross_source_price_diff: 0.003

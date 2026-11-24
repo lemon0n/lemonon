@@ -114,6 +114,30 @@ def _brief(data_date):
         return None
     return dict(data_date=d.get('data_date'), conclusion=conclusion.strip(), blocks=blocks)
 
+def _research(data_date):
+    """读取 LLM 研究层最近一次发布的载荷（llm/storage.publish_latest 写的）。
+
+    日期不一致时仍然显示，但标记 stale：执行书 0.4 要求「保留上一份建议并醒目标注
+    历史建议，非本次研究结果」，不允许把它当成今天的研究。
+    """
+    path = os.path.join(config.ROOT, 'data', 'research_latest.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            latest = json.load(f)
+    except (OSError, ValueError):
+        return None
+    payload = (latest or {}).get('payload') or {}
+    if not isinstance(payload, dict) or not payload.get('meta'):
+        return None
+    payload = dict(payload)
+    meta = dict(payload.get('meta') or {})
+    meta['stale'] = bool(data_date and meta.get('data_date')
+                         and str(meta.get('data_date')) != str(data_date))
+    meta['latest_file'] = True
+    payload['meta'] = meta
+    return payload
+
+
 SHELL = '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -142,6 +166,8 @@ SHELL = '''<!DOCTYPE html>
               title="收起导航" aria-label="收起或展开导航">«</button>
       <div class="nav-i on" data-p="p1" onclick="nav('p1')" title="市场概况">
         <span class="ic">市</span><span class="lb">市场概况</span></div>
+      <div class="nav-i" data-p="p8" onclick="nav('p8')" title="模型研究">
+        <span class="ic">研</span><span class="lb">模型研究</span></div>
       <div class="nav-i lock-only" data-p="p5" onclick="nav('p5')" title="持仓分析">
         <span class="ic">仓</span><span class="lb">持仓分析</span></div>
       <div class="nav-i lock-only" data-p="p7" onclick="nav('p7')" title="持仓设置">
@@ -151,6 +177,7 @@ SHELL = '''<!DOCTYPE html>
     </div>
     <div class="content">
       <div class="page on" id="p1"></div>
+      <div class="page" id="p8"></div>
       <div class="page" id="p5"></div>
       <div class="page" id="p7"></div>
       <div class="foot-note">仅供研究参考，不构成投资建议。</div>
@@ -321,6 +348,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
             correlation=(cfg.get('risk') or {}).get('correlation') or {},
         ),
         decision=decision,
+        research=_research(meta.get('data_date')),
     )
 
 
@@ -334,11 +362,16 @@ def render(data, cfg=None, decision=True):
         djs = open(dpath, encoding='utf-8').read()
     elif isinstance(data, dict):
         data.setdefault('contract', {})['engine'] = 'legacy'
+    # 模型研究页：只在有载荷时注入，避免给没有研究层的部署增加体积
+    rjs = ''
+    rpath = os.path.join(ASSETS, 'research.js')
+    if isinstance(data, dict) and data.get('research') and os.path.exists(rpath):
+        rjs = open(rpath, encoding='utf-8').read()
     payload = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     payload = payload.replace('<', '\\u003c').replace('>', '\\u003e')
     html = (SHELL.replace('@@CSS@@', css)
                  .replace('@@DATA@@', payload)
-                 .replace('@@JS@@', rules + '\n' + djs + '\n' + js))
+                 .replace('@@JS@@', rules + '\n' + djs + '\n' + rjs + '\n' + js))
     config.ensure_dirs(config.WEB)
     path = os.path.join(config.WEB, 'index.html')
     tmp = path + '.tmp'

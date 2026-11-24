@@ -21,3 +21,8 @@ positions/
 .env.*
 *.pem
 *.key
+
+# LLM 研究层：运行产物与最近一次研究载荷（含权重，属本地事实，不进仓库）
+data/research_latest.json
+data/ledger/
+data/.research.lock

@@ -6,6 +6,8 @@
 # 可选环境变量：
 #   PY=python3.12    指定解释器（默认 python3.11，找不到就用 python3）
 #   SKIP_PULL=1      跳过 git pull（离线调试用）
+#   RESEARCH=0       跳过 LLM 研究层，只更新确定性页面（默认按 config/llm.yaml 判断）
+#   LLM_BASE_URL / LLM_MODEL / LLM_API_KEY  覆盖本地模型地址与模型名
 #
 # 退出码：0 成功 / 2 运行异常 / 3 提交推送失败 / 4 发布前校验未通过
 set -uo pipefail
@@ -97,7 +99,12 @@ if ! "$PY_BIN" scripts/fetch_national_team.py; then
 fi
 
 say "取数并生成页面（实时源失败会自动降级）"
-"$PY_BIN" scripts/run_update.py --json --push
+RESEARCH_ARG=""
+if [ "${RESEARCH:-1}" = "0" ]; then
+  RESEARCH_ARG="--no-research"
+  say "RESEARCH=0：本次跳过 LLM 研究层"
+fi
+"$PY_BIN" scripts/run_update.py --json --push $RESEARCH_ARG
 code=$?
 
 case "$code" in
