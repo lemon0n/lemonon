@@ -16,7 +16,7 @@ from .. import config
 
 PROMPT_DIR = os.path.join(config.ROOT, 'prompts')
 NAMES = ('common_system', 'research', 'portfolio_manager', 'redteam',
-         'revision', 'repair', 'report_writer')
+         'revision', 'repair', 'report_writer', 'brief')
 REQUIRED = ('common_system', 'research', 'portfolio_manager', 'redteam', 'revision')
 
 _CACHE: dict[str, dict[str, str]] = {}

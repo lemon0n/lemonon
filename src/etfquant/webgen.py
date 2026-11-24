@@ -349,7 +349,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
     )
 
 
-def render(data, cfg=None, decision=True):
+def render(data, cfg=None, decision=True, demo=None, out_path=None):
     css = open(os.path.join(ASSETS, 'style.css'), encoding='utf-8').read()
     rules = open(os.path.join(ASSETS, 'rules.js'), encoding='utf-8').read()
     js = open(os.path.join(ASSETS, 'app.js'), encoding='utf-8').read()
@@ -364,13 +364,29 @@ def render(data, cfg=None, decision=True):
     rpath = os.path.join(ASSETS, 'research.js')
     if isinstance(data, dict) and data.get('research') and os.path.exists(rpath):
         rjs = open(rpath, encoding='utf-8').read()
+    if demo:
+        # demo：明文持仓直接注入，页面跳过口令锁；持仓价格随行带上
+        data.setdefault('meta', {})['demo'] = True
+        data['demo_positions'] = demo
+        prices = {}
+        for row in demo.get('rows') or []:
+            if row.get('last') is not None:
+                prices[str(row.get('code'))] = row['last']
+        data['demo_positions']['prices'] = prices
     payload = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     payload = payload.replace('<', '\\u003c').replace('>', '\\u003e')
+    if demo:
+        banner = ('<div style="background:#fff4e5;border-bottom:1px solid #f0c88a;color:#8a5300;padding:8px 16px;font-size:12.5px"><b>DEMO</b>　明文持仓、未加密的预览页：只用于确认页面结构与口径，不会上传，也不代表线上页面。</div>')
+    else:
+        banner = ''
     html = (SHELL.replace('@@CSS@@', css)
                  .replace('@@DATA@@', payload)
                  .replace('@@JS@@', rules + '\n' + djs + '\n' + rjs + '\n' + js))
-    config.ensure_dirs(config.WEB)
-    path = os.path.join(config.WEB, 'index.html')
+    if demo:
+        html = html.replace('class="lock on" id="lock"',
+                            'class="lock" id="lock"')
+    path = out_path or os.path.join(config.WEB, 'index.html')
+    config.ensure_dirs(os.path.dirname(path))
     tmp = path + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         f.write(html)

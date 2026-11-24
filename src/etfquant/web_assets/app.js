@@ -237,6 +237,8 @@ function legOf(code){
 function priceOf(code){
   var q=PQ[String(code)];
   if(q) return q;
+  var dp=(D.demo_positions&&D.demo_positions.prices)||{};
+  if(dp[String(code)]!=null) return {last:n(dp[String(code)]),prev:null,chg:null};
   var l=legOf(code);
   if(l&&n(l.last)>0) return {last:n(l.last),prev:null,chg:l.change};
   return null;
@@ -3993,10 +3995,16 @@ function boot(){
   }
   D=window.DASHBOARD;
   HOLD={rows:[],cash:0};
+  if(D.demo_positions){                       /* demo：明文持仓，不需要解锁 */
+    HOLD={rows:D.demo_positions.rows||[],cash:n(D.demo_positions.cash)};
+    var lk=document.getElementById('lock'); if(lk) lk.classList.remove('on');
+    document.querySelectorAll('.lock-only').forEach(function(e){e.classList.remove('hide');});
+  }
   draftReset();
   render();
-  /* 先画公开行情，再弹口令锁；解锁后才加载持仓并补实时价 */
-  autoUnlock();
+  /* 先画公开行情，再弹口令锁；解锁后才加载持仓并补实时价。
+     demo 模式持仓已在内存里，不再弹锁。 */
+  if(!D.demo_positions) autoUnlock();
   var saved=null;
   try{ saved=localStorage.getItem('sideCollapsed'); }catch(e){}
   /* 窄屏首次打开默认收起，避免导航挤占正文；用户手动切换后记住选择 */

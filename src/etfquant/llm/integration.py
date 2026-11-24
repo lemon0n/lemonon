@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
+import io
+
 from .. import config
 from ..portfolio import holdings, positions as positions_mod
 from . import (client as client_mod, context as context_mod, evidence as evidence_mod,
@@ -413,6 +415,7 @@ def finish(run_dir: str, *, output_path: str | None = None,
     if missing:
         raise ValueError('agent_output.json 缺少 %s' % '、'.join(missing))
 
+    brief = raw.get('brief')
     models = dict(research=ResearchOutput.model_validate(raw['research']),
                   proposal=ProposalOutput.model_validate(raw['proposal']),
                   redteam=RedTeamOutput.model_validate(raw['redteam']),
@@ -451,6 +454,8 @@ def finish(run_dir: str, *, output_path: str | None = None,
         provider_label='代理模型（本机操作者）', write_report=write_report,
         positions_report_path=positions_report_path, now=now, publishable=True)
 
+    if brief:
+        _save_brief(brief, trade_date)
     page = _render_page(run_dir, payload) if render else None
     last_run = _write_last_run(run_dir, payload, page or {}, trade_date) if page else None
     pushed = _git_push(dict(data_date=trade_date, status=result['final'].status,
@@ -458,6 +463,41 @@ def finish(run_dir: str, *, output_path: str | None = None,
     return dict(provider='agent', run_id=run_id, run_dir=run_dir, trade_date=trade_date,
                 final=result['final'], payload=payload, page=page,
                 last_run=last_run, pushed=pushed, status=result['final'].status)
+
+
+def _save_brief(brief: dict, trade_date: str) -> None:
+    """今日点评：日期一致、八块结构、无禁词，否则不落盘（页面回退引擎版）。"""
+    if not isinstance(brief, dict) or not isinstance(brief.get('blocks'), list):
+        return
+    if str(brief.get('data_date') or '') != str(trade_date):
+        print('点评日期 %s 与数据日 %s 不一致，丢弃' % (brief.get('data_date'), trade_date))
+        return
+    blocks = []
+    for b in brief['blocks']:
+        if not isinstance(b, dict):
+            return
+        k, v = str(b.get('k') or '').strip(), str(b.get('v') or '').strip()
+        if not k or not v:
+            return
+        blocks.append(dict(k=k, v=v, refs=b.get('refs') or []))
+    if len(blocks) < 6:
+        print('点评块数 %d < 6，丢弃' % len(blocks))
+        return
+    try:
+        banned = [w.strip() for w in
+                  io.open(os.path.join(config.ROOT, 'config', 'brief_banned.txt'),
+                          encoding='utf-8') if w.strip()]
+    except OSError:
+        banned = []
+    joined = str(brief.get('conclusion') or '') + ''.join(b['v'] for b in blocks)
+    hits = [w for w in banned if w in joined]
+    if hits:
+        print('点评含禁词 %s，丢弃' % '、'.join(hits))
+        return
+    storage.save_json(os.path.join(config.ROOT, 'data'), 'brief.json',
+                      dict(data_date=trade_date,
+                           conclusion=str(brief.get('conclusion') or '').strip(),
+                           blocks=blocks))
 
 
 def _config_hash(settings: dict) -> str:
@@ -475,6 +515,10 @@ def _render_page(run_dir: str, payload: dict):
     if not data:
         return None
     attach_to_data(data, payload)
+    # 页面构建于 prepare 阶段，点评是 finish 之后才有的，这里补进去
+    brief = storage.load_run(os.path.join(config.ROOT, 'data'), 'brief.json')
+    if brief:
+        data['brief'] = brief
     out = webgen.render(data, data.get('trading'))
     pkt = storage.load_run(run_dir, 'packet.json') or {}
     if pkt:
