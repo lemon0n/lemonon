@@ -168,8 +168,11 @@ def _code_version() -> str:
 
 def run(collected: dict, *, scripted: list | None = None,
         settings: dict | None = None, now: datetime | None = None,
-        write_report: bool = True) -> dict:
-    """跑一次完整研究：建目录 → 冻结事实 → 四段链 → 风控 → 报告 → 发布。"""
+        write_report: bool = True, memory_path: str | None = None) -> dict:
+    """跑一次完整研究：建目录 → 冻结事实 → 四段链 → 风控 → 报告 → 发布。
+
+    memory_path 只在测试/多账户隔离时传；生产用 memory.db_path()（可用 ETF_LLM_DB 覆盖）。
+    """
     settings = settings or policy.settings()
     pol = policy.risk_policy()
     issues = policy.consistency_issues(pol)
@@ -189,6 +192,7 @@ def run(collected: dict, *, scripted: list | None = None,
     deps = pipeline.Deps(client=client, policy=pol, settings=settings, prompts=prompts,
                          run_dir=run_dir, trade_date=trade_date, provider=provider,
                          now=now, code_version=_code_version(),
+                         memory_path=memory_path,
                          prompt_version=prompts_mod.version(prompts))
     result = pipeline.run(context, deps)
 

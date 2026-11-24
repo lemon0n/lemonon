@@ -68,6 +68,11 @@ def db_path() -> str:
     return os.environ.get('ETF_LLM_DB') or DB_PATH
 
 
+def _exists(path: str | None = None) -> bool:
+    """只读场景先看文件在不在：读一次的副作用不该是「凭空造一个空库」。"""
+    return os.path.exists(path or db_path())
+
+
 @contextmanager
 def connect(path: str | None = None):
     path = path or db_path()
@@ -96,6 +101,8 @@ def save_run(manifest: dict, payload: dict | None = None, path: str | None = Non
 
 
 def recent_runs(limit: int = 10, path: str | None = None) -> list[dict]:
+    if not _exists(path):
+        return []
     with connect(path) as conn:
         rows = conn.execute(
             'SELECT run_id, trade_date, status, snapshot_hash, created_at '
@@ -104,6 +111,8 @@ def recent_runs(limit: int = 10, path: str | None = None) -> list[dict]:
 
 
 def last_approved_run(path: str | None = None) -> dict | None:
+    if not _exists(path):
+        return None
     with connect(path) as conn:
         row = conn.execute(
             "SELECT * FROM runs WHERE status = 'APPROVED' "
@@ -167,6 +176,8 @@ def upsert_theses(research: dict, context: dict, *, date: str, run_id: str,
 
 
 def active_theses(limit: int = 40, path: str | None = None) -> list[dict]:
+    if not _exists(path):
+        return []
     with connect(path) as conn:
         rows = conn.execute(
             "SELECT * FROM theses WHERE status = 'ACTIVE' "
@@ -227,6 +238,8 @@ def save_recommendations(plan: dict, run_id: str, status: str,
 
 
 def history(symbol: str, limit: int = 20, path: str | None = None) -> list[dict]:
+    if not _exists(path):
+        return []
     with connect(path) as conn:
         rows = conn.execute(
             'SELECT * FROM recommendations WHERE symbol = ? ORDER BY created_at DESC LIMIT ?',
@@ -236,6 +249,8 @@ def history(symbol: str, limit: int = 20, path: str | None = None) -> list[dict]
 
 def consecutive_same_action(symbol: str, action: str, path: str | None = None) -> int:
     """连续多少条同类建议：用来识别「每天换词不换结论」。"""
+    if not _exists(path):
+        return 0
     with connect(path) as conn:
         rows = conn.execute(
             'SELECT action FROM recommendations WHERE symbol = ? '

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """接缝：确定性层产物 → context → 研究 → 页面载荷（不碰网络、不写仓库）。"""
 import json
 import os
@@ -57,7 +57,8 @@ def test_run_writes_artifacts_and_payload(isolated_storage):
         H.redteam('ACCEPT'), H.revised(H.proposal(
             ctx, [H.trade(code, 'HOLD', 0.0, 0.0, evidence_id=price)], cash=1.0))]
 
-    result = integration.run(collected, scripted=scripted)
+    result = integration.run(collected, scripted=scripted,
+                             memory_path=str(isolated_storage / 'ledger.db'))
     run_dir = result['run_dir']
     for name in ('context.json', '01_research.json', '02_proposal.json',
                  '03_redteam.json', '04_revised.json', '05_risk.json',
@@ -89,7 +90,8 @@ def test_real_provider_publishes_latest(isolated_storage, monkeypatch):
         return client_mod.ScriptedLLM(scripted or [], ), 'openai_compatible'
 
     monkeypatch.setattr(integration, 'build_client', fake_client)
-    result = integration.run(collected, scripted=scripted)
+    result = integration.run(collected, scripted=scripted,
+                             memory_path=str(isolated_storage / 'ledger.db'))
     assert result['payload']['meta']['published'] is True
     latest = json.load(open(str(isolated_storage / 'research_latest.json'),
                            encoding='utf-8'))
