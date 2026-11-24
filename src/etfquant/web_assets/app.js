@@ -238,7 +238,12 @@ function priceOf(code){
   var q=PQ[String(code)];
   if(q) return q;
   var dp=(D.demo_positions&&D.demo_positions.prices)||{};
-  if(dp[String(code)]!=null) return {last:n(dp[String(code)]),prev:null,chg:null};
+  if(dp[String(code)]!=null){
+    var pv=((D.demo_positions&&D.demo_positions.prevs)||{})[String(code)];
+    var lv=n(dp[String(code)]);
+    return {last:lv,prev:(pv!=null?n(pv):null),
+            chg:(pv!=null&&n(pv)>0)?(lv/n(pv)-1)*100:null};
+  }
   var l=legOf(code);
   if(l&&n(l.last)>0) return {last:n(l.last),prev:null,chg:l.change};
   return null;
@@ -842,11 +847,6 @@ function page5CashOnly(h,p,s1,adv){
 
 function page5(){
   var h='<div class="pg-h"><h1>持仓分析</h1></div>';
-  /* 模型结论并进持仓分析（不再单独占一个标签页） */
-  if(typeof researchSectionHTML==='function'){
-    h+='<section class="portfolio-section" id="portfolio-research">'+
-       researchSectionHTML()+'</section>';
-  }
   var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
   PDEC=buildPdec(p,s1,adv);
   RS_PORT=p; RS_S1=s1; RS_ADV=adv; adv5RowsCache=adv.rows;
@@ -2597,6 +2597,17 @@ var adv5RowsCache=null;
 /* ---------------- 唯一出口：目标仓位表 → 差额 → 动作 → 订单 ----------------
    页面上所有动作（明细表、个股卡、点评、洞察）只读这里。 */
 function f3(v){ var x=Number(v); return (v==null||!isFinite(x))?'—':x.toFixed(3); }
+/* 研究层给了最终计划时，页面直接用它：目标权重、动作、执行条件都以研究结论为准，
+   不再用浏览器本地评分补算出一套不同的目标。 */
+function planFromResearch(R){
+  var pr=R.proposal||{};
+  var items=(pr.trades||[]).map(function(t){
+    return {code:String(t.code),name:t.name,target_weight:t.target_weight,
+            grade:null,cap:null,tier:t.execution_rule||'',research:true,trade:t};
+  });
+  var sum=0; items.forEach(function(x){ sum+=n(x.target_weight); });
+  return {total_target:Math.round(sum*1000)/10,items:items,gap_threshold:1,source:'research'};
+}
 function planItemOf(code){
   var pl=D.plan;
   if(!pl||!pl.items) return null;
@@ -2838,6 +2849,18 @@ function applyRowDecision(x,total){
   var below10=n(x.r.leg&&x.r.leg.below_ma10);
   var a=planActionOf(x.gap,!!it.wk_up,n(it.confirm),below10>=2);
   x.action=a.action; x.text=a.text; x.pace=a.pace;
+  if(it.research&&it.trade){                    /* 研究结论是唯一出口 */
+    var t=it.trade, ap=(t.action==='EXIT'||t.action==='SELL')?'TRIM'
+      :(t.action==='REDUCE')?'TRIM':(t.action==='BUY'||t.action==='ADD')?'ADD':'HOLD';
+    if(t.action==='EXIT'){ ap='CLEAR'; }
+    x.action=ap;
+    x.text=(t.action_cn||t.action)+' '+Math.abs(n(x.gap)).toFixed(2)+'pct';
+    x.pace=t.priority?('优先级 '+t.priority):'';
+  }
+  if(x.action==='HOLD'||x.action==='WAIT'){      /* 不动就不算订单，避免取整出 100 份假差额 */
+    x.order={note:'不交易'};
+    return;
+  }
   if(x.target==null){
     var cat=String(x.r.category||'未分类');
     x.action='WAIT';
@@ -2868,7 +2891,9 @@ function rsPlanRows(p){
   });
   synthesizePlanTargets(rows);
   rows.forEach(function(x){ applyRowDecision(x,total); });
-  var capOf=(typeof sectorCapOf==='function')?sectorCapOf:null;
+  /* 研究层给的目标已经过确定性风控（含类别上限），这里不再用板块上限二次压缩 */
+  var fromResearch=!!(D.plan&&D.plan.source==='research');
+  var capOf=(!fromResearch&&typeof sectorCapOf==='function')?sectorCapOf:null;
   if(capOf){                                   /* 板块上限：合计超限按比例压，不突破单只上限 */
     var bySec={};
     rows.forEach(function(x){
@@ -3061,7 +3086,7 @@ function rsPageHTML(p,s1,adv){
      '走弱 = 板块四维评分 <60（C/D）且仍有暴露 ≥10%；主线按名称匹配，匹配不上写「不属于」，不猜。'+
      '缺 `sector_weights` 的 ETF 计为「未覆盖」，不进暴露表。结论只收紧下一层：走弱板块对应的个股不加仓。</div></details></div>';
 
-  h+='<div class="rs-sec"><span class="bar"></span>申万板块健康度</div>';
+  h+='<div class="rs-sub">2.3 板块健康度</div>';
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr>'+
      '<th>板块</th><th class="r">评分</th><th>评级</th><th class="r">板块上限</th>'+
      '<th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th>'+
@@ -3080,6 +3105,12 @@ function rsPageHTML(p,s1,adv){
   });
   h+='</div><div id="rsDetail"></div>';
 
+  /* 4. 决策复核：模型结论放在「二、持仓分析」里，不另起一级板块 */
+  if(typeof researchSectionHTML==='function'){
+    h+='<div class="rs-sub">4. 决策复核（原始建议 / 反方 / 修订 / 改判）</div>';
+    h+='<div id="portfolio-research">'+researchSectionHTML()+'</div>';
+  }
+
   h+='<div class="rs-sec"><span class="bar"></span>三、市场洞察及方向</div>';
   h+='<div class="rs-sub">1. 今日定性（按时段）</div>';
   h+='<div class="box"><div id="rsOutlook" class="rs-note">加载中…</div></div>';
@@ -3090,7 +3121,8 @@ function rsPageHTML(p,s1,adv){
     '</div>';
 
   h+='<div class="rs-sub">4. 情景与触发</div>';
-  h+='<div class="box"><div id="rsDir" class="rs-dir">加载中…</div></div>';
+  /* 情景是 4 列表格，不能再套 .rs-dir 的 3 列 grid（会把表格挤成 1/3 宽） */
+  h+='<div class="box rs-scroll"><div id="rsDir">加载中…</div></div>';
 
   h+='<div class="rs-sub">5. 复盘对照（上次计划 vs 今天）</div>';
   h+='<div class="box"><div id="rsReview" class="rs-note">加载中…</div></div>';
@@ -3998,6 +4030,7 @@ function boot(){
     document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return;
   }
   D=window.DASHBOARD;
+  if(D.research&&D.research.proposal&&!D.plan){ D.plan=planFromResearch(D.research); }
   HOLD={rows:[],cash:0};
   if(D.demo_positions){                       /* demo：明文持仓，不需要解锁 */
     HOLD={rows:D.demo_positions.rows||[],cash:n(D.demo_positions.cash)};

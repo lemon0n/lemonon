@@ -60,10 +60,13 @@ def demo_positions(context: dict) -> dict:
     for p in port.get('positions') or []:
         if not p.get('shares'):
             continue
+        last = p.get('last')
+        day = p.get('day_pct')
+        prev = (float(last) / (1 + float(day))) if (last and day is not None) else None
         rows.append(dict(code=str(p['symbol']), name=p.get('name') or str(p['symbol']),
                          category=p.get('category') or '未分类',
                          shares=int(p['shares']), cost=float(p.get('cost') or 0),
-                         settle='T+1', last=p.get('last')))
+                         settle='T+1', last=last, prev=prev))
     bars = {}
     for row in rows:
         b = bars_of(row['code'])

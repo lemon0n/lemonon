@@ -228,15 +228,14 @@ function rpTracking(R){
 
 function researchSectionHTML(){
   var R=D&&D.research;
-  var h='<div class="rs-sec"><span class="bar"></span>模型结论（今日）</div>';
-  if(!R) return h+rpEmpty();
+  var h='';
+  if(!R) return rpEmpty();
   h+=rpStatusBar(R);
-  h+=rpCore(R);
   h+=rpOriginal(R);
   h+=rpRedteam(R);
   h+=rpFinal(R);
   h+=rpTracking(R);
-  h+='<div class="rs-note">以上结论由研究层（Research → 反方 → 修订 → 确定性风控）产出，'+
-     '只给目标权重与条件，不连接券商；份数需按你的实际持仓在下方明细表确认。</div>';
+  h+='<div class="rs-note">以上决策由研究层（研究 → 反方 → 修订 → 确定性风控）产出，'+
+     '只给目标权重与条件，不连接券商；份数按你的实际持仓在「一、持仓概况」的明细表确认。</div>';
   return h;
 }

@@ -365,3 +365,5 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rp-list{margin:4px 0 10px;padding-left:18px;font-size:12px;line-height:1.8;color:var(--text)}
 .rp-list li{margin:2px 0}
 .rp-list li.warn{color:var(--warn)}
+/* 并列卡片按内容高度对齐，避免一侧被拉出大片空白 */
+.rs-grid2,.rs-grid3,.rs-grid4,.rs-funding,.rs-dir{align-items:start}

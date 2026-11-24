@@ -79,8 +79,8 @@ def test_payload_carries_five_blocks(tmp_path):
 def test_research_page_renders_all_blocks(tmp_path):
     _, _, payload = _payload(tmp_path)
     html = _run_js({'research': payload}, tmp_path)
-    for marker in ('模型核心判断', '原始模型建议', '反方审查与修订', '最终批准计划',
-                   '改判跟踪'):
+    # 核心判断并入「今日点评」，决策复核只保留：原始建议/反方/最终/改判
+    for marker in ('原始模型建议', '反方审查与修订', '最终批准计划', '改判跟踪'):
         assert marker in html, marker
     assert '510300' in html
 

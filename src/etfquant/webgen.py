@@ -285,6 +285,25 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         ))
 
     pkt = packet or {}
+    def _sane(items):
+        """隔夜涨跌幅明显的脏数据（|%| > 20）不直接上屏，避免出现 +369939% 这种读数。"""
+        out = []
+        for it in items or []:
+            if not isinstance(it, dict):
+                continue
+            v = str(it.get('v') or '')
+            num = v.replace('%', '').replace('+', '').replace(',', '').strip()
+            try:
+                bad = abs(float(num)) > 20
+            except ValueError:
+                bad = False
+            out.append(dict(it, v=('源快照异常，未采用' if bad else v)))
+        return out
+
+    glob_block = dict(market.get('global') or {})
+    if glob_block.get('items'):
+        glob_block['items'] = _sane(glob_block['items'])
+
     news_sentiment = dict(market.get('news_sentiment') or {})
     snapshot_date = str(market.get('as_of') or '')[:10] or None
     note = _news_note(snapshot_date or meta.get('data_date'))
@@ -308,7 +327,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         market=dict(as_of=market.get('as_of'), indices=market.get('indices'), breadth=market['breadth'],
                     sentiment=market['sentiment'], rotation=market['rotation'],
                     distribution=market['distribution'], premium=market['premium'],
-                    valuation=market['valuation'], glob=market['global'],
+                    valuation=market['valuation'], glob=glob_block,
                     liquidity=market['liquidity'], macro=market['macro'],
                     news=market['news'], calendar=market['calendar'],
                     news_sentiment=news_sentiment, policy_heat=market['policy_heat'],
@@ -368,11 +387,14 @@ def render(data, cfg=None, decision=True, demo=None, out_path=None):
         # demo：明文持仓直接注入，页面跳过口令锁；持仓价格随行带上
         data.setdefault('meta', {})['demo'] = True
         data['demo_positions'] = demo
-        prices = {}
+        prices, prevs = {}, {}
         for row in demo.get('rows') or []:
             if row.get('last') is not None:
                 prices[str(row.get('code'))] = row['last']
+            if row.get('prev') is not None:
+                prevs[str(row.get('code'))] = row['prev']
         data['demo_positions']['prices'] = prices
+        data['demo_positions']['prevs'] = prevs
     payload = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     payload = payload.replace('<', '\\u003c').replace('>', '\\u003e')
     if demo:
