@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>中国 ETF 量化研究台 · 系统全景说明</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+/* 系统全景说明 · 离线单文件样式（无外部依赖） */
+:root{
+  --navy:#1e3a8a; --blue:#1d4ed8; --line:#d8e2f0;
+  --text:#1f2d3d; --muted:#66758c; --bg:#f6f8fc; --code:#f4f6fa;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:32px 20px 80px; background:var(--bg); color:var(--text);
+  font:15px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+main, body > *{max-width:1120px; margin-left:auto; margin-right:auto}
+h1{font-size:26px; line-height:1.35; color:var(--navy); border-bottom:3px solid var(--blue); padding-bottom:12px}
+h2{font-size:20px; color:var(--navy); margin:40px 0 12px; padding-left:10px; border-left:4px solid var(--blue)}
+h3{font-size:16.5px; color:#22304a; margin:26px 0 10px}
+h4{font-size:15px; color:#334155; margin:18px 0 8px}
+p{margin:10px 0}
+a{color:var(--blue); text-decoration:none}
+a:hover{text-decoration:underline}
+blockquote{
+  margin:14px 0; padding:10px 16px; background:#eef4ff;
+  border-left:4px solid var(--blue); color:#334155;
+}
+code{
+  font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:var(--code); padding:1px 5px; border-radius:3px;
+}
+pre{
+  background:#0f172a; color:#e2e8f0; padding:14px 16px; overflow-x:auto;
+  border-radius:6px; font-size:12.5px; line-height:1.6;
+}
+pre code{background:transparent; color:inherit; padding:0; font-size:inherit}
+table{
+  width:100%; border-collapse:collapse; margin:14px 0; background:#fff;
+  font-size:13.5px; box-shadow:0 1px 2px rgba(15,23,42,.06);
+}
+th,td{border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top}
+th{background:#eef2f9; color:#22304a; font-weight:600; white-space:nowrap}
+tr:nth-child(even) td{background:#fbfcfe}
+ul,ol{padding-left:24px} li{margin:4px 0}
+hr{border:0; border-top:1px solid var(--line); margin:36px 0}
+.toc{background:#fff; border:1px solid var(--line); padding:14px 20px; margin:20px 0 8px}
+@media(max-width:720px){
+  body{padding:18px 12px 60px; font-size:14px}
+  table{display:block; overflow-x:auto; white-space:nowrap}
+  pre{font-size:11.5px}
+}
+@media print{
+  body{background:#fff; padding:0}
+  pre{background:#f4f6fa; color:#1f2d3d; border:1px solid var(--line)}
+  h2{page-break-after:avoid}
+  table{page-break-inside:auto}
+}
+
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">中国 ETF 量化研究台 · 系统全景说明</h1>
+</header>
+<h1 id="中国-etf-量化研究台--系统全景说明">中国 ETF 量化研究台 ·
+系统全景说明</h1>
+<blockquote>
+<p>面向外部评审的单文件说明：项目做什么、怎么算、页面每块从哪来、代码怎么组织、数据文件怎么串、提示词与
+skills 怎么接入。
+读者不需要访问仓库即可理解全貌；需要核对时，文中的路径与函数名都能在仓库里对应到唯一位置。</p>
+<p>版本：2026-11-24 · 代码规模：Python 约 11,000 行、前端
+<code>app.js</code> 3,902 行、CSS 362 行、测试 174 项
+每日入口：<code>bash scripts/daily.sh</code>（唯一）；开发排查：<code>docs/页面区块对照.md</code>（逐块细化到函数级）</p>
+</blockquote>
+<hr />
+<h2 id="0-怎么读这份文档">0. 怎么读这份文档</h2>
+<table>
+<thead>
+<tr class="header">
+<th>你想了解</th>
+<th>直接看</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>这是什么、边界在哪</td>
+<td>§1</td>
+</tr>
+<tr class="even">
+<td>整体架构与数据流</td>
+<td>§2</td>
+</tr>
+<tr class="odd">
+<td>目录与每个文件的职责</td>
+<td>§3</td>
+</tr>
+<tr class="even">
+<td>每天那条命令做了什么</td>
+<td>§4</td>
+</tr>
+<tr class="odd">
+<td>数据从哪来、断了怎么办</td>
+<td>§5</td>
+</tr>
+<tr class="even">
+<td>指标与规则怎么算（含公式）</td>
+<td>§6–§10</td>
+</tr>
+<tr class="odd">
+<td>页面怎么生成、每块内容</td>
+<td>§11–§13</td>
+</tr>
+<tr class="even">
+<td>提示词与 skills 怎么用</td>
+<td>§14</td>
+</tr>
+<tr class="odd">
+<td>质量门禁与测试</td>
+<td>§15</td>
+</tr>
+<tr class="even">
+<td>哪些做了、哪些没做</td>
+<td>§16</td>
+</tr>
+<tr class="odd">
+<td>关键取舍与风险</td>
+<td>§17–§18</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1-项目摘要">1. 项目摘要</h2>
+<h3 id="11-一句话">1.1 一句话</h3>
+<p>把<strong>公开 ETF
+行情</strong>转成一份可复核的<strong>仓位建议</strong>（目标占比、差额、挂单价、份数、费用），
+再用一个<strong>单文件网页</strong>呈现市场环境、组合结构、逐只分析与次日情景；
+个人持仓只以密文形式存放，解密与盈亏计算全部发生在<strong>浏览器本地</strong>。</p>
+<h3 id="12-它做什么">1.2 它做什么</h3>
+<ul>
+<li>取数：ETF
+日线、实时价、指数日线、板块成交、宽基份额、市场广度/外盘/折溢价。</li>
+<li>计算：均线、量比、突破四条、假突破、20/60
+日波动、相对强弱、市场状态、结构评分。</li>
+<li>决策：规则卡（11 条）求值 → 动作；目标仓位表 → 差额 →
+挂单价/数量/费用。</li>
+<li>呈现：市场概况（公开）、持仓分析（解锁后）、持仓设置。</li>
+<li>发布：一条命令完成取数、生成、校验、提交、推送；GitHub Actions
+只发布 Pages。</li>
+</ul>
+<h3 id="13-它不做什么写死在代码与文档里">1.3
+它不做什么（写死在代码与文档里）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>不做</th>
+<th>原因 / 表现</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>不自动下单</td>
+<td>只输出挂单价与份数，标注「价格是执行价，不保证成交」</td>
+</tr>
+<tr class="even">
+<td>不预测点位、不给目标价</td>
+<td>情景只写触发条件与对应动作，不写概率</td>
+</tr>
+<tr class="odd">
+<td>不承诺收益、不写胜率</td>
+<td>禁词表 12 条硬拦截（<code>config/brief_banned.txt</code>）</td>
+</tr>
+<tr class="even">
+<td>不用离线合成数据出交易动作</td>
+<td>合成数据 → 状态 <code>DEMO</code>，动作一律
+<code>ABSTAIN</code></td>
+</tr>
+<tr class="odd">
+<td>不把持仓上传</td>
+<td>仓库只有 <code>web/positions.enc.json</code> 密文</td>
+</tr>
+<tr class="even">
+<td>不在数据不足时硬凑结论</td>
+<td>缺项写「缺失/未覆盖/样本不足」，不估算填空</td>
+</tr>
+</tbody>
+</table>
+<h3 id="14-关键数字">1.4 关键数字</h3>
+<table>
+<thead>
+<tr class="header">
+<th>指标</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>规则卡</td>
+<td>v2.0，11 条规则，5 种动作，4 个等级</td>
+</tr>
+<tr class="even">
+<td>观察池</td>
+<td>4 只宽基 ETF（沪深300 / 中证500 / 科创50 / 创业板）</td>
+</tr>
+<tr class="odd">
+<td>单文件页面</td>
+<td>约 320 KB，CSS/JS/数据全内联，双击可看</td>
+</tr>
+<tr class="even">
+<td>测试</td>
+<td>174 项（Python + 前端 JS 抽取执行）</td>
+</tr>
+<tr class="odd">
+<td>数据源</td>
+<td>东财 push2、腾讯 qt/ifzq、新浪 hq、上交所份额披露，全部公开免费</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-架构总览">2. 架构总览</h2>
+<h3 id="21-五层结构">2.1 五层结构</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│ L5 解释层   点评五段 / 逐只解读 / 市场洞察 / 缠论展示            │
+├─────────────────────────────────────────────────────────────────┤
+│ L4 执行层   目标 − 现仓 = 差额 → 动作 → 挂单价/份数/费用        │
+├─────────────────────────────────────────────────────────────────┤
+│ L3 组合层   结构评分 × 波动系数 → 单只目标权重（plan_v3）        │
+├─────────────────────────────────────────────────────────────────┤
+│ L2 结构层   月/周/日三层 + 相对强弱 + 双评分卡                   │
+├─────────────────────────────────────────────────────────────────┤
+│ L1 环境层   基准趋势/波动 → 市场状态 → 总仓位上限                │
+├─────────────────────────────────────────────────────────────────┤
+│ L0 数据层   实时源 → 失败降级 → 质量门 → 血缘标记               │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+<p>三条传导纪律：</p>
+<ol type="1">
+<li><strong>额度只能收紧</strong>：环境给总上限，板块与个股只能往下压，不能加。</li>
+<li><strong>下层不许翻案</strong>：结构再强，板块 D 级（上限
+0）也不能加仓。</li>
+<li><strong>解释层不许自创</strong>：点评、个股卡、洞察的动作必须等于目标仓位表的结果。</li>
+</ol>
+<h3 id="22-运行拓扑">2.2 运行拓扑</h3>
+<pre><code>scripts/daily.sh
+   │
+   ├─ git pull ─ 依赖检查 ─（可选）持仓分析
+   ├─ fetch_market_snapshot.py   广度/分布/外盘/折溢价 → data/snapshot/market.json
+   ├─ fetch_national_team.py     上交所宽基份额     → data/national_team.json
+   │
+   └─ run_update.py --json --push
+        │
+        ├─ pipeline.run()
+        │    ├─ loader：实时源 → 失败降级快照（逐通道标记）
+        │    ├─ quality.check_bars()：日期/OHLC/根数/陈旧
+        │    ├─ features.frame()：唯一指标实现
+        │    ├─ relative_strength.compute()：同日基准超额
+        │    ├─ market_regime.compute()：状态 + 仓位区间 + 位置赔率
+        │    ├─ methodology.decide()：唯一动作求值
+        │    ├─ pricing.prices()：执行价位口径
+        │    ├─ plan_v3.build()：目标权重
+        │    └─ webgen.build_data() + render()：内嵌数据 → 单文件 HTML
+        │
+        ├─ packet.write()：web/analysis_packet.json（权威结果）
+        ├─ verify：run_id 同源 + 不变量复跑
+        └─ git commit + push（只提交指定产物）
+              │
+              └─ GitHub Actions：仅发布 Pages（不重新取数）</code></pre>
+<h3 id="23-前后端职责边界">2.3 前后端职责边界</h3>
+<table>
+<thead>
+<tr class="header">
+<th>职责</th>
+<th>位置</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>取数、指标、规则、目标权重、数据包</td>
+<td>Python（构建时）</td>
+<td>需要可复现、可测试、可回溯</td>
+</tr>
+<tr class="even">
+<td>持仓解密、市值/盈亏、差额→订单、页面渲染</td>
+<td>浏览器（运行时）</td>
+<td>服务端与构建产物拿不到持仓</td>
+</tr>
+<tr class="odd">
+<td>池外持仓的目标补算</td>
+<td>浏览器</td>
+<td>后端只认识观察池；日线在浏览器现取</td>
+</tr>
+<tr class="even">
+<td>缠论结构</td>
+<td>浏览器</td>
+<td>只做展示，不参与决策</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>结论：<strong>同一套公式有两份实现</strong>——Python
+<code>plan_v3</code> 与 JS
+<code>clientSignals/synthesizePlanTargets</code>。
+二者按同一口径写，差异只在数据来源（后端缓存 vs
+浏览器现取），并在页面上标明「池外补算」。</p>
+</blockquote>
+<hr />
+<h2 id="3-目录与文件职责">3. 目录与文件职责</h2>
+<pre><code>.
+├── AGENTS.md                    每日刷新唯一说明书（只指向 daily.sh）
+├── README.md                    项目简介
+├── requirements.txt             numpy/pandas/PyYAML + 可选 akshare/requests/cryptography
+├── config/                      参数与规则（只改这里，不改代码）
+│   ├── methodology.yaml         规则卡 v2.0：11 条规则 + 谓词白名单 + 动作语义
+│   ├── risk.yaml                仓位区间、结构目标、组合硬约束、费用口径
+│   ├── strategy.yaml            均线/量能/突破阈值、回测参数
+│   ├── universe.yaml            观察池 4 只 ETF + 基准映射 + 报价精度
+│   ├── sw_industry_map.json     申万二级 → 一级归并表（31 行业）
+│   └── brief_banned.txt         点评禁词 12 条
+├── contracts/
+│   └── portfolio_decision.schema.json   组合决策契约（Python/JS 同形）
+├── src/etfquant/
+│   ├── config.py                读配置、路径常量、缓存目录
+│   ├── universe.py              观察池与基准映射
+│   ├── datasource/              取数层
+│   │   ├── loader.py            统一入口 + 降级链 + 来源报告
+│   │   ├── akshare_adapter.py   东财/腾讯/新浪真实源
+│   │   ├── snapshot.py          离线快照读取
+│   │   └── schema.py            日线列校验（MIN_BARS=30）
+│   ├── features.py              指标唯一实现（生产/回测共用）
+│   ├── indicators/              analyze()：特征 + 折溢价 + 状态文案
+│   ├── quality.py               数据质量检查与状态合并
+│   ├── signals/
+│   │   ├── market_regime.py     市场状态 / 仓位区间 / 位置赔率 / 缺口
+│   │   └── relative_strength.py 同日基准超额
+│   ├── methodology.py           规则卡加载与唯一求值 decide()
+│   ├── pricing.py               执行价位（回踩/反抽/支撑/阻力）
+│   ├── portfolio/
+│   │   ├── plan_v3.py           目标权重（页面唯一出口的上游）
+│   │   ├── positions.py         资产分类与持仓解析
+│   │   ├── execution.py         后端执行模拟
+│   │   ├── analysis.py          报告专用 S1–S5（非页面）
+│   │   └── decision/risk/opportunities/snapshot/watchlist
+│   ├── packet.py                数据包构建、哈希、校验、归档
+│   ├── webgen.py                组装 DASHBOARD + 渲染单文件 HTML
+│   └── web_assets/
+│       ├── app.js               全部页面逻辑（3,902 行）
+│       ├── style.css            样式（362 行）
+│       ├── rules.js             前端规则谓词镜像
+│       └── decision.js          前端执行契约引擎
+├── scripts/
+│   ├── daily.sh                 每日唯一入口
+│   ├── run_update.py            取数→生成→校验→提交推送
+│   ├── fetch_market_snapshot.py 广度/分布/外盘/折溢价
+│   ├── fetch_national_team.py   上交所宽基份额
+│   ├── fetch_index_sector_weights.py 指数→申万一级权重
+│   ├── analyze_positions.py     带口令的持仓报告（可选）
+│   ├── gen_snapshot.py          离线演示快照生成器（固定日期）
+│   ├── gen_page_demo.py         演示页生成器
+│   ├── run_backtest.py          回测
+│   └── compare_*.py             一次性对比脚本
+├── skills/
+│   └── portfolio-brief/SKILL.md 今日点评外部生成契约
+├── skills_src/                  上游方法论技能（只借思路，不直接执行）
+├── tests/                       174 项测试
+├── data/
+│   ├── snapshot/                离线快照（market.json、sector_flow.csv、日线、指数权重）
+│   ├── cache/                   实时取数缓存
+│   ├── national_team.json       宽基份额
+│   ├── news_note.json           消息面 100 字解读
+│   ├── last_run.json            运行清单
+│   └── runs/                    历史数据包归档
+├── web/
+│   ├── index.html               线上页面（单文件，自动生成）
+│   ├── analysis_packet.json     权威数据包
+│   └── positions.enc.json       持仓密文
+└── docs/                        设计、施工、验收、审计文档</code></pre>
+<hr />
+<h2 id="4-每日运行链路">4. 每日运行链路</h2>
+<h3 id="41-一条命令">4.1 一条命令</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/daily.sh</span></code></pre></div>
+<h3 id="42-六步">4.2 六步</h3>
+<table>
+<thead>
+<tr class="header">
+<th>步</th>
+<th>动作</th>
+<th>失败策略</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>切到
+<code>main</code>，<code>git pull --rebase --autostash</code></td>
+<td>冲突则中止并提示</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>找可用 Python（3.9+，优先已装依赖的），缺依赖则
+<code>pip install</code></td>
+<td>安装失败退出 2</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>若设置 <code>POSITIONS_PASSPHRASE</code>，跑
+<code>analyze_positions.py</code></td>
+<td>仅告警，不阻断</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><code>fetch_market_snapshot.py</code>：广度/分布/外盘/折溢价</td>
+<td>仅告警，保留旧值</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td><code>fetch_national_team.py</code>：宽基份额</td>
+<td>仅告警，沿用上次</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td><code>run_update.py --json --push</code></td>
+<td>见退出码</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-退出码">4.3 退出码</h3>
+<table>
+<thead>
+<tr class="header">
+<th>码</th>
+<th>含义</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>成功（含产物无变化）</td>
+<td>结束</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>运行异常</td>
+<td>读报错，不盲目重跑</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>产物已生成但提交/推送失败</td>
+<td>原样再跑一次（自愈路径）</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>发布前校验未通过，未推送</td>
+<td>报校验原文，不改阈值绕过</td>
+</tr>
+</tbody>
+</table>
+<h3 id="44-产物">4.4 产物</h3>
+<table>
+<thead>
+<tr class="header">
+<th>文件</th>
+<th>内容</th>
+<th>是否提交</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>web/index.html</code></td>
+<td>单文件页面</td>
+<td>是</td>
+</tr>
+<tr class="even">
+<td><code>web/analysis_packet.json</code></td>
+<td>权威数据包</td>
+<td>是</td>
+</tr>
+<tr class="odd">
+<td><code>data/last_run.json</code></td>
+<td>状态、数据日、降级明细、哈希</td>
+<td>是</td>
+</tr>
+<tr class="even">
+<td><code>data/national_team.json</code></td>
+<td>宽基份额</td>
+<td>是</td>
+</tr>
+<tr class="odd">
+<td><code>data/snapshot/market.json</code></td>
+<td>市场快照（广度/外盘/折溢价刷新）</td>
+<td>是</td>
+</tr>
+<tr class="even">
+<td><code>docs/持仓分析报告.md</code>、<code>data/packets/positions_packet.json</code></td>
+<td>持仓报告（仅当有口令）</td>
+<td>存在则同次提交</td>
+</tr>
+</tbody>
+</table>
+<h3 id="45-发布前校验run_update---verify">4.5
+发布前校验（<code>run_update --verify</code>）</h3>
+<ol type="1">
+<li>三个产物存在；</li>
+<li><code>run_id</code> 在 packet / manifest / HTML
+内嵌数据三者一致（同源）；</li>
+<li><code>input_hash</code> 在 manifest 与 packet 一致；</li>
+<li><code>packet.validate_packet()</code> 全部不变量通过；</li>
+<li>最近状态非 OK 时只记 warning。</li>
+</ol>
+<h3 id="46-盘中运行的口径">4.6 盘中运行的口径</h3>
+<ul>
+<li>日线：<code>_drop_unclosed_today()</code> 在北京时间 15:05
+前剔除当日未收盘 K 线。</li>
+<li>实时价：只用于展示与市值，<strong>不改日频信号</strong>；前端
+<code>legFeat()</code> 固定用刷新前的收盘价求值。</li>
+<li>重复运行同输入：<code>run_id</code>
+含输入哈希，动作应完全一致。</li>
+</ul>
+<hr />
+<h2 id="5-数据层">5. 数据层</h2>
+<h3 id="51-数据源与降级链">5.1 数据源与降级链</h3>
+<table>
+<thead>
+<tr class="header">
+<th>通道</th>
+<th>主源</th>
+<th>兜底 1</th>
+<th>兜底 2</th>
+<th>最终兜底</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ETF 日线</td>
+<td>东财 <code>fund_etf_hist_em</code></td>
+<td>腾讯 <code>fqkline</code></td>
+<td>新浪 <code>getKLineData</code></td>
+<td>离线快照</td>
+</tr>
+<tr class="even">
+<td>实时价</td>
+<td>东财 <code>fund_etf_spot_em</code>（含 IOPV）</td>
+<td>腾讯 <code>qt.gtimg.cn</code></td>
+<td>新浪 <code>hq.sinajs.cn</code></td>
+<td>离线快照</td>
+</tr>
+<tr class="odd">
+<td>指数日线</td>
+<td>腾讯 <code>fqkline</code></td>
+<td>新浪 <code>getKLineData</code></td>
+<td>—</td>
+<td>离线快照</td>
+</tr>
+<tr class="even">
+<td>指数点位</td>
+<td>新浪 <code>hq.sinajs.cn</code></td>
+<td>日线收盘</td>
+<td>—</td>
+<td>保留快照</td>
+</tr>
+<tr class="odd">
+<td>板块成交</td>
+<td>东财 push2 <code>ulist</code>（31 个 BK）</td>
+<td>腾讯板块排行</td>
+<td>—</td>
+<td>离线快照</td>
+</tr>
+<tr class="even">
+<td>宽基份额</td>
+<td>上交所 <code>commonQuery</code></td>
+<td>—</td>
+<td>—</td>
+<td>保留上次</td>
+</tr>
+</tbody>
+</table>
+<p>限流处理：东财 push2
+被限流时<strong>不重试</strong>（重试会延长封禁），直接降级到腾讯/新浪。</p>
+<h3 id="52-通道标记与状态">5.2 通道标记与状态</h3>
+<p><code>loader.source_report()</code> 输出每条通道的真实来源：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>channels <span class="op">=</span> {<span class="st">&#39;daily&#39;</span>: {code: <span class="st">&#39;live&#39;</span><span class="op">|</span><span class="st">&#39;snapshot&#39;</span>}, <span class="st">&#39;spot&#39;</span>: <span class="st">&#39;live&#39;</span><span class="op">|</span><span class="st">&#39;snapshot&#39;</span>,</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;index_daily&#39;</span>: {...}, <span class="st">&#39;sector&#39;</span>: ..., <span class="st">&#39;market&#39;</span>: <span class="st">&#39;snapshot&#39;</span>}</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>synthetic <span class="op">=</span> 任一关键通道（daily<span class="op">/</span>spot<span class="op">/</span>index_daily）落到 snapshot</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>degraded  <span class="op">=</span> 同上</span></code></pre></div>
+<p>状态合并优先级：<code>ERROR &gt; ABSTAIN &gt; DEMO &gt; DEGRADED &gt; OK</code>。</p>
+<table>
+<thead>
+<tr class="header">
+<th>状态</th>
+<th>含义</th>
+<th>页面行为</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>OK</code></td>
+<td>日线/实时价/基准全部真实</td>
+<td>正常展示</td>
+</tr>
+<tr class="even">
+<td><code>DEGRADED</code></td>
+<td>非关键字段缺失（无 IOPV、板块快照）</td>
+<td>展示 + 限制说明</td>
+</tr>
+<tr class="odd">
+<td><code>ABSTAIN</code></td>
+<td>关键数据缺失/陈旧/冲突</td>
+<td>只给事实，不给动作</td>
+</tr>
+<tr class="even">
+<td><code>DEMO</code></td>
+<td>用了离线合成快照</td>
+<td>徽标提示，动作全部 ABSTAIN</td>
+</tr>
+<tr class="odd">
+<td><code>ERROR</code></td>
+<td>运行或校验失败</td>
+<td>保留上一份成功产物</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53-质量门qualitycheck_bars">5.3
+质量门（<code>quality.check_bars</code>）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>检查</th>
+<th>失败结果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>日期可解析、无重复、升序</td>
+<td>阻断（ABSTAIN）</td>
+</tr>
+<tr class="even">
+<td><code>high/low</code> 与 <code>open/close</code> 不矛盾</td>
+<td>阻断</td>
+</tr>
+<tr class="odd">
+<td>价格为正、成交量非负</td>
+<td>阻断</td>
+</tr>
+<tr class="even">
+<td>根数 ≥ <code>MIN_BARS</code>（30）</td>
+<td>阻断</td>
+</tr>
+<tr class="odd">
+<td>最后交易日距运行日 &gt; 5 个自然日</td>
+<td>阻断（陈旧）</td>
+</tr>
+<tr class="even">
+<td>合成数据</td>
+<td>只 warning，状态 DEMO</td>
+</tr>
+</tbody>
+</table>
+<h3 id="54-三个日期">5.4 三个日期</h3>
+<table>
+<thead>
+<tr class="header">
+<th>字段</th>
+<th>来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>meta.data_date</code></td>
+<td>各腿最后一根已收盘日线</td>
+<td>行情日，所有信号基准</td>
+</tr>
+<tr class="even">
+<td><code>meta.snapshot_date</code></td>
+<td><code>market.json.as_of[:10]</code></td>
+<td>人工快照日（情绪/快讯/政策）</td>
+</tr>
+<tr class="odd">
+<td><code>meta.as_of</code> / <code>run_date</code></td>
+<td>运行时刻</td>
+<td>仅记录</td>
+</tr>
+</tbody>
+</table>
+<p><code>snapshot_date ≠ data_date</code> 时，p1 顶部强制提示。
+<code>fetch_market_snapshot.py</code>
+只在<strong>广度抓取成功</strong>时才刷新
+<code>market.as_of</code>——避免外盘或折溢价单独成功把旧情绪说成今天。</p>
+<h3 id="55-字段血缘">5.5 字段血缘</h3>
+<p>每个关键值都可回答「值多少、哪天的、谁给的、是不是合成」：
+<code>quality.field()</code> 返回
+<code>{value, as_of, source, ingested_at, is_synthetic, quality_flag}</code>；
+数据包里逐腿记录
+<code>data_status</code>、<code>data_date</code>、<code>quality_blocking</code>。</p>
+<hr />
+<h2 id="6-指标层featurespy唯一实现">6.
+指标层（<code>features.py</code>，唯一实现）</h2>
+<h3 id="61-为什么只有一份">6.1 为什么只有一份</h3>
+<p>早期 <code>indicators/ma|volume|structure</code> 与
+<code>backtest/engine.build_features</code> 各写一份，
+上影线取「倒数第三根」还是「当日」不一致，导致同一形态在不同链路得到不同结论。
+现在<strong>所有派生特征只在 <code>features.frame()</code>
+计算</strong>，生产、页面、回测共用。</p>
+<h3 id="62-公式">6.2 公式</h3>
+<table>
+<thead>
+<tr class="header">
+<th>指标</th>
+<th>定义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>均线</td>
+<td><code>MA_n = close.rolling(n).mean()</code>，n ∈
+{5,10,20,60,120}</td>
+</tr>
+<tr class="even">
+<td>量比</td>
+<td><code>volume / 前 5 日均量（不含当日）</code></td>
+</tr>
+<tr class="odd">
+<td>放量 / 缩量</td>
+<td>量比 ≥ 1.30 / ≤ 0.80（<code>config/strategy.yaml</code>）</td>
+</tr>
+<tr class="even">
+<td>站上 MA5 天数</td>
+<td>连续 <code>close &gt; MA5</code> 的计数，遇 False 归零</td>
+</tr>
+<tr class="odd">
+<td>连续低于 MA10</td>
+<td>连续 <code>close &lt; MA10</code> 的计数</td>
+</tr>
+<tr class="even">
+<td>20 日新低</td>
+<td><code>close &lt;= rolling(20).min(low)</code></td>
+</tr>
+<tr class="odd">
+<td>突破四条</td>
+<td>①不破关键位 ②明显缩量 ③慢跌快涨 ④有承接，各自可判定</td>
+</tr>
+<tr class="even">
+<td>假突破</td>
+<td>放量 + 收盘下跌 + 收盘 &lt; MA20</td>
+</tr>
+<tr class="odd">
+<td>上影线</td>
+<td><strong>固定取倒数第三根</strong> K 线，生产与回测同根</td>
+</tr>
+<tr class="even">
+<td>5/20 日收益</td>
+<td><code>close / close.shift(n) − 1</code></td>
+</tr>
+<tr class="odd">
+<td>20/60 日波动</td>
+<td>日收益标准差 × √252 × 100（年化 %）</td>
+</tr>
+<tr class="even">
+<td>均线缠绕</td>
+<td>三线最大最小差 / MA20 &lt; 1.2%</td>
+</tr>
+<tr class="odd">
+<td>位置</td>
+<td><code>pos20 = (close − low20) / (high20 − low20)</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="63-代码骨架">6.3 代码骨架</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> frame(bars, cfg<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    st <span class="op">=</span> (cfg <span class="kw">or</span> config.cfg())[<span class="st">&#39;strategy&#39;</span>]</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    c, h, l, o, v <span class="op">=</span> (df[<span class="st">&#39;close&#39;</span>], df[<span class="st">&#39;high&#39;</span>], df[<span class="st">&#39;low&#39;</span>], df[<span class="st">&#39;open&#39;</span>], df[<span class="st">&#39;volume&#39;</span>])</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> st[<span class="st">&#39;ma&#39;</span>][<span class="st">&#39;periods&#39;</span>]:</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        out[<span class="st">&#39;ma</span><span class="sc">%d</span><span class="st">&#39;</span> <span class="op">%</span> p] <span class="op">=</span> c.rolling(p).mean()</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;vol_ratio&#39;</span>] <span class="op">=</span> (v <span class="op">/</span> v.rolling(<span class="dv">5</span>).mean().shift(<span class="dv">1</span>))     <span class="co"># 不含当日</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;days_above_ma5&#39;</span>] <span class="op">=</span> _consecutive((c <span class="op">&gt;</span> out[<span class="st">&#39;ma5&#39;</span>]).fillna(<span class="va">False</span>).values)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;below_ma10_2d&#39;</span>] <span class="op">=</span> _consecutive((c <span class="op">&lt;</span> out[<span class="st">&#39;ma10&#39;</span>]).fillna(<span class="va">False</span>).values)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;true_breakout_count&#39;</span>] <span class="op">=</span> out[[<span class="st">&#39;tb_hold_key&#39;</span>,<span class="st">&#39;tb_shrink&#39;</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>                                      <span class="st">&#39;tb_slow_fast&#39;</span>,<span class="st">&#39;tb_support&#39;</span>]].<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;false_breakout&#39;</span>] <span class="op">=</span> (out[<span class="st">&#39;expand&#39;</span>] <span class="op">&amp;</span> (c <span class="op">&lt;</span> c.shift(<span class="dv">1</span>)) <span class="op">&amp;</span> (c <span class="op">&lt;</span> out[<span class="st">&#39;ma20&#39;</span>]))</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;upper_shadow_pct&#39;</span>] <span class="op">=</span> ((h.shift(<span class="dv">2</span>) <span class="op">-</span> np.maximum(o.shift(<span class="dv">2</span>), c.shift(<span class="dv">2</span>)))</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>                                <span class="op">/</span> c.shift(<span class="dv">2</span>) <span class="op">*</span> <span class="dv">100</span>)            <span class="co"># 倒数第三根</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    out[<span class="st">&#39;vol20&#39;</span>] <span class="op">=</span> r.rolling(<span class="dv">20</span>).std() <span class="op">*</span> np.sqrt(<span class="dv">252</span>) <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span></code></pre></div>
+<p><code>last_dict()</code> 把最后一行转成纯 Python
+字典，规则卡直接消费。</p>
+<hr />
+<h2 id="7-规则层configmethodologyyaml--methodologydecide">7.
+规则层（<code>config/methodology.yaml</code> +
+<code>methodology.decide()</code>）</h2>
+<h3 id="71-规则卡结构">7.1 规则卡结构</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">version</span><span class="kw">:</span><span class="at"> </span><span class="st">&#39;2.0&#39;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">actions</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="fu">CLEAR</span><span class="kw">:</span><span class="at"> 清仓</span><span class="kw">,</span><span class="at"> </span><span class="fu">TRIM</span><span class="kw">:</span><span class="at"> 分批减仓</span><span class="kw">,</span><span class="at"> </span><span class="fu">ADD</span><span class="kw">:</span><span class="at"> 加仓</span><span class="kw">,</span><span class="at"> </span><span class="fu">HOLD</span><span class="kw">:</span><span class="at"> 持有</span><span class="kw">,</span><span class="at"> </span><span class="fu">WATCH</span><span class="kw">:</span><span class="at"> 观察</span><span class="kw">}</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">levels</span><span class="kw">:</span><span class="at">  </span><span class="kw">{</span><span class="fu">D</span><span class="kw">:</span><span class="at"> 风险退出</span><span class="kw">,</span><span class="at"> </span><span class="fu">C</span><span class="kw">:</span><span class="at"> 减仓保利</span><span class="kw">,</span><span class="at"> </span><span class="fu">A</span><span class="kw">:</span><span class="at"> 可加仓</span><span class="kw">,</span><span class="at"> </span><span class="fu">B</span><span class="kw">:</span><span class="at"> 等待确认</span><span class="kw">}</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">predicates</span><span class="kw">:</span><span class="co">            # 谓词白名单：Python 与 JS 必须实现同一组</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">below_ma10_days_gte</span><span class="kw">:</span><span class="at"> 连续收盘低于 MA10 的日数 &gt;= N</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">false_breakout</span><span class="kw">:</span><span class="at"> 放量下跌且收盘低于 MA20</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">stand_back_days_gte</span><span class="kw">:</span><span class="at"> 收盘站上 MA5 且连续日数 &gt;= N</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">true_breakout</span><span class="kw">:</span><span class="at"> 突破四条全部满足</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">is_20d_low</span><span class="kw">:</span><span class="at"> 收盘为 20 日新低</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">always</span><span class="kw">:</span><span class="at"> 恒真（只允许最低优先级兜底）</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="fu">rules</span><span class="kw">:</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> R-D1</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">level</span><span class="kw">:</span><span class="at"> D</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">priority</span><span class="kw">:</span><span class="at"> </span><span class="dv">100</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">when</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="fu">below_ma10_days_gte</span><span class="kw">:</span><span class="at"> </span><span class="dv">2</span><span class="kw">}</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">action</span><span class="kw">:</span><span class="at"> CLEAR</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">text</span><span class="kw">:</span><span class="at"> 收盘连续低于 MA10 达 2 日</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">rationale</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="fu">phen</span><span class="kw">:</span><span class="at"> ...</span><span class="kw">,</span><span class="at"> </span><span class="fu">judge</span><span class="kw">:</span><span class="at"> ...</span><span class="kw">,</span><span class="at"> </span><span class="fu">act</span><span class="kw">:</span><span class="at"> ...</span><span class="kw">}</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">exec</span><span class="kw">:</span><span class="at"> 次日以限价分笔卖出</span></span></code></pre></div>
+<ul>
+<li>未知谓词、重复 ID、非法动作 → <strong>启动即失败</strong>，不允许用
+<code>always → HOLD</code> 掩盖配置错误。</li>
+<li>规则名必须是可观测事实，不写「主力放弃 / 诱多 / 真出货」。</li>
+</ul>
+<h3 id="72-求值逻辑">7.2 求值逻辑</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> decide(feat, data_status<span class="op">=</span><span class="st">&#39;OK&#39;</span>, overrides<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> data_status <span class="op">==</span> <span class="st">&#39;ABSTAIN&#39;</span>:        <span class="co"># 数据不足：禁止动作</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">dict</span>(status<span class="op">=</span><span class="st">&#39;ABSTAIN&#39;</span>, action<span class="op">=</span><span class="st">&#39;ABSTAIN&#39;</span>, ...)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> data_status <span class="op">==</span> <span class="st">&#39;DEMO&#39;</span>:           <span class="co"># 合成数据：只演示，动作 ABSTAIN</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        r <span class="op">=</span> match_rule(feat)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">dict</span>(status<span class="op">=</span><span class="st">&#39;DEMO&#39;</span>, action<span class="op">=</span><span class="st">&#39;ABSTAIN&#39;</span>, demo<span class="op">=</span>..., ...)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    r <span class="op">=</span> match_rule(feat)                <span class="co"># 按 priority 取第一条命中的规则</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> r <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">dict</span>(status<span class="op">=</span><span class="st">&#39;DEGRADED&#39;</span>, action<span class="op">=</span><span class="st">&#39;ABSTAIN&#39;</span>, ...)</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    action, level <span class="op">=</span> r[<span class="st">&#39;action&#39;</span>], r[<span class="st">&#39;level&#39;</span>]</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 组合层覆盖：只作用于 ADD</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> action <span class="op">==</span> <span class="st">&#39;ADD&#39;</span>:</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> pos <span class="op">&gt;</span> regime_hi:  ov <span class="op">=</span> <span class="st">&#39;O-1&#39;</span>   <span class="co"># 超仓位区间 → 降为 HOLD</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> pnl <span class="op">&lt;</span> <span class="op">-</span><span class="dv">8</span>:       ov <span class="op">=</span> <span class="st">&#39;O-2&#39;</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> pnl <span class="op">&gt;</span> <span class="dv">30</span>:       ov <span class="op">=</span> <span class="st">&#39;O-3&#39;</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> ov: action <span class="op">=</span> <span class="st">&#39;HOLD&#39;</span><span class="op">;</span> blocked_by.append(ov)</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">dict</span>(status<span class="op">=</span><span class="st">&#39;OK&#39;</span>, level<span class="op">=</span>level, action<span class="op">=</span>action, rule_ids<span class="op">=</span>..., hits<span class="op">=</span>...)</span></code></pre></div>
+<p>关键设计：<strong>规则决定「什么时候可以动」，目标仓位决定「动到多少」</strong>。
+两者不互相覆盖，因此不会出现「上面一套规则、下面一套技术」的双结论。</p>
+<h3 id="73-页面上的规则位置">7.3 页面上的规则位置</h3>
+<table>
+<thead>
+<tr class="header">
+<th>位置</th>
+<th>规则的作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>个股卡「结论」</td>
+<td>引用目标仓位表的动作（不直接展示规则码）</td>
+</tr>
+<tr class="even">
+<td>明细表「动作」</td>
+<td>同上</td>
+</tr>
+<tr class="odd">
+<td>点评「今天动什么」</td>
+<td>同上</td>
+</tr>
+<tr class="even">
+<td>规则卡</td>
+<td>只在数据闸门与最早减仓时点生效</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-市场状态与相对强弱">8. 市场状态与相对强弱</h2>
+<h3 id="81-市场状态signalsmarket_regimepy">8.1
+市场状态（<code>signals/market_regime.py</code>）</h3>
+<p>只输入<strong>基准指数日线</strong>（默认沪深300），三个可观测维度：</p>
+<table>
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>判据</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>趋势</td>
+<td>收盘 vs MA60，且 MA5 vs MA20</td>
+</tr>
+<tr class="even">
+<td>波动</td>
+<td>20 日年化波动 &gt; 60 日 × 1.25 → 「波动抬升」</td>
+</tr>
+<tr class="odd">
+<td>位置</td>
+<td>近 120 日高低点、距高/低、上下空间比（赔率）</td>
+</tr>
+</tbody>
+</table>
+<p>状态与仓位区间（<code>config/risk.yaml</code>）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>状态</th>
+<th>区间</th>
+<th>目标中枢（plan_v3 取中值）</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>上行趋势</td>
+<td>80–90%</td>
+<td>85%</td>
+</tr>
+<tr class="even">
+<td>震荡区间</td>
+<td>60–70%</td>
+<td>65%</td>
+</tr>
+<tr class="odd">
+<td>下行趋势</td>
+<td>30–40%</td>
+<td>35%</td>
+</tr>
+<tr class="even">
+<td>下行 + 波动抬升</td>
+<td>20–30%</td>
+<td>25%</td>
+</tr>
+<tr class="odd">
+<td>未知</td>
+<td>null</td>
+<td>默认 65%（不空仓）</td>
+</tr>
+</tbody>
+</table>
+<p>另外输出：<code>ma5/10/20/30/60/120</code>、均线缠绕间距、站上 MA5
+天数、近 20 日未回补缺口（最多 3
+个）、<code>position{high120, low120, odds, …}</code>。</p>
+<blockquote>
+<p>判据只有两条：「收盘与 60 日线」「5 日线与 20 日线」。
+波动抬升只是再降一档，不单独改变方向。</p>
+</blockquote>
+<h3 id="82-相对强弱signalsrelative_strengthpy">8.2
+相对强弱（<code>signals/relative_strength.py</code>）</h3>
+<ul>
+<li>必须使用<strong>同日</strong>基准收盘；日期不一致 →
+<code>is_known=False</code>，标签写「未知」。</li>
+<li><code>excess5 / excess20 = 标的收益 − 基准收益</code>。</li>
+<li>状态：20 日新低且低于 MA10 → 「20日新低 ·
+弱于基准」；<code>excess5 &gt; 0.5</code> 且站上 MA5 →
+「强于基准」（有/无放量确认）；<code>|excess5| ≤ 0.5</code> →
+「同步」；否则「弱于基准」。</li>
+<li>缺失不得加分、不得出单。</li>
+</ul>
+<hr />
+<h2 id="9-组合层portfolioplan_v3py">9.
+组合层（<code>portfolio/plan_v3.py</code>）</h2>
+<h3 id="91-目标权重的完整公式">9.1 目标权重的完整公式</h3>
+<pre><code>总上限 total = (fit_lo + fit_hi) / 2
+单只基础 coef = (0.6 + 0.4 × 结构评分/100) × min(1, 15 / 20日年化波动)
+候选按 coef 排序，取前 6 只
+归一 denom = Σ coef(前 6)
+单只目标 = min(25%, 评级上限, total × coef / denom)</code></pre>
+<p>结构评分（0–100）：</p>
+<pre><code>score = 50
+      + 15（收盘 &gt; MA20）/ −15（收盘 &lt; MA20）
+      + 10（MA5 &gt; MA10 &gt; MA20）/ −10（MA5 &lt; MA10 &lt; MA20）
+      + 5 （收盘 &gt; MA60）
+      − 10（收盘 ≤ 20 日最低）
+clamp 到 [0, 100]</code></pre>
+<p>评级与单只上限：</p>
+<table>
+<thead>
+<tr class="header">
+<th>评级</th>
+<th>分数</th>
+<th>单只上限</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>S</td>
+<td>≥85</td>
+<td>25%</td>
+</tr>
+<tr class="even">
+<td>A</td>
+<td>75–84</td>
+<td>20%</td>
+</tr>
+<tr class="odd">
+<td>B</td>
+<td>60–74</td>
+<td>10%</td>
+</tr>
+<tr class="even">
+<td>C</td>
+<td>50–59</td>
+<td>5%</td>
+</tr>
+<tr class="odd">
+<td>D</td>
+<td>&lt;50</td>
+<td>3%（观察仓，不清零）</td>
+</tr>
+</tbody>
+</table>
+<p>附加输出：<code>tier</code>（跌破 MA30 可一次卖 / 跌破 MA20 先卖一半
+/ 跌破 MA10 只回目标 /
+结构未坏只减一半）、<code>wk_up</code>（周线是否站上 20
+周线）、<code>confirm</code>（0–3：站上 MA10、MACD 多头、连续 2
+日量增价涨）。</p>
+<h3 id="92-板块上限">9.2 板块上限</h3>
+<p><code>plan_v3</code> 之后，前端 <code>rsPlanRows()</code>
+再做一次压缩：</p>
+<pre><code>同一板块的目标合计 &gt; 板块上限（S25/A20/B10/C5/D0）
+→ 该板块内各只按比例缩放，不突破单只上限</code></pre>
+<h3 id="93-池外持仓的目标补算浏览器">9.3
+池外持仓的目标补算（浏览器）</h3>
+<p>后端只认识观察池 4
+只；持仓里的行业/债券/海外标的在浏览器补算，三级策略：</p>
+<table>
+<thead>
+<tr class="header">
+<th>情况</th>
+<th>处理</th>
+<th>页面标记</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>能取到 ≥30 根日线</td>
+<td>用与 <code>plan_v3</code> 相同的公式算分/评级/上限/目标</td>
+<td>「池外补算 · 72 分 B 级」</td>
+</tr>
+<tr class="even">
+<td>日线不足 30 根</td>
+<td>按类别结构目标折算（宽基 50 / 行业 25 / 债券 15 / 黄金 5 / 海外
+5，乘总上限后同类均分）</td>
+<td>「结构参考目标」</td>
+</tr>
+<tr class="odd">
+<td>类别也未知（未分类/货币）</td>
+<td>不给目标，动作写「暂不设目标」并说明缺什么</td>
+<td>「—」</td>
+</tr>
+</tbody>
+</table>
+<p>无日线时<strong>不生成订单</strong>；目标是参考值，动作固定「日线未到，暂不动」。</p>
+<p>前端公式（<code>clientSignals()</code>）：</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode js"><code class="sourceCode javascript"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>score <span class="op">=</span> <span class="dv">50</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>      <span class="op">+</span> (last <span class="op">&gt;</span> ma20 <span class="op">?</span> <span class="dv">15</span> <span class="op">:</span> <span class="op">-</span><span class="dv">15</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>      <span class="op">+</span> (ma5<span class="op">&gt;</span>ma10 <span class="op">&amp;&amp;</span> ma10<span class="op">&gt;</span>ma20 <span class="op">?</span> <span class="dv">10</span> <span class="op">:</span> (ma5<span class="op">&lt;</span>ma10 <span class="op">&amp;&amp;</span> ma10<span class="op">&lt;</span>ma20 <span class="op">?</span> <span class="op">-</span><span class="dv">10</span> <span class="op">:</span> <span class="dv">0</span>))</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>      <span class="op">+</span> (last <span class="op">&gt;</span> ma60 <span class="op">?</span> <span class="dv">5</span> <span class="op">:</span> <span class="dv">0</span>)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>      <span class="op">-</span> (last <span class="op">&lt;=</span> low20 <span class="op">?</span> <span class="dv">10</span> <span class="op">:</span> <span class="dv">0</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>volf <span class="op">=</span> <span class="fu">min</span>(<span class="dv">1</span><span class="op">,</span> <span class="dv">15</span> <span class="op">/</span> vol20)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>coef <span class="op">=</span> (<span class="fl">0.6</span> <span class="op">+</span> <span class="fl">0.4</span> <span class="op">*</span> score <span class="op">/</span> <span class="dv">100</span>) <span class="op">*</span> volf</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> <span class="fu">min</span>(<span class="dv">25</span><span class="op">,</span> <span class="fu">cap</span>(grade)<span class="op">,</span> total <span class="op">*</span> coef <span class="op">/</span> Σcoef)</span></code></pre></div>
+<hr />
+<h2 id="10-执行层差额--动作--订单">10. 执行层（差额 → 动作 → 订单）</h2>
+<h3 id="101-差额与动作唯一口径">10.1 差额与动作（唯一口径）</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode js"><code class="sourceCode javascript"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">planActionOf</span>(gap<span class="op">,</span> wkUp<span class="op">,</span> confirm<span class="op">,</span> belowMa10){</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(gap <span class="op">==</span> <span class="kw">null</span>)            <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;WAIT&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;目标缺失&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(<span class="bu">Math</span><span class="op">.</span><span class="fu">abs</span>(gap) <span class="op">&lt;</span> <span class="dv">3</span>)      <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;HOLD&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;差额 x pct，未到 3pct，持有&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(gap <span class="op">&gt;</span> <span class="dv">0</span>){                          <span class="co">// 要加</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(<span class="op">!</span>wkUp)                <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;WAIT&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;周线向下，不买&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(confirm <span class="op">&lt;</span> <span class="dv">2</span>)          <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;WAIT&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;确认只有 n/3 条&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;ADD&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;加仓 +x pct&#39;</span><span class="op">,</span> <span class="dt">pace</span><span class="op">:</span><span class="st">&#39;分 2 批&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(<span class="op">!</span>wkUp <span class="op">||</span> belowMa10)     <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;TRIM&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;减仓 x pct&#39;</span><span class="op">,</span> <span class="dt">pace</span><span class="op">:</span><span class="st">&#39;50/30/20&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> {<span class="dt">action</span><span class="op">:</span><span class="st">&#39;TRIM&#39;</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span><span class="st">&#39;先减一半差额&#39;</span><span class="op">,</span> <span class="dt">pace</span><span class="op">:</span><span class="st">&#39;50/30/20&#39;</span>}<span class="op">;</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="102-下单信息">10.2 下单信息</h3>
+<pre><code>挂单价：买 = 现价 × 1.0001，向上进位到 0.001
+        卖 = 现价 × 0.9999，向下截断到 0.001
+数量  ：floor(总资产 × 目标% ÷ 挂单价 ÷ 100) × 100
+        买入不回退现有份额；买入受现金限制
+本次操作：建议数量 − 现有数量
+首批  ：卖出 |差额| × 50%，向下取整到 100 份（其余 30/20）
+费用  ：max(5 元, 成交额 × 0.5bp) + 成交额 × 1bp</code></pre>
+<p>六条边界（都有明确文案，不出现 0 或假数字）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>情况</th>
+<th>文案</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>目标缺失</td>
+<td>「目标缺失」</td>
+</tr>
+<tr class="even">
+<td>价格缺失</td>
+<td>「价格缺失」</td>
+</tr>
+<tr class="odd">
+<td>差额不足 100 份</td>
+<td>「不足一手」</td>
+</tr>
+<tr class="even">
+<td>买入现金不足</td>
+<td>「受现金限制」（自动下调手数）</td>
+</tr>
+<tr class="odd">
+<td>当日成交额 &lt; 0.1 亿</td>
+<td>「流动性不足」</td>
+</tr>
+<tr class="even">
+<td>停牌</td>
+<td>「停牌」</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-数据包与契约">11. 数据包与契约</h2>
+<h3 id="111-webanalysis_packetjson">11.1
+<code>web/analysis_packet.json</code></h3>
+<table>
+<thead>
+<tr class="header">
+<th>分区</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>status</code> / <code>run_id</code> /
+<code>generated_at</code> / <code>data_date</code></td>
+<td>运行标识</td>
+</tr>
+<tr class="even">
+<td><code>config_hash</code> / <code>input_hash</code> /
+<code>code_version</code></td>
+<td>可复现三元组</td>
+</tr>
+<tr class="odd">
+<td><code>data_quality</code></td>
+<td>覆盖率、合成字段、陈旧字段、冲突、阻断项、<code>market_snapshot</code></td>
+</tr>
+<tr class="even">
+<td><code>regime</code></td>
+<td>状态、区间、基准日、观测条数</td>
+</tr>
+<tr class="odd">
+<td><code>legs[]</code></td>
+<td>逐只：<code>data_status</code>、<code>data_date</code>、观测、<code>signal_state</code>、<code>action</code>、<code>level</code>、<code>rule_ids</code>、反证、未知项、<code>quality_blocking</code></td>
+</tr>
+<tr class="even">
+<td><code>decisions[]</code></td>
+<td>动作、理由、价位类型、约束</td>
+</tr>
+<tr class="odd">
+<td><code>orders[]</code></td>
+<td>公开观察池订单（页面持仓订单在浏览器生成，<strong>此数组为空</strong>）</td>
+</tr>
+<tr class="even">
+<td><code>portfolio_after</code></td>
+<td>组合后视图（公开版：不含个人持仓）</td>
+</tr>
+<tr class="odd">
+<td><code>validation</code></td>
+<td>各项不变量结果</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注意：<code>orders</code> 为空是设计，不是
+bug——服务端拿不到个人持仓，订单只能在浏览器算。</p>
+</blockquote>
+<h3 id="112-哈希与同源">11.2 哈希与同源</h3>
+<pre><code>input_hash  = sha256(逐腿 {code, data_date, data_status})[:16]
+config_hash = sha256(全部 config)[:16]
+run_id      = 运行时刻 + &#39;-&#39; + input_hash</code></pre>
+<p><code>run_update --verify</code> 用 <code>run_id</code> 校验 packet /
+manifest / HTML 内嵌数据同源。</p>
+<h3 id="113-契约文件">11.3 契约文件</h3>
+<p><code>contracts/portfolio_decision.schema.json</code> 定义 Python 与
+JS 必须产出同一形状：
+<code>meta / portfolio_before / market_context / holding_decisions / opportunities / orders / portfolio_after / validation / audit</code>。
+只描述结构，不写阈值。</p>
+<hr />
+<h2 id="12-页面层">12. 页面层</h2>
+<h3 id="121-生成方式">12.1 生成方式</h3>
+<p><code>webgen.render()</code> 把三样东西拼进 <code>SHELL</code>
+模板：</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>SHELL.replace(<span class="st">&#39;@@CSS@@&#39;</span>, css)       <span class="co"># style.css</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>     .replace(<span class="st">&#39;@@DATA@@&#39;</span>, payload)  <span class="co"># json.dumps(DASHBOARD)，&lt; &gt; 转义</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>     .replace(<span class="st">&#39;@@JS@@&#39;</span>, rules_js <span class="op">+</span> decision_js <span class="op">+</span> app_js)</span></code></pre></div>
+<p>输出单个 HTML，无外部请求（除运行时行情 JSONP）。双击即可打开。</p>
+<h3 id="122-html-骨架">12.2 HTML 骨架</h3>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;app&quot;</span><span class="dt">&gt;</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;top&quot;</span><span class="dt">&gt;</span> 品牌 / flash / 状态徽标 / 刷新行情 / 更新时间 <span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;body&quot;</span><span class="dt">&gt;</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;side&quot;</span><span class="dt">&gt;</span> 市场概况 · 持仓分析 · 持仓设置 <span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;content&quot;</span><span class="dt">&gt;</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;p1&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;page on&quot;</span><span class="dt">&gt;&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;p5&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;page&quot;</span><span class="dt">&gt;&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&lt;</span><span class="kw">div</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;p7&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;page&quot;</span><span class="dt">&gt;&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">div</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;lock&quot;</span> <span class="er">class</span><span class="ot">=</span><span class="st">&quot;lock on&quot;</span><span class="dt">&gt;</span> 口令 / 创建 / 选择文件 / 仅浏览 <span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">script</span><span class="dt">&gt;</span><span class="bu">window</span><span class="op">.</span><span class="at">DASHBOARD</span> <span class="op">=</span> {<span class="op">...</span>}<span class="op">;</span><span class="dt">&lt;/</span><span class="kw">script</span><span class="dt">&gt;</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">script</span><span class="dt">&gt;</span><span class="co">/* rules.js + decision.js + app.js */</span><span class="dt">&lt;/</span><span class="kw">script</span><span class="dt">&gt;</span></span></code></pre></div>
+<h3 id="123-dashboard-数据结构">12.3 <code>DASHBOARD</code>
+数据结构</h3>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;meta&quot;</span><span class="fu">:</span>   <span class="fu">{</span><span class="dt">&quot;data_date&quot;</span><span class="fu">,</span><span class="dt">&quot;snapshot_date&quot;</span><span class="fu">,</span><span class="dt">&quot;as_of&quot;</span><span class="fu">,</span><span class="dt">&quot;run_date&quot;</span><span class="fu">,</span><span class="dt">&quot;status&quot;</span><span class="fu">,</span><span class="dt">&quot;run_id&quot;</span><span class="fu">,</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>             <span class="dt">&quot;source&quot;</span><span class="fu">:{</span><span class="er">...</span><span class="fu">},</span><span class="dt">&quot;skipped&quot;</span><span class="fu">:</span><span class="ot">[]</span><span class="fu">,</span><span class="dt">&quot;benchmark_date&quot;</span><span class="fu">,</span><span class="dt">&quot;dashboard_version&quot;</span><span class="fu">},</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;packet&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;schema_version&quot;</span><span class="fu">,</span><span class="dt">&quot;status&quot;</span><span class="fu">,</span><span class="dt">&quot;run_id&quot;</span><span class="fu">,</span><span class="dt">&quot;validation&quot;</span><span class="fu">,</span><span class="dt">&quot;data_quality&quot;</span><span class="fu">,</span><span class="dt">&quot;extras&quot;</span><span class="fu">},</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;market&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;as_of&quot;</span><span class="fu">,</span><span class="dt">&quot;indices&quot;</span><span class="fu">,</span><span class="dt">&quot;breadth&quot;</span><span class="fu">,</span><span class="dt">&quot;sentiment&quot;</span><span class="fu">,</span><span class="dt">&quot;rotation&quot;</span><span class="fu">,</span><span class="dt">&quot;distribution&quot;</span><span class="fu">,</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>             <span class="dt">&quot;premium&quot;</span><span class="fu">,</span><span class="dt">&quot;valuation&quot;</span><span class="fu">,</span><span class="dt">&quot;glob&quot;</span><span class="fu">,</span><span class="dt">&quot;liquidity&quot;</span><span class="fu">,</span><span class="dt">&quot;macro&quot;</span><span class="fu">,</span><span class="dt">&quot;news&quot;</span><span class="fu">,</span><span class="dt">&quot;calendar&quot;</span><span class="fu">,</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>             <span class="dt">&quot;news_sentiment&quot;</span><span class="fu">,</span><span class="dt">&quot;policy_heat&quot;</span><span class="fu">,</span><span class="dt">&quot;heat&quot;</span><span class="fu">,</span><span class="dt">&quot;flow&quot;</span><span class="fu">,</span><span class="dt">&quot;national_team&quot;</span><span class="fu">,</span><span class="dt">&quot;regime&quot;</span><span class="fu">},</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;legs&quot;</span><span class="fu">:</span>   <span class="ot">[</span> <span class="fu">{</span><span class="er">code</span><span class="fu">,</span><span class="er">name</span><span class="fu">,</span><span class="er">category</span><span class="fu">,</span><span class="er">status</span><span class="fu">,</span><span class="er">data_status</span><span class="fu">,</span><span class="er">data_date</span><span class="fu">,</span><span class="er">level</span><span class="fu">,</span><span class="er">action</span><span class="fu">,</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>               <span class="er">last</span><span class="fu">,</span><span class="er">change</span><span class="fu">,</span><span class="er">ma5</span><span class="fu">,</span><span class="er">ma10</span><span class="fu">,</span><span class="er">ma20</span><span class="fu">,</span><span class="er">ma60</span><span class="fu">,</span><span class="er">ma120</span><span class="fu">,</span><span class="er">ma_state</span><span class="fu">,</span><span class="er">vol_ratio</span><span class="fu">,</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>               <span class="er">stand_back</span><span class="fu">,</span><span class="er">shrink</span><span class="fu">,</span><span class="er">false_breakout</span><span class="fu">,</span><span class="er">true_breakout_count</span><span class="fu">,</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>               <span class="er">support</span><span class="fu">,</span><span class="er">reduce</span><span class="fu">,</span><span class="er">rs</span><span class="fu">,</span><span class="er">price</span><span class="fu">,</span><span class="er">quality</span><span class="fu">,</span><span class="er">evidence</span><span class="fu">}</span> <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;orders&quot;</span><span class="fu">:</span> <span class="ot">[]</span><span class="fu">,</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;trading&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span> <span class="dt">&quot;methodology&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span> <span class="dt">&quot;targets&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;plan&quot;</span><span class="fu">:</span>   <span class="fu">{</span><span class="dt">&quot;total_target&quot;</span><span class="fu">,</span><span class="dt">&quot;fit_lo&quot;</span><span class="fu">,</span><span class="dt">&quot;fit_hi&quot;</span><span class="fu">,</span><span class="dt">&quot;regime&quot;</span><span class="fu">,</span><span class="dt">&quot;gap_threshold&quot;</span><span class="fu">,</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>             <span class="dt">&quot;top_n&quot;</span><span class="fu">,</span><span class="dt">&quot;max_single&quot;</span><span class="fu">,</span><span class="dt">&quot;items&quot;</span><span class="fu">:</span><span class="ot">[</span><span class="fu">{</span><span class="er">code</span><span class="fu">,</span><span class="er">name</span><span class="fu">,</span><span class="er">score</span><span class="fu">,</span><span class="er">grade</span><span class="fu">,</span><span class="er">cap</span><span class="fu">,</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>             <span class="er">target_weight</span><span class="fu">,</span><span class="er">wk_up</span><span class="fu">,</span><span class="er">confirm</span><span class="fu">,</span><span class="er">tier</span><span class="fu">,</span><span class="er">ma10</span><span class="fu">,</span><span class="er">ma20</span><span class="fu">,</span><span class="er">ma30</span><span class="fu">,</span><span class="er">ma60</span><span class="fu">}</span><span class="ot">]</span><span class="fu">},</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;brief&quot;</span><span class="fu">:</span>  <span class="kw">null</span><span class="fu">,</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sector_weights&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;as_of&quot;</span><span class="fu">,</span><span class="dt">&quot;indices&quot;</span><span class="fu">:{</span><span class="dt">&quot;000300&quot;</span><span class="fu">:{</span><span class="er">...</span><span class="fu">}},</span><span class="dt">&quot;etf_index&quot;</span><span class="fu">:{</span><span class="dt">&quot;510300&quot;</span><span class="fu">:</span><span class="st">&quot;000300&quot;</span><span class="fu">}},</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;contract&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span> <span class="dt">&quot;decision&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="124-渲染流程">12.4 渲染流程</h3>
+<pre><code>window.load
+  → D = window.DASHBOARD
+  → render()            顶部徽标 + p1 + p5 + p7 三块同时生成
+  → autoUnlock()        有会话口令则解密；否则弹锁屏
+  → 解锁后 applyHold() → render() → ensureHoldQuotes() 补价格 → render()
+  → page5() 内 setTimeout(rsInit, 0)
+       ├─ rsRenderBrief / rsRenderSector / rsRenderMarket / rsRenderDetail
+       ├─ fetchBars(每只持仓)  + rsFetchWeekly(每只持仓)
+       └─ 全部回来 → rsAfterBars()：重算计划、刷新表格、点评、各块</code></pre>
+<h3 id="125-隐私模型">12.5 隐私模型</h3>
+<pre><code>口令 ──PBKDF2-SHA256（210,000 次，16B 盐）──▶ 256 位密钥
+        └──AES-GCM（12B IV）──▶ 密文 {v, kdf, iter, salt, iv, ct}</code></pre>
+<ul>
+<li>仓库只有密文；构建机、GitHub、CDN 都拿不到明文。</li>
+<li>口令只存 <code>sessionStorage</code>（关闭标签页失效）。</li>
+<li>页面产物里没有任何持仓、成本、资金字段。</li>
+</ul>
+<hr />
+<h2 id="13-页面逐块内容--实现">13. 页面逐块（内容 + 实现）</h2>
+<h3 id="131-p1-市场概况page1">13.1 p1
+市场概况（<code>page1()</code>）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>区块</th>
+<th>显示</th>
+<th>数据</th>
+<th>实现</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>快照日提示</td>
+<td>快照日 ≠ 行情日时提示</td>
+<td><code>meta.snapshot_date</code></td>
+<td><code>page1()</code></td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>四卡</td>
+<td>成交额、情绪分、仓位区间、依据条数</td>
+<td><code>breadth</code> / <code>sentiment</code> /
+<code>regime</code></td>
+<td>同上</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>指数与均线</td>
+<td>6 个指数：最新/涨跌/均线状态</td>
+<td><code>market.indices</code></td>
+<td><code>loader.indices()</code></td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>状态与情绪</td>
+<td>约 12 条情绪条目</td>
+<td><code>sentiment.items</code></td>
+<td>人工快照</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>阶段 → 仓位 → 我的持仓</td>
+<td>联动条 + 四卡（目标/当前/差额/结论）</td>
+<td><code>plan</code> + <code>calcPort()</code></td>
+<td><code>linkStrip()</code> / <code>planSection()</code></td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>板块概况</td>
+<td>折叠标题 + 热力图（面积=流通市值，颜色=涨跌）</td>
+<td><code>market.heat[]</code></td>
+<td><code>squarify()</code> treemap</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td>国家队动向</td>
+<td>最新一期合计份额/较上次/近四周 + 六类一段话</td>
+<td><code>national_team.series</code></td>
+<td><code>nationalTeamSection()</code></td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>行业成交额与占比</td>
+<td>行业、成交额、占比、涨跌、市值</td>
+<td><code>market.flow[]</code></td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>9</td>
+<td>轮动与主线 / 涨跌分布</td>
+<td>主线、落后、六档分布</td>
+<td><code>regime</code> + <code>distribution</code></td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>10</td>
+<td>宏观环境四块</td>
+<td>估值 / 外围 / 资金面 / 宏观数据</td>
+<td><code>valuation/glob/liquidity/macro</code></td>
+<td>人工快照</td>
+</tr>
+<tr class="odd">
+<td>11</td>
+<td>政策与消息面</td>
+<td>快讯、日历、消息情绪（含 100 字解读）、政策热度</td>
+<td><code>news/calendar/news_sentiment/policy_heat</code></td>
+<td>解读来自 <code>news_note.json</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="132-p5-一持仓概况">13.2 p5 一、持仓概况</h3>
+<table>
+<thead>
+<tr class="header">
+<th>区块</th>
+<th>显示</th>
+<th>算法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>四个数字</td>
+<td>总资产、持仓市值、浮动盈亏、当日盈亏</td>
+<td>盈亏 % 分母：浮盈 ÷ Σ成本；当日 ÷
+Σ昨收市值；缺价/缺成本/缺昨收各自降级</td>
+</tr>
+<tr class="even">
+<td>今日点评</td>
+<td>五段：今日基调 → 大盘与量能 → 结构 → 今天动什么 → 改判</td>
+<td><code>rsBriefSections()</code>；每段先判断再给数字依据</td>
+</tr>
+<tr class="odd">
+<td>明细表（12 列）</td>
+<td>名称/代码、板块、仓位现→目标、数量、本次操作、挂单价、费用、成本→现价、盈亏、5/20
+上涨占比、全市场位置、动作</td>
+<td>目标来自 <code>plan.items</code>
+或池外补算；差额→动作→订单同一出口</td>
+</tr>
+</tbody>
+</table>
+<p>点评优先读 <code>data/brief.json</code>（外部 skill
+产出）；缺失或校验失败则用引擎现场生成。</p>
+<h3 id="133-p5-二持仓分析">13.3 p5 二、持仓分析</h3>
+<p><strong>1. 市场环境</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>小块</th>
+<th>内容</th>
+<th>判读</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>大盘位置（七项）</td>
+<td>点位、均线排列、五均线开关、量能、缺口、空间、波动</td>
+<td>判据只看「收盘 vs MA60」「MA5 vs MA20」；波动 &gt;60 日×1.25 再降
+10pct</td>
+</tr>
+<tr class="even">
+<td>均线各自管什么</td>
+<td>5/10/20/30/60/120 日 + 20 月线用途</td>
+<td>折叠说明</td>
+</tr>
+<tr class="odd">
+<td>热度与情绪</td>
+<td>涨跌平、涨停跌停、成交额、恐慌、连续普跌、温度</td>
+<td>只有放量急杀才算恐慌</td>
+</tr>
+<tr class="even">
+<td>资金动向</td>
+<td>主力、两融、北向说明、过热板块（占比 ≥15%）</td>
+<td>北向说明「2024-08 起不再盘中披露」</td>
+</tr>
+<tr class="odd">
+<td>隔夜与消息</td>
+<td>外围 6 项、前 3 条快讯</td>
+<td>只算开盘扰动</td>
+</tr>
+</tbody>
+</table>
+<p>国家队已移出 p5，只在 p1 保留最新一期。</p>
+<p><strong>2. 组合情况</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>块</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>组合板块结构</td>
+<td>各行业暴露条（占持仓市值），≥25% 超配、≤5% 低配，未映射单列</td>
+</tr>
+<tr class="even">
+<td>集中度与结构</td>
+<td>最大板块、前三合计、持有/有效只数（1÷HHI）、现金比例、TMT
+合并（电子+计算机+通信）</td>
+</tr>
+<tr class="odd">
+<td>组合与市场是否一致</td>
+<td>先给结论，再给：最大暴露是否主线、超低配清单、走弱但仍有暴露、覆盖度、轮动信号、未映射说明</td>
+</tr>
+<tr class="even">
+<td>申万板块健康度</td>
+<td>评分、评级、板块上限、涨跌、成交占比、组合暴露、关系、状态</td>
+</tr>
+</tbody>
+</table>
+<p>板块评分四维：</p>
+<pre><code>资金 25% = clamp(50 + (该行业成交占比 ÷ 31 行业均值 − 1) × 20, 0, 100)
+政策 20% = policy_heat 中同名或互含主题的热度
+情绪 15% = clamp(50 + 当日涨跌 × 8, 0, 100)
+技术 40% = 未接入（缺行业代表 ETF 周线），按剩余权重归一</code></pre>
+<p><strong>3. 个股分析（九块）</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>顺序</th>
+<th>块</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>结论</td>
+<td>减/持/加 + 现→目标、差额、挂单价、费用</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>进场检查</td>
+<td>三步 ✓/✗：不创新低、均线多头/实体阳线/站上 120
+日、回踩不破/缩量/假突破</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>三周期</td>
+<td>月线（20 月线）、周线 5/10/20/30、日线 5/10/20/60/120 + 量比</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>双评分卡</td>
+<td>底部：月线底背离 25 + 倍量站上 20 月线 20 + 周线排列
+15；顶部：月线顶背离 30 + 破 10 月线 20 + 周线死叉 15 + 板块过热 10</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>结构图</td>
+<td>K 线 + MA5/10/20 + 笔 + 中枢 + 成交量 + MACD；只画最近 220 根</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>缠论结构（展示层）</td>
+<td>中枢
+ZG/ZD、现价在中枢上/中/下、最近一笔方向与幅度、底/顶背驰/三买；与目标的关系与冲突裁决</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td>概率</td>
+<td>5/20/60 日上涨占比、样本数、20 日中位；样本 &lt;30
+写「样本不足」</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>怎么做</td>
+<td>现→目标、差额、确认条数、挂单价、首批、分批</td>
+</tr>
+<tr class="odd">
+<td>9</td>
+<td>改判</td>
+<td>转好：站上 20 日线且周线转多；恶化：连续两日破 30 日线 →
+卖出剩余差额</td>
+</tr>
+</tbody>
+</table>
+<p>行情缺失时降级为「目标/评级/现价 + 原因 +
+重新取行情按钮」，不臆造均线与结构图。</p>
+<p><strong>缠论口径（简化实现，非严格级别递归）</strong>：</p>
+<pre><code>分型：左右各 2 根的顶/底
+笔  ：顶底交替，间隔 ≥4 根，幅度 ≥1.5%
+中枢：最近 4 笔的 3 段重叠，ZG = min(各段高)，ZD = max(各段低)
+背驰：价格创新低而 MACD DIF 抬高（底背驰）；创新高而 DIF 走低（顶背驰）
+三买：价格 &gt; ZG</code></pre>
+<p>缠论当前<strong>只解释、不改目标与订单</strong>；要变成加仓过滤器，须先按
+<code>docs/缠论融合回测方案.md</code> 跑 A/B 并过门槛。</p>
+<p><strong>4. 市场洞察及方向</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>块</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>今日定性</td>
+<td>时段（盘前/盘中/午盘/盘后/周末）+ 偏多/偏空/震荡 + 三条依据</td>
+</tr>
+<tr class="even">
+<td>位置与赔率</td>
+<td>近 120 日高低、距高/低、上下空间、赔率；注明「赔率只描述位置」</td>
+</tr>
+<tr class="odd">
+<td>情绪与主线</td>
+<td>涨停跌停、成交额、恐慌、连续普跌、情绪节点、主线三判据、温度</td>
+</tr>
+<tr class="even">
+<td>情景与触发</td>
+<td>偏弱延续 / 震荡修复 / 转强确认，真实价位 + 当前距离</td>
+</tr>
+<tr class="odd">
+<td>复盘对照</td>
+<td>上次计划 vs 今天的目标与评级（本机快照，不是成交回报）</td>
+</tr>
+<tr class="even">
+<td>新方向候选</td>
+<td>板块 B 级以上、非持仓、近 5
+日不弱于大盘、同类别一只、不含不碰名单</td>
+</tr>
+</tbody>
+</table>
+<p>定性打分：状态 ±2、MA5/MA20 ±1、涨跌占比 ±1、情绪分 ±1；≥2 偏多、≤−2
+偏空。 温度 = 情绪 40% + 涨跌家数 35% + 成交额分 15% + 趋势分 10%。</p>
+<h3 id="134-p7-持仓设置">13.4 p7 持仓设置</h3>
+<table>
+<thead>
+<tr class="header">
+<th>区块</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>工具栏</td>
+<td>保存到云端 / 新增一行 / 导入导出 CSV / 改口令 / 清空</td>
+</tr>
+<tr class="even">
+<td>快速添加</td>
+<td>代码、份额、成本 → 自动补名称与现价</td>
+</tr>
+<tr class="odd">
+<td>编辑表</td>
+<td>代码、名称、类别、份额、成本、现价、市值、权重、浮动盈亏</td>
+</tr>
+<tr class="even">
+<td>汇总</td>
+<td>可用现金、总资产、总仓位与浮盈</td>
+</tr>
+<tr class="odd">
+<td>直写云端（折叠）</td>
+<td>仓库 + fine-grained PAT（只存本机）；不配则走「复制密文 + GitHub
+编辑」</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="14-提示词与-skills">14. 提示词与 Skills</h2>
+<h3 id="141-两类-llm-任务约束不同">14.1 两类 LLM 任务，约束不同</h3>
+<table>
+<thead>
+<tr class="header">
+<th>工作流</th>
+<th>用途</th>
+<th>约束</th>
+<th>允许解释动作</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A 公开市场摘要</td>
+<td>只总结公开行情</td>
+<td>不得出现 <code>action</code>、价格、份数、胜率</td>
+<td>否</td>
+</tr>
+<tr class="even">
+<td>B 本机持仓解读</td>
+<td>结合解密后的持仓</td>
+<td>只能原样解释，不得修改任何字段</td>
+<td>是</td>
+</tr>
+</tbody>
+</table>
+<h3 id="142-skillsportfolio-brief今日点评契约">14.2
+<code>skills/portfolio-brief</code>（今日点评契约）</h3>
+<ul>
+<li>输入：<code>web/analysis_packet.json</code>、<code>data/brief_inputs.json</code>（当次行情/板块/资金/持仓与目标仓位）。</li>
+<li>输出：<code>data/brief.json</code></li>
+</ul>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;data_date&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-11-23&quot;</span><span class="fu">,</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conclusion&quot;</span><span class="fu">:</span> <span class="st">&quot;一句话基调&quot;</span><span class="fu">,</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;blocks&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;k&quot;</span><span class="fu">:</span> <span class="st">&quot;今天是什么日子&quot;</span><span class="fu">,</span> <span class="dt">&quot;v&quot;</span><span class="fu">:</span> <span class="st">&quot;……&quot;</span><span class="fu">,</span> <span class="dt">&quot;refs&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;market.breadth&quot;</span><span class="ot">,</span> <span class="st">&quot;market.glob&quot;</span><span class="ot">]</span><span class="fu">}</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>硬性要求：</p>
+<ol type="1">
+<li><code>data_date</code> 必须等于当次页面数据日，否则整份作废；</li>
+<li><code>blocks</code> ≥6 块，<code>k</code> 不重复，<code>v</code>
+非空；</li>
+<li>覆盖七类：大盘位置、量能、空间赔率、行业主线、资金、宏观隔夜、自身组合；缺哪类写「缺」；</li>
+<li>推理顺序：今天什么日子 → 大盘阶段 → 主要矛盾 → 行业信号 → 资金背景 →
+自身偏差 → 今天动什么 → 改判；</li>
+<li>每句结论带数字，且数字能在页面找到；</li>
+<li>动作只能引用目标仓位表；</li>
+<li>禁用 12
+个词（注意风险/保持谨慎/密切关注/综合来看/整体合理/酌情处理/有望/可能上涨/保证/必涨/稳赚/胜率）；</li>
+<li>不预测点位、不给目标价；概率判断必须带样本量；</li>
+<li>结尾「价格是执行价，不保证成交。」</li>
+</ol>
+<p><code>webgen._brief()</code>
+会校验日期、结构、禁词；任一失败即回退到页面引擎生成。</p>
+<h3 id="143-datanews_notejson消息面-100-字解读">14.3
+<code>data/news_note.json</code>（消息面 100 字解读）</h3>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;data_date&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-11-23&quot;</span><span class="fu">,</span> <span class="dt">&quot;note&quot;</span><span class="fu">:</span> <span class="st">&quot;100 字以内的解读&quot;</span><span class="fu">}</span></span></code></pre></div>
+<p>要求：一段话、≤100
+字、不列点、不用固定套话；说清正负面各来自哪条消息、对今天意味着什么；
+拿不到材料就留空。日期必须等于快照日，否则页面不显示。</p>
+<h3 id="144-上游-skillsskills_src只借思路">14.4 上游
+skills（<code>skills_src/</code>，只借思路）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Skill</th>
+<th>借用的部分</th>
+<th>是否被代码直接调用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>chenguanhe-perspective</code>（沉关河）</td>
+<td>分层顺序、结论先行的表达</td>
+<td>否，提炼进规则卡与点评结构</td>
+</tr>
+<tr class="even">
+<td><code>a-share-turning-point</code></td>
+<td>月/周/日三层、双评分卡、评分档→单只上限、20 月线</td>
+<td>否，对应 <code>legScore()</code> 与评级分档</td>
+</tr>
+<tr class="odd">
+<td><code>topnews</code></td>
+<td>舆情/盘面情绪的结构化口径</td>
+<td>否，对应 <code>market.json</code> 的人工快照字段</td>
+</tr>
+<tr class="even">
+<td><code>quant-backtest-strategy</code></td>
+<td>成本口径、约束复核、数据边界写法</td>
+<td>否，对应 <code>backtest/</code> 与
+<code>config/strategy.yaml</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>仓库里没有「缠论 skill」；缠论只以代码形式存在（<code>rsChanOf</code>
+/ <code>analysis/chan.py</code>）。</p>
+</blockquote>
+<h3 id="145-防幻觉的四道闸门">14.5 防幻觉的四道闸门</h3>
+<ol type="1">
+<li><strong>结构校验</strong>：<code>_brief()</code> 检查 JSON
+结构与必填字段。</li>
+<li><strong>日期校验</strong>：<code>data_date</code> 不等于数据日 →
+丢弃。</li>
+<li><strong>禁词表</strong>：命中 12 词之一 → 丢弃。</li>
+<li><strong>数字可查</strong>：<code>refs</code>
+指向字段路径；页面同页可核。</li>
+</ol>
+<p>再加一条流程约束：点评失败<strong>不重算交易动作</strong>，只回退到引擎文本。</p>
+<hr />
+<h2 id="15-测试与质量门禁">15. 测试与质量门禁</h2>
+<h3 id="151-测试分布174-项">15.1 测试分布（174 项）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>文件</th>
+<th>覆盖</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>test_methodology.py</code></td>
+<td>规则卡加载、谓词白名单、优先级、唯一求值</td>
+</tr>
+<tr class="even">
+<td><code>test_data_quality.py</code></td>
+<td>日期/OHLC/根数/陈旧/合成状态</td>
+</tr>
+<tr class="odd">
+<td><code>test_datasource_contract.py</code></td>
+<td>适配器列名与字段契约</td>
+</tr>
+<tr class="even">
+<td><code>test_market_regime.py</code></td>
+<td>状态判据、均线、缺口、位置</td>
+</tr>
+<tr class="odd">
+<td><code>test_plan_order.py</code></td>
+<td>目标→差额→动作→订单六条边界、费用口径</td>
+</tr>
+<tr class="even">
+<td><code>test_calc_port.py</code></td>
+<td>四卡分母、缺价/缺成本/缺昨收降级</td>
+</tr>
+<tr class="odd">
+<td><code>test_leg_score.py</code></td>
+<td>双评分卡（在 node 里跑抽取的 JS）</td>
+</tr>
+<tr class="even">
+<td><code>test_sector_score.py</code></td>
+<td>四维评分与缺项归一</td>
+</tr>
+<tr class="odd">
+<td><code>test_sector_weights.py</code></td>
+<td>指数权重结构与行业名合法性</td>
+</tr>
+<tr class="even">
+<td><code>test_brief.py</code></td>
+<td>点评日期/结构/禁词校验</td>
+</tr>
+<tr class="odd">
+<td><code>test_publish_guard.py</code></td>
+<td>产物同源、run_id、哈希</td>
+</tr>
+<tr class="even">
+<td><code>test_backtest_no_lookahead.py</code></td>
+<td>回测无前视</td>
+</tr>
+<tr class="odd">
+<td><code>test_smoke.py</code></td>
+<td>页面区块存在性、无密钥泄露</td>
+</tr>
+<tr class="even">
+<td>其余</td>
+<td>分类、执行约束、风险桶、持仓读写、决策契约与黄金样本</td>
+</tr>
+</tbody>
+</table>
+<h3 id="152-门禁">15.2 门禁</h3>
+<table>
+<thead>
+<tr class="header">
+<th>门禁</th>
+<th>命令</th>
+<th>当前</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>JS 语法</td>
+<td><code>node --check src/etfquant/web_assets/app.js</code></td>
+<td>通过</td>
+</tr>
+<tr class="even">
+<td>Python 测试</td>
+<td><code>python3 -m pytest tests -q</code></td>
+<td>174 passed</td>
+</tr>
+<tr class="odd">
+<td>发布前校验</td>
+<td><code>run_update.py --verify</code></td>
+<td>ok=true</td>
+</tr>
+<tr class="even">
+<td>生成</td>
+<td><code>run_update.py --json</code></td>
+<td>status=OK，validation ok</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="16-已实现--未实现诚实矩阵">16. 已实现 / 未实现（诚实矩阵）</h2>
+<h3 id="161-已实现">16.1 已实现</h3>
+<table>
+<thead>
+<tr class="header">
+<th>能力</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>实时日线（三源降级）、实时价、指数日线</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>指标唯一实现、质量门、血缘标记</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>规则卡 11 条 + 唯一求值 + 组合覆盖</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>市场状态 → 仓位区间 → 目标权重</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>差额→动作→订单（含六条边界）</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>相对强弱（同日基准）、板块评分、覆盖度</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>单文件页面 + 本地解密 + 盈亏计算</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>点评五段、洞察四块、复盘对照、候选</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>池外持仓目标补算（日线→结构目标三级）</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>缠论展示层（中枢/笔/背驰/三买 + 与目标关系）</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>市场快照（广度/分布/外盘/折溢价）</td>
+<td>✅（沙箱网络受限时保留旧值）</td>
+</tr>
+<tr class="even">
+<td>宽基份额、指数行业权重</td>
+<td>✅（需联网跑）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="162-未实现--只做展示">16.2 未实现 / 只做展示</h3>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>状态</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>板块技术面（行业代表 ETF 周线）</td>
+<td>未接入</td>
+<td>四维评分永远「缺 1 项」</td>
+</tr>
+<tr class="even">
+<td>双评分卡中的估值/领先股/景气/资金/龙头</td>
+<td>未接入</td>
+<td>卡片标未接入项数</td>
+</tr>
+<tr class="odd">
+<td>快讯/政策/日历/估值/宏观/资金面</td>
+<td>人工快照</td>
+<td>日期可能落后，顶部有提示</td>
+</tr>
+<tr class="even">
+<td>情绪分/连板/恐慌/连续普跌</td>
+<td>人工快照</td>
+<td>非实时计算</td>
+</tr>
+<tr class="odd">
+<td>隔夜 A50 / 铜</td>
+<td>未接入</td>
+<td>外围只有 6 项</td>
+</tr>
+<tr class="even">
+<td>缠论进入执行链</td>
+<td>未接入</td>
+<td>需先跑 A/B 回测并通过门槛</td>
+</tr>
+<tr class="odd">
+<td><code>data/brief.json</code> / <code>news_note.json</code>
+自动生成</td>
+<td>无执行器</td>
+<td>缺失时点评走引擎、解读不显示</td>
+</tr>
+<tr class="even">
+<td>指南 4.2.5 纪律闸门</td>
+<td>未单独成块</td>
+<td>规则散落在个股卡与表下说明</td>
+</tr>
+<tr class="odd">
+<td>板块快照自动刷新</td>
+<td>无脚本</td>
+<td><code>sector_flow.csv</code> 仍是演示快照</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-关键设计决策">17. 关键设计决策</h2>
+<table>
+<thead>
+<tr class="header">
+<th>决策</th>
+<th>原因</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>动作只走一个出口（目标仓位表）</td>
+<td>旧版四套判断互相打架</td>
+<td>规则卡只能管「最早减仓时点」</td>
+</tr>
+<tr class="even">
+<td>持仓只在浏览器解密与计算</td>
+<td>服务端与产物拿不到持仓</td>
+<td>订单无法进入 <code>analysis_packet.orders</code></td>
+</tr>
+<tr class="odd">
+<td>池外持仓在浏览器补算目标</td>
+<td>后端只认识观察池</td>
+<td>同一公式两份实现，需对拍</td>
+</tr>
+<tr class="even">
+<td>数据不足一律 ABSTAIN</td>
+<td>避免用估算值出单</td>
+<td>部分日子页面「没有动作」</td>
+</tr>
+<tr class="odd">
+<td>缠论只做展示</td>
+<td>没有样本外验证</td>
+<td>用户可能觉得「没按缠论分析」</td>
+</tr>
+<tr class="even">
+<td>单文件 HTML</td>
+<td>双击可看、无构建依赖</td>
+<td>文件 320 KB，内联重复</td>
+</tr>
+<tr class="odd">
+<td>规则卡外置 YAML</td>
+<td>改参数不改代码、可审查</td>
+<td>谓词需在 Python/JS 双实现</td>
+</tr>
+<tr class="even">
+<td>三日期分离</td>
+<td>行情日 ≠ 人工快照日 ≠ 运行日</td>
+<td>页面要额外提示，易被误读</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="18-已知风险与后续">18. 已知风险与后续</h2>
+<h3 id="181-风险">18.1 风险</h3>
+<table>
+<thead>
+<tr class="header">
+<th>风险</th>
+<th>表现</th>
+<th>缓解</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>免费行情源限流</td>
+<td>东财 push2 断连</td>
+<td>立即降级腾讯/新浪，不重试</td>
+</tr>
+<tr class="even">
+<td>人工快照过期</td>
+<td>情绪/快讯落后两三周</td>
+<td>顶部提示快照日；<code>as_of</code> 只在广度成功时刷新</td>
+</tr>
+<tr class="odd">
+<td>板块快照是演示值</td>
+<td>热力图与板块评分失真</td>
+<td>计划接入 <code>fetch_sector_flow()</code> 进 daily</td>
+</tr>
+<tr class="even">
+<td>两份目标公式漂移</td>
+<td>池内/池外口径不一致</td>
+<td>同一组常量 + node 测试；后续补对拍</td>
+</tr>
+<tr class="odd">
+<td>缠论简化实现被误当结论</td>
+<td>用户以为进入决策</td>
+<td>卡片明写「展示层 · 不改动作」</td>
+</tr>
+<tr class="even">
+<td>日线 900 根上限</td>
+<td>月线最多约 41 个月</td>
+<td>足够 20 月线，但不足 60 月</td>
+</tr>
+</tbody>
+</table>
+<h3 id="182-建议的下一步按优先级">18.2 建议的下一步（按优先级）</h3>
+<ol type="1">
+<li><strong>P0</strong> <code>as_of</code>
+与分块日期：<code>market.json</code> 增加
+<code>blocks_as_of</code>，顶部按块提示。</li>
+<li><strong>P0</strong> 板块快照接实时：复用
+<code>akshare_adapter.fetch_sector_flow()</code>，加入 daily 与
+PRODUCTS。</li>
+<li><strong>P0</strong> 行业权重进 daily：失败沿用并
+<code>stale:true</code>。</li>
+<li><strong>P1</strong> daily 前置
+<code>pytest</code>，测试红不推送。</li>
+<li><strong>P1</strong> 纪律闸门成块、<code>outlookConflicts()</code>
+接线。</li>
+<li><strong>P1</strong> 板块技术面（行业代表 ETF 周线）。</li>
+<li><strong>P2</strong> 清理死函数（<code>friendlyIssues</code> /
+<code>renderPage5</code> / <code>rsRsi</code> 等）。</li>
+<li><strong>P2</strong> 缠论 Python/JS 对拍 + A/B 回测。</li>
+</ol>
+<hr />
+<h2 id="附录-a常用命令">附录 A：常用命令</h2>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 每日更新（唯一入口）</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/daily.sh</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 离线调试（不拉远端）</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="va">SKIP_PULL</span><span class="op">=</span>1 <span class="fu">bash</span> scripts/daily.sh</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 带口令生成持仓报告</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="va">POSITIONS_PASSPHRASE</span><span class="op">=</span><span class="st">&#39;你的口令&#39;</span> <span class="fu">bash</span> scripts/daily.sh</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 只生成页面不推送</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> scripts/run_update.py <span class="at">--json</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 只校验产物</span></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> scripts/run_update.py <span class="at">--verify</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 测试</span></span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> pytest tests <span class="at">-q</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> <span class="at">--check</span> src/etfquant/web_assets/app.js</span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 演示页（不碰线上产物）</span></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> scripts/gen_page_demo.py</span></code></pre></div>
+<h2 id="附录-b字段速查">附录 B：字段速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>想找</th>
+<th>字段</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>行情日</td>
+<td><code>meta.data_date</code></td>
+</tr>
+<tr class="even">
+<td>快照日</td>
+<td><code>meta.snapshot_date</code></td>
+</tr>
+<tr class="odd">
+<td>运行状态</td>
+<td><code>meta.status</code></td>
+</tr>
+<tr class="even">
+<td>总仓位上限</td>
+<td><code>plan.total_target</code></td>
+</tr>
+<tr class="odd">
+<td>仓位区间</td>
+<td><code>plan.fit_lo</code> ~ <code>plan.fit_hi</code></td>
+</tr>
+<tr class="even">
+<td>单只目标</td>
+<td><code>plan.items[].target_weight</code></td>
+</tr>
+<tr class="odd">
+<td>评级 / 上限</td>
+<td><code>plan.items[].grade</code> / <code>.cap</code></td>
+</tr>
+<tr class="even">
+<td>全市场位置</td>
+<td><code>legs[].rs.excess5</code> / <code>.rs_label</code></td>
+</tr>
+<tr class="odd">
+<td>板块权重</td>
+<td><code>sector_weights.indices[idx][行业]</code></td>
+</tr>
+<tr class="even">
+<td>ETF→指数</td>
+<td><code>sector_weights.etf_index[code]</code></td>
+</tr>
+<tr class="odd">
+<td>宽基份额</td>
+<td><code>market.national_team.series[-1].groups</code></td>
+</tr>
+<tr class="even">
+<td>消息解读</td>
+<td><code>market.news_sentiment.note</code></td>
+</tr>
+<tr class="odd">
+<td>数据质量</td>
+<td><code>packet.data_quality</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="附录-c术语">附录 C：术语</h2>
+<table>
+<thead>
+<tr class="header">
+<th>用</th>
+<th>不用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>每只持仓 / 这只基金</td>
+<td>腿、标的、leg</td>
+</tr>
+<tr class="even">
+<td>目标仓位表</td>
+<td>账本、ledger</td>
+</tr>
+<tr class="odd">
+<td>总仓位上限</td>
+<td>锚、anchor</td>
+</tr>
+<tr class="even">
+<td>评级</td>
+<td>档位、level</td>
+</tr>
+<tr class="odd">
+<td>下单信息</td>
+<td>单据、ticket</td>
+</tr>
+<tr class="even">
+<td>数据不足，暂不判断</td>
+<td>ABSTAIN</td>
+</tr>
+<tr class="odd">
+<td>池外补算</td>
+<td>临时估算</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
