@@ -16,7 +16,8 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ... import config
+ROOT = config.ROOT
 SNAP_DIR = os.path.join(ROOT, 'data', 'snapshot')
 MARKET_PATH = os.path.join(SNAP_DIR, 'market.json')
 
@@ -168,8 +169,7 @@ def _fetch_global():
 def _fetch_premium():
     """用 akshare_adapter.fetch_spot（东财 fund_etf_spot_em）算全部 ETF 折溢价。"""
     try:
-        sys.path.insert(0, os.path.join(ROOT, 'src'))
-        from etfquant.datasource.akshare_adapter import fetch_spot
+        from ..akshare_adapter import fetch_spot
         df = fetch_spot()
     except Exception as e:
         return None
@@ -276,6 +276,3 @@ def main():
     print(f'market.json 已更新：as_of={as_of_now}，本次刷新 {new_count} 个字段')
     return 0
 
-
-if __name__ == '__main__':
-    sys.exit(main())

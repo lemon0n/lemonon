@@ -8,7 +8,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNAP = os.path.join(ROOT, 'data', 'snapshot', 'index_sector_weights.json')
 SECTOR_CSV = os.path.join(ROOT, 'data', 'snapshot', 'sector_flow.csv')
-SCRIPT = os.path.join(ROOT, 'scripts', 'fetch_index_sector_weights.py')
+sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 
 def _doc():
@@ -23,10 +23,8 @@ def _sectors():
 
 
 def _module():
-    spec = importlib.util.spec_from_file_location('fetch_index_sector_weights', SCRIPT)
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
-    return m
+    from etfquant.datasource.fetch import sector
+    return sector
 
 
 def test_snapshot_exists_and_shape():

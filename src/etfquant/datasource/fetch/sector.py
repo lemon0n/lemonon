@@ -27,7 +27,8 @@ import tempfile
 
 import yaml
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ... import config
+ROOT = config.ROOT
 OUT = os.path.join(ROOT, 'data', 'snapshot', 'index_sector_weights.json')
 SECTOR_CSV = os.path.join(ROOT, 'data', 'snapshot', 'sector_flow.csv')
 UNIVERSE = os.path.join(ROOT, 'config', 'universe.yaml')
@@ -209,10 +210,10 @@ def valid(weights, sectors):
     return 99 <= sum(weights.values()) <= 101
 
 
-def main():
-    ap = argparse.ArgumentParser()
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog='fetch sector')
     ap.add_argument('--dry-run', action='store_true')
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     etf_index = load_universe()
     sectors = load_sectors()
@@ -300,6 +301,3 @@ def main():
         print('降级：' + '；'.join(errors), file=sys.stderr)
     return 0
 
-
-if __name__ == '__main__':
-    sys.exit(main())

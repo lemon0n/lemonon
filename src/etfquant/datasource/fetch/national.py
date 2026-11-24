@@ -25,7 +25,8 @@ import sys
 import tempfile
 import time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ... import config
+ROOT = config.ROOT
 OUT = os.path.join(ROOT, 'data', 'national_team.json')
 
 CODE_GROUPS = {
@@ -96,10 +97,10 @@ def _load():
         return None
 
 
-def main():
-    ap = argparse.ArgumentParser()
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog='fetch national')
     ap.add_argument('--weeks', type=int, default=30, help='回补最近多少周（默认 30）')
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     old = _load() or dict(series=[])
     have = {x['date'] for x in old['series']}
@@ -153,6 +154,3 @@ def main():
           % (out['as_of'], len(series), added))
     return 0
 
-
-if __name__ == '__main__':
-    sys.exit(main())
