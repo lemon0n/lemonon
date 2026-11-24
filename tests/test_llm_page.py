@@ -107,3 +107,46 @@ def test_failed_run_page_says_no_new_advice(tmp_path):
     assert payload['final']['status'] == 'ABSTAIN'
     html = _run_js({'research': payload}, tmp_path)
     assert '数据不足' in html
+
+
+def _render_page(tmp_path, payload):
+    from etfquant import config, webgen
+    empty = {}
+    data = {
+        'meta': {'as_of': '2026-11-24 16:00:00', 'data_date': '2026-11-24',
+                 'status': 'OK', 'source': {'live': True}, 'run_id': 'r1',
+                 'mode': 'live', 'tz': 'Asia/Shanghai'},
+        'market': {'as_of': '2026-11-24', 'indices': [], 'breadth': {},
+                   'sentiment': {}, 'rotation': {}, 'distribution': {},
+                   'premium': {}, 'valuation': {}, 'global': {}, 'liquidity': {},
+                   'macro': {}, 'news': [], 'calendar': {}, 'policy_heat': [],
+                   'heat': [], 'flow': []},
+        'legs': [], 'orders': [], 'packet': {}, 'contract': {}, 'plan': None,
+        'research': payload,
+    }
+    web_dir = tmp_path / 'web'
+    config.ensure_dirs(str(web_dir))
+    old = config.WEB
+    config.WEB = str(web_dir)
+    try:
+        out = webgen.render(data)
+        return open(out['path'], encoding='utf-8').read()
+    finally:
+        config.WEB = old
+
+
+def test_built_page_contains_research_view(tmp_path):
+    _, _, payload = _payload(tmp_path)
+    html = _render_page(tmp_path, payload)
+    assert 'data-p="p8"' in html and 'id="p8"' in html
+    assert 'researchPage' in html                    # research.js 已注入
+    assert '模型研究' in html
+    assert '"research"' in html                      # 载荷已内嵌
+
+
+def test_page_without_research_omits_script(tmp_path):
+    html = _render_page(tmp_path, None)
+    assert 'id="p8"' in html
+    # 没有研究结果就不注入 research.js（app.js 里的 typeof 守卫会跳过渲染）
+    assert 'function researchPage' not in html
+    assert '研究层没有可用结果' not in html
