@@ -784,7 +784,8 @@ function candidateTable(cands){
 /* 零持仓首屏：全现金组合；只给研究候选，绝不生成订单 */
 function portfolioNav(){
   return '<nav class="portfolio-nav" aria-label="持仓分析分区">'+[
-    ['overview','组合概览'],['holdings','逐仓分析'],['drivers','市场与外部驱动'],['structure','结构与回溯']
+    ['research','模型结论'],['overview','组合概览'],['holdings','逐仓分析'],
+    ['drivers','市场与外部驱动'],['structure','结构与回溯']
   ].map(function(x){return '<button type="button" onclick="scrollPortfolioSection(\''+x[0]+'\')">'+x[1]+'</button>';}).join('')+'</nav>';
 }
 function activatePortfolioNav(id){
