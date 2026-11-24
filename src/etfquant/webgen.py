@@ -166,8 +166,6 @@ SHELL = '''<!DOCTYPE html>
               title="收起导航" aria-label="收起或展开导航">«</button>
       <div class="nav-i on" data-p="p1" onclick="nav('p1')" title="市场概况">
         <span class="ic">市</span><span class="lb">市场概况</span></div>
-      <div class="nav-i" data-p="p8" onclick="nav('p8')" title="模型研究">
-        <span class="ic">研</span><span class="lb">模型研究</span></div>
       <div class="nav-i lock-only" data-p="p5" onclick="nav('p5')" title="持仓分析">
         <span class="ic">仓</span><span class="lb">持仓分析</span></div>
       <div class="nav-i lock-only" data-p="p7" onclick="nav('p7')" title="持仓设置">
@@ -177,7 +175,6 @@ SHELL = '''<!DOCTYPE html>
     </div>
     <div class="content">
       <div class="page on" id="p1"></div>
-      <div class="page" id="p8"></div>
       <div class="page" id="p5"></div>
       <div class="page" id="p7"></div>
       <div class="foot-note">仅供研究参考，不构成投资建议。</div>

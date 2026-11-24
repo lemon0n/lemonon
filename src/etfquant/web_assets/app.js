@@ -839,6 +839,11 @@ function page5CashOnly(h,p,s1,adv){
 
 function page5(){
   var h='<div class="pg-h"><h1>持仓分析</h1></div>';
+  /* 模型结论并进持仓分析（不再单独占一个标签页） */
+  if(typeof researchSectionHTML==='function'){
+    h+='<section class="portfolio-section" id="portfolio-research">'+
+       researchSectionHTML()+'</section>';
+  }
   var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
   PDEC=buildPdec(p,s1,adv);
   RS_PORT=p; RS_S1=s1; RS_ADV=adv; adv5RowsCache=adv.rows;
@@ -3975,8 +3980,6 @@ function render(){
               'ERROR':'运行或校验失败，未发布可执行建议'}[st]||st;
   }
   document.getElementById('p1').innerHTML=page1();
-  var p8=document.getElementById('p8');
-  if(p8) p8.innerHTML=(typeof researchPage==='function')?researchPage():'';
   document.getElementById('p5').innerHTML=page5();
   document.getElementById('p7').innerHTML=page7();
   layoutHeatmap();

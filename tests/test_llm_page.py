@@ -29,7 +29,7 @@ var D = JSON.parse(process.argv[2] || '{}');
 def _run_js(payload, tmp_path):
     if not NODE:
         pytest.skip('没有 node')
-    src = HARNESS + open(ASSET, encoding='utf-8').read() + '\nconsole.log(researchPage());\n'
+    src = HARNESS + open(ASSET, encoding='utf-8').read() + '\nconsole.log(researchSectionHTML());\n'
     path = tmp_path / 'page.js'
     path.write_text(src, encoding='utf-8')
     out = subprocess.run([NODE, str(path), json.dumps(payload, ensure_ascii=False)],
@@ -138,15 +138,16 @@ def _render_page(tmp_path, payload):
 def test_built_page_contains_research_view(tmp_path):
     _, _, payload = _payload(tmp_path)
     html = _render_page(tmp_path, payload)
-    assert 'data-p="p8"' in html and 'id="p8"' in html
-    assert 'researchPage' in html                    # research.js 已注入
+    assert 'data-p="p8"' not in html and 'id="p8"' not in html
+    assert 'portfolio-research' in html          # 结论并进持仓分析页
+    assert 'researchSectionHTML' in html                    # research.js 已注入
     assert '模型研究' in html
     assert '"research"' in html                      # 载荷已内嵌
 
 
 def test_page_without_research_omits_script(tmp_path):
     html = _render_page(tmp_path, None)
-    assert 'id="p8"' in html
+    assert 'id="p8"' not in html
     # 没有研究结果就不注入 research.js（app.js 里的 typeof 守卫会跳过渲染）
-    assert 'function researchPage' not in html
+    assert 'function researchSectionHTML' not in html
     assert '研究层没有可用结果' not in html

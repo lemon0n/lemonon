@@ -1,4 +1,4 @@
-/* 模型研究页（执行书 24.1）：五块内容全部只读 D.research，不在前端推导第二套结论。
+/* 持仓分析页里的「模型结论」区块：只读 D.research，不在前端推导第二套结论。
    数据来源：llm/publish.py 生成的脱敏载荷（只有权重百分比，没有金额/份额）。
    真实份数仍由解锁持仓后在浏览器内按 orderTicket() 计算。 */
 
@@ -226,9 +226,9 @@ function rpTracking(R){
   return h;
 }
 
-function researchPage(){
+function researchSectionHTML(){
   var R=D&&D.research;
-  var h='<div class="pg-h">模型研究<span class="rs-muted">LLM 研究决策层 · 只读</span></div>';
+  var h='<div class="rs-sec"><span class="bar"></span>模型结论（今日）</div>';
   if(!R) return h+rpEmpty();
   h+=rpStatusBar(R);
   h+=rpCore(R);
@@ -236,7 +236,7 @@ function researchPage(){
   h+=rpRedteam(R);
   h+=rpFinal(R);
   h+=rpTracking(R);
-  h+='<div class="foot-note">研究结论由本地模型产生并通过确定性风控；'+
-     '页面只展示结果，不在前端重算建议。第一阶段只产出订单草案，不连接券商。</div>';
+  h+='<div class="rs-note">以上结论由研究层（Research → 反方 → 修订 → 确定性风控）产出，'+
+     '只给目标权重与条件，不连接券商；份数需按你的实际持仓在下方明细表确认。</div>';
   return h;
 }
