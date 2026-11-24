@@ -6,7 +6,7 @@ var D = null;
 var PASS = '';                    /* 解锁口令，只存在内存 / 当前标签页会话 */
 var HOLD = {rows: [], cash: 0};   /* 已保存的持仓 */
 var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
-var PQ = {};                      /* 持仓里不在观察池的 ETF 实时价缓存 {last,prev,chg} */
+var PQ = {};                      /* 持仓 ETF 的实时价缓存 {last,prev,chg} */
 var QNAME = {};                   /* 行情源返回的基金名称缓存 {code: name}，用于补名与自动分类 */
 var PERF = null, PERF_BUSY = false;
 var ENC = null, ENC_LOADING = null;   /* 云端密文包 */
@@ -134,7 +134,7 @@ function tSym(code){ return (code[0]==='5'||code[0]==='6'||code[0]==='9'?'sh':'s
 function applyQuote(code,last,prev,name){
   var chg=(isFinite(prev)&&prev>0)?Math.round((last/prev-1)*10000)/100:null;
   code=String(code);
-  PQ[code]={last:last,prev:prev,chg:chg};   /* 持仓里可能有观察池之外的标的 */
+  PQ[code]={last:last,prev:prev,chg:chg};   /* 持仓标的可能不在 legs 里 */
   if(name&&name!==code) QNAME[code]=String(name).trim();
   (D.legs||[]).forEach(function(l){
     if(String(l.code)===code){
@@ -868,6 +868,9 @@ function _barsFromTencent(arr){
           vols:arr.map(function(x){ return parseFloat(x[5]); })};
 }
 function fetchBars(code,cb){
+  var db=(D.demo_positions&&D.demo_positions.bars)||{};
+  var row=db[String(code)];
+  if(row&&row.closes&&row.closes.length>=20){ cb(row); return; }   /* demo：本地日线 */
   fetchBarsTencent(code,function(b){
     if(b&&b.closes&&b.closes.length>=20){ cb(b); return; }
     fetchBarsEm(code,function(b2){ cb(b2||b||null); });
@@ -1240,7 +1243,7 @@ function quickAdd(){
   refreshDerived();
   if(!l) autoName(c);
 }
-/* 观察池外的代码：用腾讯行情补名称，失败就留代码 */
+/* 未知代码：用腾讯行情补名称，失败就留代码 */
 function autoName(code){
   loadScript('https://qt.gtimg.cn/q='+tSym(code),'gbk',function(){
     var raw=window['v_'+tSym(code)];
@@ -2029,7 +2032,7 @@ function changePass(){
 /* ================= 持仓研究页（三部分） ================= */
 var RS_PORT=null, RS_S1=null, RS_ADV=null, RS_SELECTED=null;
 var RS_WEEK={}, RS_TRIED={}, RS_WTRIED={}, RS_IDEA_TRIED={};
-var RS_IDEAS=[];   /* 由观察池动态生成，见 buildIdeas() */
+var RS_IDEAS=[];   /* 由研究范围动态生成，见 buildIdeas() */
 /* 行业归属：先看后端注入的指数权重（精确），没有就按名称关键词自动识别，
    再按类别兜底。目的是让持仓里池外/行业主题 ETF 也能进板块结构，而不是一律「未覆盖」。 */
 var RS_SECTOR_CACHE={};
@@ -2655,8 +2658,8 @@ function orderTicket(r,targetW,total,opt){
   out.note=out.note||'';
   return out;
 }
-/* ---------------- 持仓在观察池外时的目标仓位 ----------------
-   后端 plan_v3 只知道观察池里的代码，而持仓里常有池外标的（行业主题、债券、海外）。
+/* ---------------- 持仓的目标仓位补算 ----------------
+   后端只给 legs 里的代码，而持仓常有不在这批里的标的（行业主题、债券、海外）。
    这些标的按与 plan_v3 同一口径在浏览器补算（日线已在本地），完全没有日线的持仓
    退到「类别结构目标」：只给参考目标与「等待确认」，不生成买卖动作。 */
 var PLAN_CAP={S:25,A:20,B:10,C:5,D:3};
@@ -2907,7 +2910,7 @@ function rsPlanRowHTML(x){
   }
   var priceTxt=o.limit!=null?f3(o.limit):('不挂单'+(o.note?'（'+esc(o.note)+'）':''));
   var srcTag=(x.item&&x.item.client)
-    ?'<br><span class="muted">池外补算 · '+(x.item.score!=null?x.item.score+' 分 ':'')+(x.grade||'—')+' 级</span>'
+    ?'<br><span class="muted">本地补算 · '+(x.item.score!=null?x.item.score+' 分 ':'')+(x.grade||'—')+' 级</span>'
     :(x.structTarget?'<br><span class="muted">结构参考目标</span>':'');
   return '<tr><td>'+esc(r.name||r.code)+'<br><span class="muted">'+esc(r.code)+'</span></td>'+
     '<td>'+esc(rsSectorLabel(r.code,r.name,r.category))+'</td>'+
@@ -2965,7 +2968,7 @@ function rsPageHTML(p,s1,adv){
      '<div class="rs-note">排序按本次操作金额降序；挂单价为限价保护（买 ×1.0001 进位、卖 ×0.9999 截断到 0.001），不保证成交；'+
      '目标权重来自目标仓位表，动作与订单由它派生；规则卡只决定最早减仓时点，不另给方向。'+
      (orderRows.some(function(x){ return x.item&&x.item.client; })
-       ?'标「池外补算」的行：观察池里没有这只，目标按同一口径用浏览器取到的日线现算。':'')+
+       ?'标「本地补算」的行：该标的目标按同一口径用页面取到的日线现算。':'')+
      '</div></div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
@@ -3093,7 +3096,7 @@ function rsPageHTML(p,s1,adv){
   h+='<div class="box"><div id="rsReview" class="rs-note">加载中…</div></div>';
 
   h+='<div class="rs-sub">6. 新方向候选（受环境额度约束）</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自观察池（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只，不含不碰名单）；环境额度不足时只写「观察」。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自研究范围（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只）；当前 scope=holdings 时不生成候选。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
   return h;
 }
 function rsAfterBars(){
@@ -3182,10 +3185,11 @@ function rsDetailFallback(code,row){
       kpi('数据状态', state, '腾讯 / 东财两路都没给出可用 K 线', true)+
     '</div></div>'+
     '<div class="box" style="margin-top:10px"><div class="bt">为什么这块没有结构图和均线</div>'+
-    '<div class="rs-note" style="margin-top:0">'+esc(nm)+' 不在公开观察池里，日线由浏览器向腾讯、东财公开接口现取；'+
+    '<div class="rs-note" style="margin-top:0">'+esc(nm)+' 的日线按持仓代码单独取'+
+    '（腾讯、东财公开接口；demo 用本地缓存）；'+
     '这次没有拿到 30 根以上有效 K 线（网络拦截、源站未覆盖、停牌或长假都可能）。'+
     '在行情到位之前，不臆造均线、结构图和概率；目标与动作仍按目标仓位表给出。</div>'+
-    '<div class="rs-note">目标 '+tgt+' 来自类别结构目标或观察池评分口径，只作参考；'+
+    '<div class="rs-note">目标 '+tgt+' 来自目标仓位表与结构目标，只作参考；'+
     '行情恢复后这张卡会自动补出八块（三周期、双评分卡、结构图、概率）。</div>'+
     '<div class="rs-note"><button type="button" class="rs-pill" onclick="rsRetryBars(\''+
       esc(code)+'\')">重新取行情</button></div></div>';
@@ -3909,7 +3913,7 @@ function rsRenderReview(){
     '；目标变化 '+changed+' 只。快照只存在本机浏览器，对照的是计划，不是成交回报。</div>';
 }
 
-/* 新方向候选：从观察池动态生成，排除已持仓、同类别只留一只；
+/* 新方向候选：由研究范围生成，排除已持仓、同类别只留一只；
    额度不足时一律“观察”，不给买入建议，避免与组合层结论冲突。 */
 function buildIdeas(){
   var held={}; (HOLD.rows||[]).forEach(function(r){ held[String(r.code)]=1; });
@@ -3945,7 +3949,7 @@ function rsRenderIdeas(){
   if(!body) return;
   if(!RS_IDEAS.length) RS_IDEAS=buildIdeas();
   if(!RS_IDEAS.length){
-    body.innerHTML='<tr><td colspan="9" class="muted">观察池中没有满足条件的候选（板块 B 级以上、非持仓、近 5 日不弱于大盘、不含不碰名单）。</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="muted">当前研究范围（scope=holdings）不生成新方向候选。</td></tr>';
   }else{
   body.innerHTML=RS_IDEAS.map(function(x){
     var f=rsForecast(LBARS[x.code]);

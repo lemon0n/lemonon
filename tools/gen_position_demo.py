@@ -18,6 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 from etfquant import config, webgen                       # noqa: E402
+from etfquant.datasource import loader                    # noqa: E402
 from etfquant.llm import storage                          # noqa: E402
 
 
@@ -37,6 +38,22 @@ def latest_run() -> str:
     return names[0]
 
 
+def bars_of(code: str, n: int = 180) -> dict | None:
+    """持仓日线（页面画均线与结构图用）；取不到就不塞，页面会走自己的取数/回退卡。"""
+    try:
+        df = loader.daily(code)
+    except Exception:
+        return None
+    if df is None or len(df) < 30:
+        return None
+    df = df.tail(n)
+    def nums(col):
+        return [None if v != v else float(v) for v in df[col].tolist()]
+    return dict(dates=[str(x)[:10] for x in df['date'].tolist()],
+                opens=nums('open'), closes=nums('close'),
+                highs=nums('high'), lows=nums('low'), vols=nums('volume'))
+
+
 def demo_positions(context: dict) -> dict:
     port = context.get('portfolio') or {}
     rows = []
@@ -47,7 +64,12 @@ def demo_positions(context: dict) -> dict:
                          category=p.get('category') or '未分类',
                          shares=int(p['shares']), cost=float(p.get('cost') or 0),
                          settle='T+1', last=p.get('last')))
-    return dict(rows=rows, cash=float(port.get('cash') or 0))
+    bars = {}
+    for row in rows:
+        b = bars_of(row['code'])
+        if b:
+            bars[row['code']] = b
+    return dict(rows=rows, cash=float(port.get('cash') or 0), bars=bars)
 
 
 def main(argv=None) -> int:
