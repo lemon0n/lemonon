@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""回测引擎 v2：与生产共用同一信号函数与组合约束（指导书第 8 章 / P0-6）。
+"""回测引擎：与生产共用同一信号函数与组合约束。
 
-修复的已知缺陷：
-  1. 入场/出场不再是「简化版策略」：逐日调用 features.frame + methodology.decide，
-     与生产持仓分析、观察池、网页使用同一规则卡与同一指标定义（含 true_breakout
-     与上影线取同一根 K 线）；
+行为约定：
+  1. 入场/出场直接调用 features.frame + methodology.decide，与生产持仓分析、
+     观察池、网页使用同一规则卡与同一指标定义（含 true_breakout 与上影线取同一根 K 线）；
   2. 腿数在「成交时」再次检查，不能靠信号端绕过；
-  3. 买入预算 = 当前总权益 × 目标权重（不再用「剩余现金 × 比例」递减排权）；
+  3. 买入预算 = 当前总权益 × 目标权重；
   4. 缺 K 线时沿用最近一次合法收盘估值并标记 stale，市值不归零；
   5. 信号订单保留到该证券下一个可交易日，不因全局日期错位丢弃；
   6. 交易统计按完整持仓周期聚合，金额口径 profit factor；部分卖出单独计数；
@@ -94,7 +93,7 @@ def _feature_dicts(f, warm):
     return out
 
 
-def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
+def run_portfolio(bars_by_code, p=None, cfg=None):
     """多标的组合走查。返回 trades / equity / legs / stats。"""
     cfg = cfg or config.cfg()
     p = dict(DEFAULT_PARAMS, **(p or {}))
@@ -299,14 +298,12 @@ def run_portfolio(bars_by_code, p=None, cfg=None, bench_df=None):
 
 
 def run(df, p=None, cfg=None):
-    """单标的：直接调用组合引擎，不再维护第二套实现。"""
+    """单标的：包装 run_portfolio，只多一步 date 列校验。"""
     code = 'SINGLE'
     bars = df.copy()
     if 'date' not in bars.columns:
         raise ValueError('单标的回测需要 date 列')
-    res = run_portfolio({code: bars}, p=p, cfg=cfg)
-    res['equity'] = res['equity']
-    return res
+    return run_portfolio({code: bars}, p=p, cfg=cfg)
 
 
 def metrics(eq, bench_eq=None):

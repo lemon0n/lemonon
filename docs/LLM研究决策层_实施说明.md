@@ -17,11 +17,18 @@
 | 冻结事实 | `llm/context.py`、`llm/evidence.py` | 生成 `context.json` 与证据目录、快照哈希 | 不调用模型，不做判断 |
 | LLM 研究 | `llm/pipeline.py` + `prompts/` | Research → Proposal → Red Team → Revision | 不能突破风控、不能编造数据、不能绕过证据 |
 | 确定性风控 | `llm/risk.py` | 批准 / 退回修复 / 拒绝 / 降级 | 不静默改权重，不改投资观点 |
-| 订单与报告 | `llm/orders.py`、`llm/report.py` | 差额订单草案、Markdown 报告 | 不连券商；报告不新增结论 |
+| 订单与报告 | `llm/orders.py`、`llm/report.py` | 差额订单草案、研究日报、**深度持仓分析** | 不连券商；报告不新增结论 |
 | 页面与接口 | `web_assets/research.js`、`llm/api.py` | 展示五块内容、只读接口 | 不持有模型密钥，不在前端重算建议 |
 
 **硬规则（执行书 1 / 22 章）**：Red Team 与 Revision 不得删除；模型不可用时状态必须是
 `LLM_FAILED`；不允许把规则模板包装成新的模型建议。
+
+**两种报告**（同一个 `FinalPlan` 渲染，数字同源）：
+
+| 文件 | 回答什么问题 | 何时生成 |
+|---|---|---|
+| `data/runs/<日期>/<run>/report.md` | 今天该不该动、风控改了什么 | 每次研究运行 |
+| `docs/持仓分析报告.md` | 我手里每一只到底在赌什么、什么情况算我错了 | 有持仓且模型产出计划时；失败回退确定性版 |
 
 ---
 
@@ -123,6 +130,13 @@ data/runs/<trade_date>/<HHMMSS>_<hash8>/
   任何一个数字在最终 JSON 里找不到就整篇退回确定性报告；
 - 报告必须披露：模型最初想做什么 → 风控发现什么 → 模型怎么改 → 最终批准什么。
 
+**深度持仓分析**（`render_positions` → `docs/持仓分析报告.md`）：
+- 组合层：持仓合计、现金权重、回撤、前三集中度、类别暴露、模型识别的组合风险、风控结论；
+- 逐只：角色 / 倾向 / 期限 / 观点 / 因果链（≥2 步）/ 支持证据 / 反证 / 「什么情况算我错了」/
+  现权重 → 目标权重 → 动作 → 优先级 → 执行条件 / 观测事实（5·20 日收益、距 MA20/MA60、波动、超额）;
+- 与规则基线不一致时会明确标注；模型没覆盖的持仓标「系统补 HOLD」；
+- 模型未产出计划时**不覆盖**旧报告，由 `daily.sh` 回退确定性版 `analyze_positions.py`。
+
 ---
 
 ## 7. 页面五块（`web_assets/research.js`）
@@ -178,6 +192,18 @@ python3.11 -m etfquant.llm.cli api --port 8008
 配置里 `provider: openai_compatible` 只允许连本地地址（`127.0.0.1` / `localhost`）；
 `provider: mock` 只能配合脚本客户端，运行结果标记 `LLM_MOCK`，**永不生成可执行订单**。
 
+### 仓库结构（只记这四条）
+
+| 目录 | 放什么 | 参与每日运行 |
+|---|---|---|
+| `scripts/` | `daily.sh`、`fetch.py`、`run_update.py`、`run_research.py`、`analyze_positions.py` | 是 |
+| `src/etfquant/` | 取数（`datasource/`）、指标、规则基线、页面打包、`llm/` 研究层 | 是 |
+| `tools/` | 回测、对照实验、快照生成等一次性工具 | 否 |
+| `docs/` | 在用的 5 份说明；历史设计与施工记录在 `docs/archive/` | 否 |
+
+数据抓取已合并成一个入口：`scripts/fetch.py [--market] [--national] [--sector] [--all]`，
+内部按任务隔离，任一失败只沿用上次快照，不会中断页面更新。
+
 ---
 
 ## 9. 失败与降级（执行书 0.4）
@@ -214,6 +240,7 @@ python3.11 -m pytest tests/ -q
 | `test_llm_no_lookahead.py` | T+1 K 线与回撤不得进入 context；报告数字回查 |
 | `test_llm_repeat.py` | 连续 5 次相同快照不交易、不换词 |
 | `test_llm_page.py` | 五块齐全、载荷无金额、无研究时明确说明 |
+| `test_llm_positions_report.py` | 深度持仓分析：逐只角色/反证/基线分歧、无持仓时的降级 |
 | `test_llm_cli.py` / `test_llm_integration.py` | doctor/replay/api、确定性层到研究层的接缝 |
 
 另有执行书 27 章的五个情景（模型应真正改变交易 / 反对基线 / 承认旧观点错误 /

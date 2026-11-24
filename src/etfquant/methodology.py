@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """方法论规则卡引擎 v2.0：唯一决策事实源。
 
-职责边界（对应指导书 P0-3 / P0-5 / 10.5）：
+职责边界：
   · 加载即校验：重复 ID、非法动作、非法等级、未知谓词、优先级冲突 → 抛异常，
     不允许用 always→HOLD 掩盖配置拼写错误；
   · decide() 是唯一动作求值函数：生产持仓、观察池、报告、回测都调用它；
@@ -181,11 +181,6 @@ def decide(feat, data_status='OK', overrides=None):
     return dict(status='OK' if data_status == 'OK' else 'DEGRADED',
                 level=level, action=action, rule_ids=rule_ids, hits=hits,
                 blocked_by=blocked, unknowns=[])
-
-
-def evaluate(feat, overrides=None):
-    """兼容旧调用：返回 decide() 的 level/action/hits/rule_ids。"""
-    return decide(feat, overrides=overrides)
 
 
 def compact():

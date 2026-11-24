@@ -20,6 +20,7 @@ from . import (client as client_mod, context as context_mod, evidence as evidenc
                memory, pipeline, policy, prompts as prompts_mod, publish, report, storage)
 
 MAX_EVENTS = 20
+DEFAULT_POSITIONS_REPORT = os.path.join(config.ROOT, 'docs', '持仓分析报告.md')
 
 
 def _names(legs) -> dict:
@@ -168,10 +169,12 @@ def _code_version() -> str:
 
 def run(collected: dict, *, scripted: list | None = None,
         settings: dict | None = None, now: datetime | None = None,
-        write_report: bool = True, memory_path: str | None = None) -> dict:
+        write_report: bool = True, memory_path: str | None = None,
+        positions_report_path: str | None = None) -> dict:
     """跑一次完整研究：建目录 → 冻结事实 → 四段链 → 风控 → 报告 → 发布。
 
-    memory_path 只在测试/多账户隔离时传；生产用 memory.db_path()（可用 ETF_LLM_DB 覆盖）。
+    memory_path / positions_report_path 只在测试与多账户隔离时传；
+    生产用默认路径（data/ledger、docs/持仓分析报告.md）。
     """
     settings = settings or policy.settings()
     pol = policy.risk_policy()
@@ -207,6 +210,13 @@ def run(collected: dict, *, scripted: list | None = None,
     if write_report:
         text = report.render(result['final'], result['research'], context)
         report.write_report(os.path.join(run_dir, 'report.md'), text)
+        # 深度持仓报告：模型真的产出了计划才覆盖旧版确定性报告，
+        # 否则保留 analyze_positions.py 的产物（不能拿空结论冒充深度分析）
+        if (context.get('portfolio') or {}).get('positions') \
+                and result['final'].model_proposal is not None \
+                and provider != 'mock':
+            deep = report.render_positions(result['final'], result['research'], context)
+            report.write_report(positions_report_path or DEFAULT_POSITIONS_REPORT, deep)
     payload = publish.page_payload(
         result['final'], research=result['research'], redteam=result['redteam'],
         revised=result['revised'], context=context,

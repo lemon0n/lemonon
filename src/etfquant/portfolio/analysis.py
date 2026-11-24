@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """持仓分析引擎：S1–S5 + 执行后复核（单一决策契约的唯一实现）。
 
-与旧版的差异（指导书 P0-03/P0-07、第 9 章）：
-  · 动作只有一个来源：methodology.decide()；本模块不再另写等级判断；
+行为约定：
+  · 动作只有一个来源：methodology.decide()；本模块不另写等级判断；
   · 每个标的输出「证据卡」：事实 / 比较 / 规则 / 组合含义 / 反证 / 未知项 / 失效条件；
   · 组合建议必须经过 post-trade simulation（portfolio.execution.plan），
     执行后仓位、现金、结构、集中度、费用全部重新计算；
-  · 健康分拆成「数据质量 / 集中度 / 趋势 / 风险」四项仪表，不再输出单一伪精确分数；
+  · 健康分拆成「数据质量 / 集中度 / 趋势 / 风险」四项仪表，不输出单一伪精确分数；
   · 整体状态 OK / DEGRADED / ABSTAIN / DEMO / ERROR，对应能否给出交易动作。
 """
 import math
@@ -416,9 +416,9 @@ def analyze(port, snap, features, regime, cfg, meta=None):
 
 
 def dashboard(snap, legs, plan, corr, regime=None):
-    """把旧的单一「健康分」拆成四项可解释仪表（指导书 P1-06）。
+    """四项可解释仪表。
 
-    集中度按「执行后实际份额」复核，不再只取执行前快照。
+    集中度按「执行后实际份额」复核，不取执行前快照。
     """
     layers = snapshots.layers(snap, legs, regime)
     data_quality = dict(complete=bool(snap.get('complete')),
@@ -442,7 +442,6 @@ def dashboard(snap, legs, plan, corr, regime=None):
                              if (l.get('below_ma10_days') or 0) >= 1],
                  actions={a: sum(1 for l in legs if l['action'] == a)
                           for a in ('CLEAR', 'TRIM', 'ADD', 'HOLD', 'ABSTAIN')})
-    after = plan.get('portfolio_after') or {}
     risk_box = dict(
         post_trade_position_pct=after.get('position_pct'),
         post_trade_cash_pct=after.get('cash_pct'),

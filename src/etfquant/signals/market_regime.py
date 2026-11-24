@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """市场状态：只用可观测变量（基准趋势 / 均线排列 / 实现波动），不用叙事标签。
 
-对应指导书 5.5：
+输入与口径：
   · 输入是基准指数日线（由 loader.index_daily 获取的真实序列）；
   · 三个维度：收盘相对 MA20/MA60、MA5/MA20 排列、20 日实现波动是否抬升；
   · 数据不足 → regime='未知'，仓位区间为 null，上层不得据此给出仓位动作；
@@ -13,9 +13,9 @@ import pandas as pd
 from .. import config
 
 
-def classify(bench_bars):
+def classify(bench_bars, cfg=None):
     """基准日线 → {regime, fit_lo, fit_hi, observations, as_of}。"""
-    cfg = config.cfg()
+    cfg = cfg or config.cfg()
     if bench_bars is None or len(bench_bars) < 70:
         return dict(regime='未知', fit_lo=None, fit_hi=None, as_of=None,
                     observations=['基准日线不足 70 根，无法判定市场状态'])
@@ -115,8 +115,8 @@ def _gaps(bars, lookback=20):
 
 
 def compute(bench_bars, market=None, cfg=None):
-    """兼容旧调用签名：bench_bars 为主导输入，market 仅补充情绪文本（不参与定仓）。"""
-    out = classify(bench_bars)
+    """bench_bars 为主导输入，market 仅补充情绪文本（不参与定仓）。"""
+    out = classify(bench_bars, cfg)
     market = market or {}
     rot = market.get('rotation') or {}
     sent = market.get('sentiment') or {}

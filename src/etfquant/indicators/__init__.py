@@ -4,7 +4,7 @@
 唯一实现位于 features.py（生产持仓 / 观察池 / 回测共用），本模块只负责：
   · 把逐日特征复制成一只标的的扁平字典；
   · 并入实时价（last / change_pct）与折溢价；
-  · 给出可观测的状态文本（不再使用「真突破 = 出货」这类超出证据的命名）。
+  · 给出可观测的状态文本（不使用超出证据的命名）。
 """
 from . import premium
 from .. import config, features
@@ -97,14 +97,10 @@ def analyze(bars, spot_row, cfg=None):
         '慢跌快涨': bool(d.get('tb_slow_fast')),
         '有承接': bool(d.get('tb_support')),
     }
-    # 兼容旧字段：前端与报告仍有引用
+    # 别名：前端与报告引用 premium，取值等同 premium_state
     f['premium'] = f['premium_state']
     f['signal_date'] = d['signal_date']
     return f
-
-
-def _tb(d, key):
-    return bool(d.get(key, False))
 
 
 def _val(row, key, default=None):

@@ -1565,7 +1565,7 @@ function nationalTeamSection(){
   var ta=val(last,TOTAL), tp=val(prev,TOTAL), tc=win?val(win.base,TOTAL):null;
   var d1=(ta!=null&&tp)?(ta/tp-1)*100:null;
   var d4=(ta!=null&&tc)?(ta/tc-1)*100:null;
-  /* 六类宽基最新份额拼成一段，不再逐行加「仅展示」 */
+  /* 六类宽基最新份额拼成一段，只列最新一期 */
   var keys=(nt.order||[]).filter(function(k){ return k!==TOTAL; });
   var parts=keys.map(function(k){
     var a=val(last,k);
@@ -2018,7 +2018,7 @@ function changePass(){
   saveCloud();
 }
 
-/* ================= 新版持仓研究页（三部分） ================= */
+/* ================= 持仓研究页（三部分） ================= */
 var RS_PORT=null, RS_S1=null, RS_ADV=null, RS_SELECTED=null;
 var RS_WEEK={}, RS_TRIED={}, RS_WTRIED={}, RS_IDEA_TRIED={};
 var RS_IDEAS=[];   /* 由观察池动态生成，见 buildIdeas() */
@@ -2584,7 +2584,7 @@ function rsRenderBrief(p,s1){
 var adv5RowsCache=null;
 
 /* ---------------- 唯一出口：目标仓位表 → 差额 → 动作 → 订单 ----------------
-   页面上所有动作（明细表、个股卡、点评、洞察）只读这里，不再各自推一套。 */
+   页面上所有动作（明细表、个股卡、点评、洞察）只读这里。 */
 function f3(v){ var x=Number(v); return (v==null||!isFinite(x))?'—':x.toFixed(3); }
 function planItemOf(code){
   var pl=D.plan;
@@ -2594,7 +2594,7 @@ function planItemOf(code){
   }
   return null;
 }
-/* 差额 → 动作：完全按指南 7.5，只有这一处 */
+/* 差额 → 动作：阈值 3pct 的判定只在这一处 */
 function planActionOf(gap,wkUp,confirm,belowMa10){
   var thr=3;
   if(gap==null) return {action:'WAIT',text:'目标缺失',pace:null};
@@ -2649,9 +2649,8 @@ function orderTicket(r,targetW,total,opt){
 }
 /* ---------------- 持仓在观察池外时的目标仓位 ----------------
    后端 plan_v3 只知道观察池里的代码，而持仓里常有池外标的（行业主题、债券、海外）。
-   这些标的原来没有目标，页面一片「不设目标/目标缺失」。这里按与 plan_v3 同一口径
-   在浏览器补算（日线已在本地），并对完全没有日线的持仓退到「类别结构目标」：
-   只给参考目标与「等待确认」，不生成买卖动作。 */
+   这些标的按与 plan_v3 同一口径在浏览器补算（日线已在本地），完全没有日线的持仓
+   退到「类别结构目标」：只给参考目标与「等待确认」，不生成买卖动作。 */
 var PLAN_CAP={S:25,A:20,B:10,C:5,D:3};
 var PLAN_MAX_SINGLE=25, PLAN_TARGET_VOL=15, PLAN_TOP_N=6;
 function gradeOfScore(s){
@@ -2963,7 +2962,7 @@ function rsPageHTML(p,s1,adv){
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
-  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息（国家队已移出持仓分析） */
+  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息（国家队只作背景，不进持仓分析） */
   h+='<div class="rs-sub">1. 市场环境</div>';
   var rg0=(D.market&&D.market.regime)||{}, br=(D.market&&D.market.breadth)||{};
   var maR=maRegime(rg0);
@@ -3153,8 +3152,8 @@ function tick(txt,ok){
   return '<span class="tag '+(ok===null?'hold':(ok?'buy':'sell'))+'">'+
     (ok===null?'—':(ok?'✓':'✗'))+'</span> '+esc(txt);
 }
-/* 行情缺失时的降级卡：不再用一句「暂不展示」把整块吞掉。
-   目标与动作仍来自同一张目标仓位表（RS_PLAN），这里只说明为什么没有技术块，并给重取入口。 */
+/* 行情缺失时的降级卡：目标与动作仍来自同一张目标仓位表（RS_PLAN），
+   这里只说明为什么没有技术块，并给重取入口。 */
 function rsDetailFallback(code,row){
   var pr=rsPlanRow(code)||{}, o=pr.order||{};
   var px=priceOf(code), nm=nameOfRow(row)||code;

@@ -297,3 +297,183 @@ def write_report(path: str, text: str) -> str:
     from . import evidence as ev
     ev.atomic_write_text(path, text)
     return path
+
+
+# ---------------------------------------------------------------- 深度持仓分析
+def _view_of(research, symbol: str):
+    for view in getattr(research, 'asset_views', []) or []:
+        if view.symbol == symbol:
+            return view
+    return None
+
+
+def _asset_of(context: dict, symbol: str) -> dict:
+    for asset in context.get('assets') or []:
+        if asset.get('symbol') == symbol:
+            return asset
+    return {}
+
+
+def _row(label: str, value: str) -> str:
+    return '| %s | %s |' % (label, value)
+
+
+def render_positions(final: FinalPlan, research=None, context: dict | None = None) -> str:
+    """逐只持仓的深度分析（供 docs/持仓分析报告.md）。
+
+    与 report.render 的区别：那份回答「今天该不该动」，这份回答「我手里每一只
+    到底在赌什么、什么情况算我错了」。数据全部来自本次 context 与模型输出，
+    不重新计算、不补充模型没说过的话。
+    """
+    context = context or {}
+    portfolio = context.get('portfolio') or {}
+    positions = [p for p in portfolio.get('positions') or [] if p.get('weight')]
+    positions.sort(key=lambda p: -float(p.get('weight') or 0))
+    date = (context.get('meta') or {}).get('data_date') or final.trade_date
+    summary = final.research_summary or {}
+    revised = final.model_proposal
+    by_symbol = {t.symbol: t for t in (revised.trades if revised else [])}
+    names = {p.get('symbol'): p.get('name') for p in positions}
+
+    lines: list[str] = []
+    lines.append('# 持仓深度分析 · %s' % date)
+    lines.append('')
+    status_cn = {'APPROVED': '已批准', 'REJECTED': '未通过风控', 'ABSTAIN': '数据不足',
+                 'LLM_FAILED': '模型不可用', 'LLM_MOCK': '脚本模式'}.get(
+        final.status, final.status)
+    lines.append('> 组合状态：**%s**　研究时点：%s　持仓 %d 只'
+                 % (status_cn, final.as_of, len(positions)))
+    lines.append('')
+
+    if not positions:
+        lines.append('本次没有持仓数据（未设置持仓口令或持仓为空），只做市场层研究。')
+        return '\n'.join(lines) + '\n'
+
+    # ---- 组合层 ----
+    total_weight = sum(float(p.get('weight') or 0) for p in positions)
+    cash_weight = portfolio.get('cash_weight')
+    lines.append('## 一、组合层')
+    lines.append('')
+    lines.append('| 项目 | 数值 |')
+    lines.append('|---|---|')
+    lines.append(_row('持仓合计权重', _pct(total_weight)))
+    lines.append(_row('现金权重', _pct(cash_weight) if cash_weight is not None else '—'))
+    lines.append(_row('当前回撤', _pct(portfolio.get('current_drawdown'))
+                      if portfolio.get('current_drawdown') is not None else '—'))
+    lines.append(_row('前三集中度',
+                      _pct(sum(float(p.get('weight') or 0) for p in positions[:3]))))
+    cats = portfolio.get('category_of_assets') or {}
+    if cats:
+        lines.append(_row('类别暴露', '；'.join('%s %s' % (k, _pct(v))
+                                            for k, v in sorted(cats.items(),
+                                                               key=lambda x: -x[1]))))
+    if summary.get('portfolio_risks'):
+        lines.append('')
+        lines.append('模型识别的组合风险：')
+        lines.extend('- %s' % x for x in summary['portfolio_risks'])
+    if final.risk:
+        lines.append('')
+        lines.append('风控：**%s**%s' % (
+            final.risk.status,
+            '' if not final.risk.violations else
+            '；' + '、'.join('%s %s' % (v.code, v.symbol or '') for v in final.risk.violations)))
+    lines.append('')
+
+    # ---- 逐只 ----
+    lines.append('## 二、逐只深度')
+    for idx, pos in enumerate(positions, 1):
+        code = str(pos.get('symbol'))
+        view = _view_of(research, code)
+        asset = _asset_of(context, code)
+        feats = asset.get('features') or {}
+        trade = by_symbol.get(code)
+        lines.append('')
+        lines.append('### %d. %s（%s）' % (idx, names.get(code) or code, code))
+        lines.append('')
+        if view is None:
+            lines.append('模型本次没有覆盖这只（系统按原权重补 HOLD，方向未变）。')
+        else:
+            lines.append('**角色**：%s　|　**倾向**：%s（置信度 %.0f%%）　|　**期限**：%d 日'
+                         % (view.role, view.stance, view.confidence * 100, view.horizon_days))
+            lines.append('')
+            lines.append('**观点**：%s' % view.thesis)
+            lines.append('')
+            lines.append('**因果链**：')
+            lines.extend('  %d. %s' % (i, step) for i, step in enumerate(view.causal_chain, 1))
+            lines.append('')
+            lines.append('**支持证据**：')
+            lines.extend('  - `%s` %s' % (e.evidence_id, e.claim) for e in view.evidence)
+            lines.append('')
+            lines.append('**反证 / 另一种解释**：')
+            lines.extend('  - `%s` %s' % (e.evidence_id, e.claim)
+                         for e in view.counter_evidence)
+            lines.append('')
+            lines.append('**什么情况算我错了**：')
+            lines.extend('  - %s' % x for x in view.invalidation)
+
+        lines.append('')
+        lines.append('| 现权重 | 目标权重 | 动作 | 优先级 | 执行条件 |')
+        lines.append('|---|---|---|---|---|')
+        if trade is not None:
+            lines.append('| %s | %s | %s | %d | %s |'
+                         % (_pct(trade.current_weight), _pct(trade.target_weight),
+                            _action_cn(trade.action), trade.priority,
+                            trade.execution_rule.replace('|', '/')))
+        else:
+            lines.append('| %s | %s | 未覆盖 | — | — |'
+                         % (_pct(pos.get('weight')), '—'))
+
+        facts = []
+        for key, label, scale in (('return_5d', '5 日', 100), ('return_20d', '20 日', 100),
+                                  ('ma20_gap', '距 MA20', 100), ('ma60_gap', '距 MA60', 100),
+                                  ('vol20', '20 日波动', 100),
+                                  ('rs20', '20 日超额', 100)):
+            val = feats.get(key)
+            if val is None:
+                continue
+            if key == 'vol20':                      # 波动是水平量，加正负号会误导
+                facts.append('%s %.2f%%' % (label, float(val) * scale))
+            else:
+                facts.append('%s %+.2f%%' % (label, float(val) * scale))
+        baseline = (asset.get('quant_baseline') or {}).get('rule_action')
+        if facts or baseline:
+            lines.append('')
+            lines.append('事实：%s%s' % (
+                '；'.join(facts) or '—',
+                ('　|　规则基线：%s' % baseline) if baseline else ''))
+            if baseline and trade is not None:
+                model_action = trade.action.value
+                if baseline == 'HOLD' and model_action not in ('HOLD', 'WAIT'):
+                    lines.append('')
+                    lines.append('> 模型与规则基线不一致：基线 HOLD，模型建议 %s。'
+                                 '理由见上文因果链。' % _action_cn(trade.action))
+
+    # ---- 动作清单 ----
+    lines.append('')
+    lines.append('## 三、本次需要动的仓位')
+    lines.append('')
+    changes = [t for t in (revised.trades if revised else [])
+               if t.action not in (Action.HOLD, Action.WAIT)]
+    if changes:
+        lines.extend(_trade_line(t) for t in sorted(changes, key=lambda x: x.priority))
+    else:
+        lines.append('不交易。没有足够证据支持新增或减仓；继续持有的成本见下节。')
+
+    # ---- 改判与限制 ----
+    lines.append('')
+    lines.append('## 四、改判条件与跟踪')
+    lines.append('')
+    triggers = list((revised.review_triggers if revised else []) or [])
+    for q in (context.get('focus_questions') or [])[:5]:
+        if q not in triggers:
+            triggers.append(q)
+    lines.extend('- %s' % t for t in triggers) if triggers else lines.append('- 无')
+    if summary.get('data_limitations'):
+        lines.append('')
+        lines.append('## 五、数据限制')
+        lines.extend('- %s' % x for x in summary['data_limitations'])
+    lines.append('')
+    lines.append('---')
+    lines.append('数字全部取自本次运行的 context 与最终计划 JSON；'
+                 '价格是执行参考价，不保证成交。不构成投资建议。')
+    return '\n'.join(lines) + '\n'
