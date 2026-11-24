@@ -6,9 +6,13 @@ import llm_helpers as H
 from etfquant.llm import domain, orders, policy
 
 
-def _book(ctx, trades, cash):
+def _book(ctx, trades, cash, min_value=None):
     proposal = domain.ProposalOutput(**H.proposal(ctx, trades, cash=cash))
-    return orders.build_orders(proposal, ctx, policy.risk_policy())
+    pol = policy.risk_policy()
+    if min_value is not None:
+        pol = dict(pol)
+        pol['portfolio'] = dict(pol['portfolio'], min_trade_value=min_value)
+    return orders.build_orders(proposal, ctx, pol)
 
 
 def test_lot_floor_and_value():
@@ -26,7 +30,7 @@ def test_lot_floor_and_value():
 def test_min_trade_value_suppressed():
     ctx = H.context(positions=[H.position('510300', weight=0.2, shares=5000)])
     t = H.trade('510300', 'ADD', 0.2, 0.204, evidence_id=H.ev(ctx))
-    book = _book(ctx, [t], cash=0.796)
+    book = _book(ctx, [t], cash=0.796, min_value=1000)
     assert book.orders[0].status == 'SUPPRESSED_MIN_VALUE'
     assert any('最小交易额' in i for i in book.issues)
 

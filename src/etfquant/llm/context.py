@@ -167,6 +167,9 @@ def portfolio_block(snapshot, statements=None) -> dict:
             category=row.get('category'),
             bucket=row.get('bucket'),
             weight=round(float(weight) / 100.0, 4),
+            # 订单模块要用真实份额算差额；没有它会把「持有」当成「空仓」，减仓会变成加仓
+            shares=int(row.get('shares') or 0),
+            available=int(row.get('shares') or 0),
             cost=_num(row.get('cost'), 4),
             last=_num(row.get('last'), 4),
             pnl_pct=_pct(row.get('pnl_pct')),
@@ -233,7 +236,7 @@ def build(*, as_of: str, trade_date: str, data_date: str, mode: str,
         market=_regime_block(regime),
         assets=list(assets),
         events=list(events or []),
-        quant_baseline=dict(note='规则卡与 plan_v3 只作为基线证据，模型可支持或反对',
+        quant_baseline=dict(note='规则卡只作为基线证据，模型可支持或反对',
                             assets={a['symbol']: a.get('quant_baseline')
                                     for a in assets}),
         previous_research=list(previous_research or []),

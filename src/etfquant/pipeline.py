@@ -23,8 +23,6 @@ from . import config, packet, quality, universe
 from .datasource import loader
 from .indicators import analyze
 from .signals import market_regime, relative_strength
-from .portfolio import watchlist
-from .portfolio import plan_v3
 from .portfolio.analysis import evidence_card as analysis_card
 from . import methodology as M
 from . import pricing as P
@@ -50,7 +48,8 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
     sectors = loader.sector_flow()
     spot_df = loader.spot()
     spot = spot_df.set_index('code')
-    wl = watchlist.load(cfg, spot=spot_df)
+    # 不再维护公开观察池：页面只展示市场概况与自己的持仓（研究层按 holdings 取数）
+    wl = dict(rows=[], skipped=[])
 
     # 基准：沪深300 真实指数序列（中国 ETF 组合的市场状态参照）
     try:
@@ -124,10 +123,14 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
         bars_by_code[code] = bars
 
     if not legs:
-        raise RuntimeError('全部观察标的计算失败：%s' % '；'.join(loader.source_report()['fallback']))
+        loader.note_fallback('未配置公开观察池：页面只展示市场与持仓')
 
-    status = quality.merge_status(*[l['quality']['status'] for l in legs])
-    if src.get('synthetic'):
+    status = (quality.merge_status(*[l['quality']['status'] for l in legs])
+              if legs else 'OK')
+    if not use_live:
+        status = 'DEMO'
+    elif src.get('synthetic') and legs:
+        # 有观察池时，任何一条腿用了合成快照就不能当作实时
         status = 'DEMO'
     elif status == 'OK' and not src.get('index_live', False):
         status = 'DEGRADED'
@@ -136,7 +139,11 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
     last_dates = {l['code']: l['quality']['last_date'] for l in legs if l['quality']['last_date']}
     meta = dict(
         as_of=now.strftime('%Y-%m-%d %H:%M:%S'),
-        data_date=max(last_dates.values()) if last_dates else '',
+        # 没有观察池时用基准指数日期兜底：页面仍要显示「数据是哪天的」
+        data_date=(max(last_dates.values()) if last_dates else
+                   (bench['date'].iloc[-1].strftime('%Y-%m-%d')
+                    if bench is not None and len(bench) else
+                    now.strftime('%Y-%m-%d'))),
         run_date=now.strftime('%Y-%m-%d'),
         mode='live' if use_live else 'snapshot',
         source=src, skipped=skipped,
@@ -223,9 +230,8 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
         pkt['status'] = 'ERROR'
         pkt['validation']['blocked'] = True
 
-    data = webgen.build_data(market, sectors, regime, legs, cfg, meta, packet=pkt,
-                             plan=plan_v3.build(bars_by_code, bench, regime,
-                                                {l['code']: l['name'] for l in legs}))
+    data = webgen.build_data(market, sectors, regime, legs, cfg, meta,
+                             packet=pkt, plan=None)
     # LLM 研究层从这里接管：拿到的是已冻结的事实（同一份 legs / regime / 数据日），
     # 不重新取数、不重新算指标，避免「一边分析一边数据在变」。
     if collect is not None:

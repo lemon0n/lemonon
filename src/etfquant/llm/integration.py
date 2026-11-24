@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 
 from .. import config
-from ..portfolio import positions as positions_mod
+from ..portfolio import holdings, positions as positions_mod
 from . import (client as client_mod, context as context_mod, evidence as evidence_mod,
                memory, pipeline, policy, prompts as prompts_mod, publish, report, storage)
 
@@ -86,30 +86,66 @@ def build_context(collected: dict, *, settings: dict | None = None,
     ctx_cfg = settings.get('context') or {}
     recent_bars = int(ctx_cfg.get('recent_daily_bars', 30))
     meta = collected.get('meta') or {}
-    legs = collected.get('legs') or []
+    legs = list(collected.get('legs') or [])
     regime = collected.get('regime') or {}
     data_date = meta.get('data_date') or ''
     src = collected.get('source') or {}
+    bars_by_code = dict(collected.get('bars_by_code') or {})
 
     snapshot = collected.get('portfolio_snapshot')
-    if snapshot is None:
-        snapshot = portfolio_from_legs(legs, collected.get('cfg'))
-    portfolio = context_mod.portfolio_block(snapshot)
+    held_note = []
+    scope = str((settings.get('research') or {}).get('scope', 'holdings')).strip()
+    holdings_only = scope != 'holdings+watchlist'
+    try:
+        held = None if snapshot is not None else holdings.load(collected.get('cfg'),
+                                                              as_of=data_date)
+    except Exception as exc:
+        held = None
+        held_note.append('持仓取数失败：%s' % exc)
 
+    if held:
+        if holdings_only:
+            # 个人自用：研究范围就是持仓本身，公开观察池不参与
+            legs = list(held['legs'])
+            bars_by_code = dict(held['bars_by_code'])
+        else:
+            known = {str(l['code']) for l in legs}
+            legs.extend([l for l in held['legs'] if str(l['code']) not in known])
+            bars_by_code.update({c: b for c, b in held['bars_by_code'].items()
+                                 if c not in bars_by_code})
+        snapshot = held['snapshot'] or snapshot
+        held_note.extend(held.get('missing') or [])
+    elif snapshot is None:
+        snapshot = portfolio_from_legs(legs, collected.get('cfg'))
+        if holdings_only:
+            held_note.append('未读取到持仓：本次只有市场层，不给个股结论')
+    portfolio = context_mod.portfolio_block(snapshot)
     previous = previous_block(theses if theses is not None else memory.active_theses())
 
     assets = []
-    bars_by_code = collected.get('bars_by_code') or {}
     for leg in legs:
         code = str(leg.get('code'))
         assets.append(context_mod.asset_from_leg(
             leg, date=data_date, recent_bars=recent_bars,
             bars=bars_by_code.get(code),
             theses=[t for t in previous if t.get('symbol') == code]))
-    # 持仓里但不在观察池的标的：没有特征就不进 assets（模型只能看到它有权研究的东西）
+    # 数据质量以「本轮真正分析的标的」为准：持仓腿全 OK 就是 OK，
+    # 不再继承页面（市场页）的 DEMO 状态——页面用的是另一批数据。
+    statuses = [str(l.get('quality', {}).get('status')) for l in legs]
+    if statuses:
+        if all(x == 'OK' for x in statuses):
+            q_status = 'OK'
+        elif any(x in ('OK', 'DEGRADED') for x in statuses):
+            q_status = 'DEGRADED'
+        else:
+            q_status = 'ABSTAIN'
+        if meta.get('mode') == 'snapshot':
+            q_status = 'DEMO'
+    else:
+        q_status = meta.get('status')
     quality = dict(
-        status=meta.get('status'),
-        issues=list(src.get('fallback') or []),
+        status=q_status,
+        issues=list(src.get('fallback') or []) + held_note,
         source_timestamps=dict(channels=src.get('channels') or {},
                                checked_at=src.get('checked_at')))
 

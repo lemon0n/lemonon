@@ -57,6 +57,10 @@ bash scripts/daily.sh
 5. 不要手改 `data/runs/*/06_final_plan.json`、`data/research_latest.json`（改了无法重放）。
 6. 模型/代理不可用时状态就是 `LLM_FAILED`，页面不会用规则模板冒充研究结论。
 
+> **研究范围**由 `config/llm.yaml → research.scope` 决定，默认 `holdings`：只看你自己的持仓，
+> `config/universe.yaml` 的公开观察池不参与研究，也不能据此新建仓。
+> 需要"持仓 + 候选池"时改成 `holdings+watchlist`。
+
 ---
 
 ## 持仓口令（可选）

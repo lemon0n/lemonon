@@ -15,6 +15,10 @@
 #   mock               脚本回放，仅测试与离线演示。
 enabled: true
 provider: agent
+research:
+  # 研究范围：holdings = 只研究自己的持仓（默认，个人自用）；
+  #           holdings+watchlist = 持仓 + config/universe.yaml 的公开观察池
+  scope: holdings
 system:
   timezone: Asia/Shanghai
   max_llm_repairs: 1               # 风控退回后最多修复几次，仍失败即 REJECTED

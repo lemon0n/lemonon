@@ -13,7 +13,8 @@ portfolio:
   max_category_weight: 0.60         # 单一类别上限（risk.yaml max_category_weight_pct=60）
   max_legs: 8                       # 腿数上限（risk.yaml max_legs=8）
   max_daily_turnover: 0.30          # 单日最大换手（单边/2 口径）
-  min_trade_value: 1000             # 最小交易金额（元），低于它只标 SUPERSEDED
+  min_trade_value: 200              # 最小交易金额（元）：按 7k 级小账户校准，
+                                    # 1000 会把这个账户一半的调仓都判成"金额太小"
   no_trade_band_weight: 0.01        # 不换仓带：目标与现仓差小于此值不交易
 execution:
   lot_size: 100

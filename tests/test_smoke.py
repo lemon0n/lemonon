@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""冒烟测试：观察池契约、全链路、单文件 HTML 自包含、无持仓数据、无密钥。
+"""冒烟测试：全链路、单文件 HTML 自包含、无持仓数据、无密钥。
 
 一律走离线快照（loader.reset(live_mode=False)），不依赖网络。
 离线快照是合成数据，因此全链路状态必须是 DEMO：可展示，但不得给出交易动作。
@@ -16,8 +16,7 @@ import pytest
 from etfquant import config, pipeline
 from etfquant.datasource import loader
 from etfquant.indicators import analyze
-from etfquant.signals import relative_strength, market_regime, triage
-from etfquant.portfolio import watchlist
+from etfquant.signals import relative_strength, market_regime
 
 CFG = config.cfg()
 CODES = ['510300', '510500', '588000', '159915']
@@ -34,10 +33,6 @@ def _sp():
     return loader.spot().set_index('code')
 
 
-def _rows():
-    return watchlist.load(CFG, spot=loader.spot())['rows']
-
-
 def test_snapshot_bars():
     for code in CODES:
         df = loader.daily(code)
@@ -50,36 +45,6 @@ def test_index_snapshot_exists():
         df = loader.index_daily(code)
         assert len(df) >= 100, code
         assert {'date', 'close'}.issubset(df.columns)
-
-
-def test_watchlist_is_public_only():
-    rows = _rows()
-    assert [r['code'] for r in rows] == CODES
-    for r in rows:
-        assert set(r) == {'code', 'name', 'category', 'track', 'settle',
-                          'benchmark', 'last', 'change_pct'}
-        for bad in ('shares', 'cost', 'pnl', 'market_value', 'weight', 'cash'):
-            assert bad not in r, bad
-
-
-def test_missing_code_is_skipped_not_crash():
-    sp = loader.spot()
-    sp = sp[sp['code'].astype(str) != '159915'].reset_index(drop=True)
-    w = watchlist.load(CFG, spot=sp)
-    assert '159915' in w['skipped']
-    assert [r['code'] for r in w['rows']] == ['510300', '510500', '588000']
-
-
-def test_triage_uses_single_decision_function():
-    """分诊结果必须来自 methodology.decide，且离线合成数据下动作一律 ABSTAIN。"""
-    sp = _sp()
-    for r in _rows():
-        f = analyze(loader.daily(r['code']), sp.loc[r['code']], CFG)
-        rs = relative_strength.compute(f, loader.index_daily(r['benchmark']), CFG)
-        t = triage.compute(f, rs, CFG, data_status='DEMO')
-        assert t['status'] == 'DEMO'
-        assert t['action'] == 'ABSTAIN'
-        assert t['unknowns']
 
 
 def test_premium_unavailable_is_safe():
@@ -109,9 +74,8 @@ def test_pipeline_end_to_end_demo(tmp_path, monkeypatch):
     monkeypatch.setattr(config, 'WEB', str(tmp_path))
     monkeypatch.setattr(config, 'ROOT', str(tmp_path.parent))
     r = pipeline.run(use_live=False, write_packet=False)
-    assert r['legs'] == 4
+    assert r['legs'] == 0                  # 不再有公开观察池
     assert r['status'] == 'DEMO'
-    assert r['action_count']['ABSTAIN'] == 4
     assert r['orders'] == 0
     assert r['degraded'] is True and r['synthetic'] is True
     assert r['data_date']
@@ -160,7 +124,7 @@ def _dashboard(demo_page):
 
 def test_dashboard_contract(demo_page):
     d, s = demo_page
-    assert len(d['legs']) == 4
+    assert d['legs'] == []                 # 页面只展示市场与持仓
     assert d['meta']['status'] == 'DEMO'
     assert d['meta']['data_date'] and d['meta']['as_of']
     assert 'source' in d['meta']
@@ -175,11 +139,6 @@ def test_dashboard_contract(demo_page):
     dq = d['packet']['data_quality']
     assert dq['market_snapshot'] is True
     assert 'sector_snapshot' in dq
-    for l in d['legs']:
-        assert l['data_status'] in ('OK', 'DEGRADED', 'ABSTAIN', 'DEMO')
-        assert l['price']['note']
-        assert l['action'] == 'ABSTAIN'
-        assert 'qty' not in l and 'trigger' not in l
 
 
 def test_no_account_data_in_page(demo_page):
