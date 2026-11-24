@@ -1,101 +1,72 @@
-# 每日刷新执行说明书（唯一入口）
+# 每日刷新（唯一入口）
 
-接到「刷新一次 / 跑每日任务」时，只做一件事：执行下面这条命令，然后汇报结果。
-
-```bash
-bash scripts/daily.sh
-```
-
-**不要**为了刷新去读 `docs/` 里的任何文件，也不要拆成「先抓这个、再跑那个」。
-所有步骤已经写在脚本里，按顺序自动完成。读完本页就够，不需要分析仓库。
+先看 `config/llm.yaml` 的 `provider`，只有两种情况，别混用。
 
 ---
 
-## 一条命令会做什么
+## A. agent 模式（默认）—— 我就是那个模型
 
-1. 切到 `main`，`git pull --rebase --autostash origin main`；
-2. 检查 Python 依赖，缺了就按 `requirements.txt` 安装；
-3. `scripts/fetch.py --market --national`：市场快照与宽基份额（失败沿用上次快照，不阻断）；
-4. `scripts/run_update.py --json --push`：实时取数 → 计算 → 生成页面 → 发布前校验 → 研究层 → 提交推送；
-   推送的产物是 `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`，
-   以及有口令时的 `docs/持仓分析报告.md`、`data/packets/positions_packet.json`；
-5. 研究层（`config/llm.yaml` 的 `enabled=true` 且本地模型可连时自动跑）：
-   Research → Proposal → Red Team → Revision → 风控 → 订单草案，
-   结果内嵌进同一个页面后只推送一次；模型不可用时页面照常发布，状态标 `LLM_FAILED`；
-6. 有口令时，研究层还会写一份**深度持仓分析** `docs/持仓分析报告.md`（逐只：角色、因果链、
-   支持证据、反证、失效条件、目标权重、执行条件）；研究层没跑成会自动回退确定性版；
-7. 打印状态、数据日、降级明细。
-
-GitHub Actions 只做 Pages 发布，不再定时取数；每日更新一律由这条命令完成。
-
-## 怎么看结果
-
-最后一行是一条 JSON，看三个字段：
-
-| 字段 | 合格值 |
-|---|---|
-| `status` | `OK`（其它：`DEGRADED` 降级、`DEMO` 演示、`ABSTAIN` 数据不足） |
-| `validation.ok` | `true` |
-| `degraded` | `false` |
-| `research.status` | `APPROVED` / `REJECTED`（业务结论）或 `SKIPPED` / `LLM_FAILED`（未跑/不可用，不算故障） |
-
-汇报时给：退出码、`status`、`data_date`、`degraded`、`skipped`、有无推送成功。
-
-## 退出码
-
-| 码 | 含义 | 处理 |
-|---|---|---|
-| 0 | 成功（含产物无变化） | 结束 |
-| 4 | 发布前校验未通过，**未推送** | 把校验错误原文报出来，不要重试、不要改阈值 |
-| 3 | 产物已生成但提交/推送失败 | 多半是远端有新提交，原样再跑一次 |
-| 2 | 运行异常 | 读报错定位，不要盲目重跑 |
-
-## 硬性约束
-
-- **不要加 `--snapshot`**：它用离线演示数据，会把线上页面覆盖成 `DEMO`。
-- **不要手动提交** `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`、
-  `docs/持仓分析报告.md`、`data/packets/positions_packet.json`；它们只由这条命令产出。
-- **不要改阈值、规则或 `config/` 参数**让校验通过；校验失败是要报告的问题，不是要绕过的障碍。
-- 产物没变化时命令也会返回 0，这是正常情况，不要为了“有提交”去改文件。
-- 只想离线调试、不拉远端：`SKIP_PULL=1 bash scripts/daily.sh`，其余不变。
-
-## 持仓口令
-
-持仓报告和数据包随仓库公开发布（含代码、份额、成本、浮动盈亏）。
-口令只从环境变量读取，绝不写入文件：
+不需要任何模型服务。**三条命令**：
 
 ```bash
-export POSITIONS_PASSPHRASE='你的口令'
+python3 scripts/run_research.py --prepare                       # ① 抓数 + 冻结事实 + 出任务卡
+#   ② 读 <run_dir>/AGENT_TASK.md 与 context.json，写 <run_dir>/agent_output.json
+python3 scripts/run_research.py --finish --push                 # ③ 风控 + 订单 + 报告 + 页面 + 推送
+```
+
+`--prepare` 成功后会直接打印 `run_dir`、任务卡路径、输出路径和下一步命令，照抄即可。
+
+**② 要写的东西**：`agent_output.json`，四个键 `research / proposal / redteam / revision`，
+字段清单在 `AGENT_TASK.md` 里（由 pydantic 模型自动生成，不会过期）。
+
+**被风控退回时**：`--finish` 会打印 `SINGLE_WEIGHT` 之类的违规明细；
+改完写 `<run_dir>/agent_repair.json`（一个 RevisedProposal），再跑一次 `--finish`。
+
+> `--prepare` 已经做过取数，`--finish` 复用同一份快照，不会重新抓一遍数据。
+
+---
+
+## B. 有本地模型服务 —— `provider: openai_compatible`
+
+```bash
 bash scripts/daily.sh
 ```
 
-未设置时自动跳过持仓分析，只更新市场页，退出码不受影响。
-持仓分析单独失败只告警，不阻断市场页。
+一条命令：拉代码 → 装依赖 → 抓数 → 生成页面 → 四段研究 → 风控 → 报告 → 推送。
+模型地址写在 `config/llm.yaml`，或 `export LLM_BASE_URL=... LLM_MODEL=...`。
 
-## 文件地图（只在你需要排查时看）
+---
 
-| 路径 | 作用 |
+## 看结果
+
+| 想看什么 | 在哪 |
 |---|---|
-| `scripts/daily.sh` | 唯一入口，别绕开它 |
-| `scripts/fetch.py` | 数据抓取（市场快照 / 宽基份额 / 行业权重），失败保留上次快照 |
-| `scripts/run_update.py` | 取数、生成、校验、提交推送（研究层也在这里内嵌，默认自动判断） |
-| `scripts/run_research.py` | 只跑 LLM 研究层，不推送 |
-| `src/etfquant/` | 计算与页面打包（`webgen.py` 出 HTML） |
-| `src/etfquant/datasource/` | 取数层：`loader` 路由、`akshare_adapter` 实时源、`fetch/` 抓取任务 |
-| `src/etfquant/llm/` | LLM 研究决策层（四段链、风控、订单、报告、接口） |
-| `prompts/`、`config/llm.yaml`、`config/risk_policy.yaml` | 提示词与模型/风控配置 |
-| `data/runs/`、`data/ledger/` | 研究运行产物与研究记忆（已 gitignore，含权重） |
-| `data/snapshot/`、`data/cache/` | 输入快照与日线缓存 |
-| `tools/` | 回测、对照实验、快照生成等一次性工具，**不参与每日流程** |
-| `docs/页面区块对照.md` | 页面上每一块由谁产出，排查时查这一份 |
-| `docs/` | 其余是设计文档；历史方案在 `docs/archive/`，**不参与每日流程** |
+| 持仓深度分析（逐只：角色/因果链/反证/失效条件/目标权重） | `docs/持仓分析报告.md` |
+| 今天该不该动、风控改了什么 | `data/runs/<日期>/<run>/report.md` |
+| 网页（GitHub Pages） | `web/index.html` → `lemon0n.github.io/lemonon` |
+| 机器可读状态 | 命令最后一行 JSON：`status` / `data_date` / `validation.ok` |
 
-## 不要做的事
+---
 
-- 不要把 `docs/` 里的施工指南、运行链条、方法论当成刷新步骤。
-- 不要直接跑 `scripts/fetch.py` 里的单个任务来「修数据」；让 `daily.sh` 按顺序跑，失败自然沿用上次快照。
-- 不要在看到推送冲突时手工 rebase 产物文件；先重跑一次 `daily.sh`（退出码 3 的自愈路径）。
-- 不要手改 `data/runs/*/06_final_plan.json` 或 `data/research_latest.json`：它们是研究层的原始产物，
-  改了就无法重放与审计（`python3 -m etfquant.llm.cli replay` 会报哈希不一致）。
-- 不要把 `provider: mock` 的脚本结果当成投资建议：该状态是 `LLM_MOCK`，永不生成可执行订单。
-- 不要为了让研究层出结论去放宽 `config/risk_policy.yaml`；风控退回是要报告的问题，不是要绕过的障碍。
+## 硬规则（违反即失败，不是建议）
+
+1. 引用的 `evidence_id` 必须出现在 `context.evidence_catalog` 里；一条都不引用也判失败。
+2. 权重是占含现金总资产的比例（0–1 小数），`sum(target_weight) + cash_target_weight = 1`。
+3. 方向与权重必须一致（BUY/ADD 抬、SELL/REDUCE 降、EXIT 归零、HOLD 不动）。
+4. 风控退回就改建议，**不要**放宽 `config/risk_policy.yaml` 来让它通过。
+5. 不要手改 `data/runs/*/06_final_plan.json`、`data/research_latest.json`（改了无法重放）。
+6. 模型/代理不可用时状态就是 `LLM_FAILED`，页面不会用规则模板冒充研究结论。
+
+---
+
+## 持仓口令（可选）
+
+有持仓才需要。二选一，**不要**写进仓库：
+
+```bash
+export POSITIONS_PASSPHRASE='你的口令'          # 方式一：环境变量
+echo '你的口令' > positions/.passphrase          # 方式二：本地文件（positions/ 已 gitignore）
+```
+
+设了之后 `docs/持仓分析报告.md` 才会包含你的持仓；没设就只做市场层研究。
+注意：该报告与 `data/packets/positions_packet.json` **会随仓库公开发布**，不接受就取消口令。

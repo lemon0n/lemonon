@@ -137,11 +137,15 @@ def verify_products():
 
 
 def research_enabled():
-    """研究层的开关：llm.yaml enabled=true 且 provider 不是 mock 才自动跑。"""
+    """自动内嵌研究层的条件：只对「有本地模型端点」的模式生效。
+
+    provider=agent（默认）时研究由操作者代理完成，用 run_research --prepare/--finish，
+    不在这里偷偷跑；provider=mock 只在测试里用。
+    """
     try:
         from etfquant.llm import policy as llm_policy
         s = llm_policy.settings()
-        return bool(s.get('enabled')) and s.get('provider') != 'mock'
+        return bool(s.get('enabled')) and s.get('provider') == 'openai_compatible'
     except Exception:
         return False
 

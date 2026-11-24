@@ -17,7 +17,7 @@ def _base_settings():
 def test_repo_config_is_valid():
     s = policy.settings(refresh=True)
     assert s['enabled'] is True
-    assert s['provider'] in ('openai_compatible', 'mock')
+    assert s['provider'] in ('agent', 'openai_compatible', 'mock')
     p = policy.risk_policy(refresh=True)
     assert p['portfolio']['min_cash_weight'] == pytest.approx(0.05)
 
@@ -38,6 +38,7 @@ def test_redteam_cannot_be_disabled():
 
 def test_missing_model_name_rejected():
     s = _base_settings()
+    s['provider'] = 'openai_compatible'
     s['model']['model_name'] = '  '
     with pytest.raises(policy.PolicyError):
         policy._validate_settings(s)

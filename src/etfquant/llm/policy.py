@@ -70,10 +70,15 @@ def settings(refresh: bool = False) -> dict:
 
 
 def _validate_settings(data: dict) -> None:
-    if data.get('provider') not in ('openai_compatible', 'mock'):
-        raise PolicyError('provider 只能是 openai_compatible 或 mock，当前=%r'
+    if data.get('provider') not in ('agent', 'openai_compatible', 'mock'):
+        raise PolicyError('provider 只能是 agent / openai_compatible / mock，当前=%r'
                           % data.get('provider'))
     model = data.get('model') or {}
+    if data.get('provider') == 'agent':
+        # 代理即模型：不连任何端点，由操作者（agent）产出四段 JSON
+        if str(model.get('model_name') or '').strip() == '':
+            model['model_name'] = 'agent'
+        return
     for key in ('base_url', 'model_name'):
         if not str(model.get(key) or '').strip():
             raise PolicyError('model.%s 不能为空' % key)

@@ -161,12 +161,23 @@ data/runs/<trade_date>/<HHMMSS>_<hash8>/
 
 ## 8. 怎么运行
 
+两种研究通道，由 `config/llm.yaml` 的 `provider` 决定：
+
+**A. agent 模式（默认）**：不需要任何模型服务，研究由「正在操作这台机器的代理模型」完成。
+
+```bash
+bash scripts/daily.sh                               # 抓数 + 冻结事实 + 出任务卡
+#   读 <run_dir>/AGENT_TASK.md 与 context.json，写 <run_dir>/agent_output.json
+python3.11 scripts/run_research.py --finish --push   # 证据校验 → 风控 → 订单 → 报告 → 页面 → 推送
+```
+
+被风控退回时写 `<run_dir>/agent_repair.json` 再 `--finish` 一次。
+
+**B. 有本地模型服务**：`provider: openai_compatible`，`bash scripts/daily.sh` 一条命令跑完。
+
 ```bash
 # 依赖（LLM 层需要 pydantic；其余依赖不变）
 python3.11 -m pip install -r requirements.txt
-
-# 每天（研究层默认按 config/llm.yaml 自动判断）
-bash scripts/daily.sh
 
 # 只跑研究层（不推送）
 python3.11 scripts/run_research.py --json
@@ -183,11 +194,11 @@ python3.11 -m etfquant.llm.cli api --port 8008
 
 | 变量 | 作用 |
 |---|---|
-| `LLM_BASE_URL` | 覆盖本地模型地址（默认 `http://127.0.0.1:11434/v1`） |
-| `LLM_MODEL` | 覆盖模型名 |
+| `LLM_BASE_URL` | 仅 `openai_compatible` 模式：覆盖模型地址 |
+| `LLM_MODEL` | 仅 `openai_compatible` 模式：覆盖模型名 |
 | `LLM_API_KEY` | 本地服务通常不需要 |
-| `RESEARCH=0` | 本次跳过研究层（`daily.sh` 与 `run_update.py` 都认） |
-| `POSITIONS_PASSPHRASE` | 解本机持仓；没有就只做市场研究 |
+| `RESEARCH=0` | 本次跳过研究层（B 模式下生效） |
+| `POSITIONS_PASSPHRASE` | 解本机持仓（也可写入 `positions/.passphrase`）；没有就只做市场研究 |
 
 配置里 `provider: openai_compatible` 只允许连本地地址（`127.0.0.1` / `localhost`）；
 `provider: mock` 只能配合脚本客户端，运行结果标记 `LLM_MOCK`，**永不生成可执行订单**。

@@ -75,7 +75,7 @@ def test_integration_writes_deep_report(tmp_path, monkeypatch):
     ctx = integration.build_context(collected)
     assert ctx['portfolio']['positions'] == []          # 公开模式没有持仓
     report_path = tmp_path / 'positions.md'
-    result = integration.run(collected, write_report=True,
+    result = integration.run(collected, scripted=[], write_report=True,
                              memory_path=str(tmp_path / 'l.db'),
                              positions_report_path=str(report_path))
     assert not os.path.exists(str(report_path))          # 无持仓不写

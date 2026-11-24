@@ -146,9 +146,12 @@ def build_client(settings: dict | None = None, *, scripted: list | None = None):
         return client_mod.ScriptedLLM(scripted,
                                       json_mode=bool(model.get('json_mode', True)),
                                       max_format_repairs=int(model.get('max_format_repairs', 1))), 'mock'
-    provider = settings.get('provider', 'openai_compatible')
+    provider = settings.get('provider', 'agent')
     if provider == 'mock':
         raise policy.PolicyError('provider=mock 需要显式传入 scripted 响应（测试/演示专用）')
+    if provider == 'agent':
+        raise policy.PolicyError('provider=agent：不连模型服务，'
+                                 '请用 scripts/run_research.py --prepare / --finish')
     return client_mod.LocalLLM(
         base_url=model.get('base_url'), model=model.get('model_name'),
         api_key=model.get('api_key', 'local-not-required'),
@@ -167,11 +170,39 @@ def _code_version() -> str:
         return 'unknown'
 
 
+def _finalize(*, final, research, redteam, revised, context, run_dir, run_id,
+              trade_date, provider, provider_label, write_report,
+              positions_report_path, now, publishable) -> dict:
+    """报告 + 页面载荷 + 发布最近一次研究（run 与 finish 共用）。"""
+    if write_report:
+        text = report.render(final, research, context)
+        report.write_report(os.path.join(run_dir, 'report.md'), text)
+        # 深度持仓报告：模型真的产出了计划才覆盖旧版确定性报告，
+        # 否则保留 analyze_positions.py 的产物（不能拿空结论冒充深度分析）
+        if (context.get('portfolio') or {}).get('positions') \
+                and final.model_proposal is not None \
+                and provider != 'mock':
+            deep = report.render_positions(final, research, context)
+            report.write_report(positions_report_path or DEFAULT_POSITIONS_REPORT, deep)
+    payload = publish.page_payload(
+        final, research=research, redteam=redteam, revised=revised, context=context,
+        provider_label=provider_label)
+    payload['meta']['run_id'] = run_id
+    payload['meta']['run_dir'] = run_dir
+    # 脚本/演示运行绝不覆盖「最近一次真实研究」：否则页面会把演示结果当成历史建议
+    payload['meta']['published'] = publishable
+    if publishable:
+        storage.publish_latest(dict(payload=payload, run_id=run_id, run_dir=run_dir,
+                                    trade_date=trade_date,
+                                    created_at=now.isoformat(timespec='seconds')))
+    return payload
+
+
 def run(collected: dict, *, scripted: list | None = None,
         settings: dict | None = None, now: datetime | None = None,
         write_report: bool = True, memory_path: str | None = None,
         positions_report_path: str | None = None) -> dict:
-    """跑一次完整研究：建目录 → 冻结事实 → 四段链 → 风控 → 报告 → 发布。
+    """跑一次完整研究（需要模型端点，或 scripted 回放）。
 
     memory_path / positions_report_path 只在测试与多账户隔离时传；
     生产用默认路径（data/ledger、docs/持仓分析报告.md）。
@@ -199,7 +230,7 @@ def run(collected: dict, *, scripted: list | None = None,
                          prompt_version=prompts_mod.version(prompts))
     result = pipeline.run(context, deps)
 
-    # 运行账本（执行书 14.2）：文件是权威产物，SQLite 只做索引与查询
+    # 运行账本：文件是权威产物，SQLite 只做索引与查询
     try:
         manifest = storage.load_run(run_dir, 'manifest.json') or {}
         memory.save_run(manifest, payload=dict(run_dir=run_dir, trade_date=trade_date),
@@ -207,33 +238,262 @@ def run(collected: dict, *, scripted: list | None = None,
     except Exception:
         pass
 
-    if write_report:
-        text = report.render(result['final'], result['research'], context)
-        report.write_report(os.path.join(run_dir, 'report.md'), text)
-        # 深度持仓报告：模型真的产出了计划才覆盖旧版确定性报告，
-        # 否则保留 analyze_positions.py 的产物（不能拿空结论冒充深度分析）
-        if (context.get('portfolio') or {}).get('positions') \
-                and result['final'].model_proposal is not None \
-                and provider != 'mock':
-            deep = report.render_positions(result['final'], result['research'], context)
-            report.write_report(positions_report_path or DEFAULT_POSITIONS_REPORT, deep)
-    payload = publish.page_payload(
-        result['final'], research=result['research'], redteam=result['redteam'],
-        revised=result['revised'], context=context,
+    payload = _finalize(
+        final=result['final'], research=result['research'], redteam=result['redteam'],
+        revised=result['revised'], context=context, run_dir=run_dir, run_id=run_id,
+        trade_date=trade_date, provider=provider,
         provider_label=('脚本模式' if provider == 'mock'
-                        else '本地模型 %s' % deps.model_name))
-    payload['meta']['run_id'] = run_id
-    payload['meta']['run_dir'] = run_dir
-    # 脚本/演示运行绝不覆盖「最近一次真实研究」：否则页面会把演示结果当成历史建议
-    publishable = provider != 'mock'
-    payload['meta']['published'] = publishable
-    if publishable:
-        storage.publish_latest(dict(payload=payload, run_id=run_id, run_dir=run_dir,
-                                    trade_date=trade_date,
-                                    created_at=now.isoformat(timespec='seconds')))
+                        else '本地模型 %s' % deps.model_name),
+        write_report=write_report, positions_report_path=positions_report_path,
+        now=now, publishable=provider != 'mock')
     result.update(context=context, run_dir=run_dir, run_id=run_id,
                   payload=payload, provider=provider, deps=deps)
     return result
+
+
+# ---------------------------------------------------------------- agent 模式
+AGENT_OUTPUT = 'agent_output.json'
+AGENT_REPAIR = 'agent_repair.json'
+AGENT_TASK = 'AGENT_TASK.md'
+STAGES = ('research', 'proposal', 'redteam', 'revision')
+
+
+def _fields(model) -> str:
+    return ', '.join(model.model_fields.keys())
+
+
+def agent_task(run_dir: str, context: dict, prompts: dict) -> str:
+    """写给「代理模型」的任务卡：只看这一页就够，不需要读提示词全文。"""
+    from .domain import (ProposalOutput, RedTeamOutput, ResearchOutput,
+                         RevisedProposal, TradeAdvice)
+    meta = context.get('meta') or {}
+    lines = [
+        '# 本轮研究任务（代理即模型）',
+        '',
+        '你不是在调模型；你就是模型。读冻结事实，产出四段 JSON，然后跑 --finish。',
+        '',
+        '| 项 | 值 |',
+        '|---|---|',
+        '| 运行目录 | `%s` |' % run_dir,
+        '| 事实快照 | `context.json`（数据日 %s，%d 个资产，%d 条证据）'
+        % (meta.get('data_date'), len(context.get('assets') or []),
+           len(context.get('evidence_catalog') or {})),
+        '| 输出文件 | `%s` |' % AGENT_OUTPUT,
+        '| 提示词 | 同目录 `prompts/*.md`（原文快照，按需查） |',
+        '',
+        '## 输出格式',
+        '',
+        '```json',
+        '{"research": {...}, "proposal": {...}, "redteam": {...}, "revision": {...}}',
+        '```',
+        '',
+        '| 键 | 模型 | 必填字段 |',
+        '|---|---|---|',
+        '| research | ResearchOutput | %s |' % _fields(ResearchOutput),
+        '| proposal | ProposalOutput | %s |' % _fields(ProposalOutput),
+        '| redteam | RedTeamOutput | %s |' % _fields(RedTeamOutput),
+        '| revision | RevisedProposal | %s |' % _fields(RevisedProposal),
+        '',
+        'trades[] 每条字段：%s' % _fields(TradeAdvice),
+        '',
+        '## 硬规则（违反即判失败，不是建议）',
+        '',
+        '1. `evidence_id` 必须逐字出现在 `context.evidence_catalog` 里；一条都不引用也判失败。',
+        '2. 权重是占「含现金总资产」的比例（0–1 小数）；sum(target_weight) + cash_target_weight = 1。',
+        '3. 方向与权重必须一致：BUY/ADD 抬、SELL/REDUCE 降、EXIT 归零、HOLD/WAIT 不动；'
+        '漏写的持仓会被系统补成 HOLD 并留痕。',
+        '4. 单只/类别/腿数/换手/现金下限的硬约束见 `config/risk_policy.yaml`，超限会被退回。',
+        '5. 不交易是合法结论；证据不足就写进 data_limitations 并给 WAIT。',
+        '',
+        '## 被风控退回时',
+        '',
+        '`--finish` 会打印违规明细；改完写 `%s`（一个 RevisedProposal）再跑一次 `--finish`。'
+        % AGENT_REPAIR,
+        '',
+    ]
+    return '\n'.join(lines)
+
+
+def prepare(collected: dict, *, settings: dict | None = None,
+            now: datetime | None = None) -> dict:
+    """冻结事实、建运行目录、写任务卡；不调用任何模型。"""
+    settings = settings or policy.settings()
+    now = now or datetime.now()
+    context = build_context(collected, settings=settings)
+    run_id = storage.make_run_id(now, context['meta'].get('snapshot_hash') or '')
+    trade_date = context['meta'].get('data_date') or now.strftime('%Y-%m-%d')
+    run_dir = storage.new_run_dir(trade_date, run_id)
+    prompts = prompts_mod.load_all()
+    storage.save_prompts(run_dir, prompts)
+    storage.save_json(run_dir, 'context.json', context)
+    if collected.get('data'):
+        storage.save_json(run_dir, 'page_data.json', collected['data'])
+    if collected.get('packet'):
+        storage.save_json(run_dir, 'packet.json', collected['packet'])
+    storage.save_text(run_dir, AGENT_TASK, agent_task(run_dir, context, prompts))
+    storage.save_json(run_dir, 'manifest.json', dict(
+        run_id=run_id, trade_date=trade_date, status='AWAITING_AGENT',
+        created_at=now.isoformat(timespec='seconds'),
+        mode=context['meta'].get('mode'), provider='agent', model_name='agent',
+        prompt_version=prompts_mod.version(prompts),
+        snapshot_hash=context['meta'].get('snapshot_hash'),
+        config_hash=_config_hash(settings), data_date=context['meta'].get('data_date'),
+        code_version=_code_version(), duration_seconds=0.0))
+    return dict(provider='agent', run_id=run_id, trade_date=trade_date, run_dir=run_dir,
+                context_path=os.path.join(run_dir, 'context.json'),
+                task_path=os.path.join(run_dir, AGENT_TASK),
+                output_path=os.path.join(run_dir, AGENT_OUTPUT),
+                repair_path=os.path.join(run_dir, AGENT_REPAIR),
+                status='AWAITING_AGENT', executable=False)
+
+
+def finish(run_dir: str, *, output_path: str | None = None,
+           repair_path: str | None = None, settings: dict | None = None,
+           write_report: bool = True, positions_report_path: str | None = None,
+           render: bool = True, push: bool = False,
+           now: datetime | None = None) -> dict:
+    """读代理产出的四段 JSON → 证据校验 → 风控 → 订单 → 报告 → 页面 → 可选推送。"""
+    import copy
+    import json
+
+    from .domain import (ProposalOutput, RedTeamOutput, ResearchOutput,
+                         RevisedProposal)
+
+    settings = copy.deepcopy(settings or policy.settings())
+    pol = policy.risk_policy()
+    issues = policy.consistency_issues(pol)
+    if issues:
+        raise policy.PolicyError('风控政策与 risk.yaml 不一致：%s' % '；'.join(issues))
+
+    context = storage.load_run(run_dir, 'context.json')
+    if not context:
+        raise FileNotFoundError('缺少 context.json：%s（先跑 --prepare）' % run_dir)
+    out_path = output_path or os.path.join(run_dir, AGENT_OUTPUT)
+    if not os.path.exists(out_path):
+        raise FileNotFoundError('缺少代理产出：%s' % out_path)
+    with open(out_path, encoding='utf-8') as f:
+        raw = json.load(f)
+    missing = [k for k in STAGES if k not in raw]
+    if missing:
+        raise ValueError('agent_output.json 缺少 %s' % '、'.join(missing))
+
+    models = dict(research=ResearchOutput.model_validate(raw['research']),
+                  proposal=ProposalOutput.model_validate(raw['proposal']),
+                  redteam=RedTeamOutput.model_validate(raw['redteam']),
+                  revision=RevisedProposal.model_validate(raw['revision']))
+    responses = [m.model_dump() for m in models.values()]
+    rep_path = repair_path or os.path.join(run_dir, AGENT_REPAIR)
+    repair = None
+    if os.path.exists(rep_path):
+        with open(rep_path, encoding='utf-8') as f:
+            repair = RevisedProposal.model_validate(json.load(f))
+        responses.append(repair.model_dump())
+    # 没有修复文件就不给修复额度：否则会在「没有下一次模型调用」的情况下空等
+    settings.setdefault('system', {})['max_llm_repairs'] = 1 if repair else 0
+
+    prompts = prompts_mod.load_all()
+    now = now or datetime.now()
+    trade_date = context['meta'].get('data_date') or now.strftime('%Y-%m-%d')
+    deps = pipeline.Deps(
+        client=client_mod.ScriptedLLM(responses),
+        policy=pol, settings=settings, prompts=prompts, run_dir=run_dir,
+        trade_date=trade_date, provider='agent', now=now,
+        code_version=_code_version(), prompt_version=prompts_mod.version(prompts))
+    result = pipeline.run(context, deps)
+    run_id = os.path.basename(str(run_dir).rstrip('\\/'))
+
+    try:
+        manifest = storage.load_run(run_dir, 'manifest.json') or {}
+        memory.save_run(manifest, payload=dict(run_dir=run_dir, trade_date=trade_date))
+    except Exception:
+        pass
+
+    payload = _finalize(
+        final=result['final'], research=result['research'], redteam=result['redteam'],
+        revised=result['revised'], context=context, run_dir=run_dir, run_id=run_id,
+        trade_date=trade_date, provider='agent',
+        provider_label='代理模型（本机操作者）', write_report=write_report,
+        positions_report_path=positions_report_path, now=now, publishable=True)
+
+    page = _render_page(run_dir, payload) if render else None
+    last_run = _write_last_run(run_dir, payload, page or {}, trade_date) if page else None
+    pushed = _git_push(dict(data_date=trade_date, status=result['final'].status,
+                            degraded=False)) if push else False
+    return dict(provider='agent', run_id=run_id, run_dir=run_dir, trade_date=trade_date,
+                final=result['final'], payload=payload, page=page,
+                last_run=last_run, pushed=pushed, status=result['final'].status)
+
+
+def _config_hash(settings: dict) -> str:
+    from . import evidence as ev
+    return ev.snapshot_hash(
+        dict(policy=policy.risk_policy(),
+             model={k: v for k, v in (settings.get('model') or {}).items()
+                    if k != 'api_key'}))
+
+
+def _render_page(run_dir: str, payload: dict):
+    """把研究载荷并回页面与数据包（两者必须同源）。"""
+    from .. import config, packet, webgen
+    data = storage.load_run(run_dir, 'page_data.json')
+    if not data:
+        return None
+    attach_to_data(data, payload)
+    out = webgen.render(data, data.get('trading'))
+    pkt = storage.load_run(run_dir, 'packet.json') or {}
+    if pkt:
+        pkt.setdefault('extras', {})['research'] = dict(
+            status=payload['meta']['status'], run_id=payload['meta'].get('run_id'),
+            trade_date=payload['meta']['trade_date'],
+            executable=payload['meta']['executable'],
+            risk_status=(payload.get('final') or {}).get('risk_status'))
+        packet.write(pkt, archive_dir=os.path.join(config.ROOT, 'data', 'runs'),
+                     path=os.path.join(config.WEB, 'analysis_packet.json'))
+    return out
+
+
+def _write_last_run(run_dir: str, payload: dict, page: dict, trade_date: str):
+    """复用 scripts/run_update.py 的清单写入，避免第二套字段口径。"""
+    import json as _json
+    import sys as _sys
+    try:
+        scripts = os.path.join(config.ROOT, 'scripts')
+        if scripts not in _sys.path:
+            _sys.path.insert(0, scripts)
+        import run_update
+        r = dict(data_date=trade_date, status=payload['meta']['status'], mode='agent',
+                 degraded=False, synthetic=False, levels=page.get('legs'),
+                 level_count={}, action_count={},
+                 orders=len(payload.get('final', {}).get('orders') or []),
+                 skipped=[], source=dict(fallback=[], live=True),
+                 validation=dict(ok=True), run_id=payload['meta'].get('run_id'),
+                 input_hash=payload['meta'].get('snapshot_hash'),
+                 config_hash=None, html=page.get('path'), html_bytes=page.get('bytes'),
+                 research=dict(status=payload['meta']['status'],
+                               run_id=payload['meta'].get('run_id')))
+        return run_update.write_manifest(r)
+    except Exception:
+        path = os.path.join(config.ROOT, 'data', 'last_run.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            _json.dump(dict(ok=payload['meta']['executable'],
+                            status=payload['meta']['status'],
+                            data_date=trade_date, run_id=payload['meta'].get('run_id'),
+                            mode='agent', html=page.get('path')),
+                       f, ensure_ascii=False, indent=2)
+        return path
+
+
+def _git_push(r: dict) -> bool:
+    import sys as _sys
+    try:
+        scripts = os.path.join(config.ROOT, 'scripts')
+        if scripts not in _sys.path:
+            _sys.path.insert(0, scripts)
+        import run_update
+        return run_update.git_push(r) == 0
+    except Exception as exc:
+        print('推送失败：%s' % exc)
+        return False
 
 
 def attach_to_data(data: dict, payload: dict | None) -> dict:

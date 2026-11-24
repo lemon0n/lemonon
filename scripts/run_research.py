@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
-"""只跑 LLM 研究层（不推送、不改持仓报告）。
+"""LLM 研究决策层入口。
 
-用法:
-    python3 scripts/run_research.py                      # 实时取数 + 研究
-    python3 scripts/run_research.py --snapshot           # 离线快照演示（状态会是 DEMO/ABSTAIN）
-    python3 scripts/run_research.py --no-page            # 不重新生成 HTML，只落 data/runs/
-    python3 scripts/run_research.py --mock               # 用内置脚本客户端跑通链路（LLM_MOCK）
+两种用法：
 
-退出码: 0 研究完成（含 REJECTED/ABSTAIN/LLM_FAILED 这类业务状态）
-        2 运行异常（配置错误、缺少依赖、写盘失败）
+A. 代理即模型（默认 provider=agent，不需要任何模型服务）
+    python scripts/run_research.py --prepare      # 抓数据 → 冻结事实 → 生成任务卡
+    #   → 读 <run_dir>/context.json，把四段 JSON 写到 <run_dir>/agent_output.json
+    python scripts/run_research.py --finish       # 证据校验 → 风控 → 订单 → 报告 → 页面
+
+B. 有本地模型服务（provider=openai_compatible）
+    python scripts/run_research.py                # 一条命令跑完四段链
+
+其他：--mock 用脚本回放跑通链路（LLM_MOCK，永不生成可执行订单）。
 """
 import argparse
 import json
@@ -17,68 +20,146 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from etfquant import config, packet, pipeline, webgen           # noqa: E402
-from etfquant.llm import integration                            # noqa: E402
+from etfquant import config, packet, pipeline, webgen        # noqa: E402
+from etfquant.llm import integration, storage                # noqa: E402
 
 
-def main():
-    ap = argparse.ArgumentParser(description='ETF · LLM 研究决策层')
-    ap.add_argument('--snapshot', action='store_true', help='离线快照（不联网）')
-    ap.add_argument('--no-page', action='store_true', help='不重新渲染页面')
-    ap.add_argument('--mock', action='store_true', help='用脚本客户端（仅演示链路）')
-    ap.add_argument('--json', action='store_true', help='输出机器可读摘要')
-    a = ap.parse_args()
+def _print(obj, as_json):
+    if as_json:
+        print(json.dumps(obj, ensure_ascii=False, default=str))
+        return
+    for k, v in obj.items():
+        print('%-12s %s' % (k, v))
 
+
+def cmd_prepare(a):
     collected = {}
     try:
-        # 页面与研究结果必须同源：先只算数据，研究完成后再渲染一次（避免渲染两遍）
         r = pipeline.run(use_live=not a.snapshot, collect=collected.update,
                          write_page=False, write_packet=False)
     except Exception as exc:
         print('确定性层运行失败：%s' % exc, file=sys.stderr)
         return 2
+    prep = integration.prepare(collected)
+    prep['status_market'] = r.get('status')
+    prep['data_date'] = r.get('data_date')
+    _print(prep, a.json)
+    if not a.json:
+        print('')
+        print('下一步：读 %s，把 research/proposal/redteam/revision 四段 JSON'
+              '写入 %s，再执行' % (prep['context_path'], prep['output_path']))
+        print('  python scripts/run_research.py --finish --run-dir "%s"' % prep['run_dir'])
+    return 0
 
+
+def _latest_pending():
+    root = storage.RUNS_ROOT
+    best, best_mtime = None, -1
+    for day in sorted(os.listdir(root), reverse=True) if os.path.isdir(root) else []:
+        day_dir = os.path.join(root, day)
+        if not os.path.isdir(day_dir):
+            continue
+        for run_id in sorted(os.listdir(day_dir), reverse=True):
+            cand = os.path.join(day_dir, run_id)
+            out = os.path.join(cand, integration.AGENT_OUTPUT)
+            if os.path.exists(out):
+                mtime = os.path.getmtime(out)
+                if mtime > best_mtime:
+                    best, best_mtime = cand, mtime
+        if best:
+            break
+    return best
+
+
+def cmd_finish(a):
+    run_dir = a.run_dir or _latest_pending()
+    if not run_dir:
+        print('找不到待完成的运行（先跑 --prepare 并写 agent_output.json）', file=sys.stderr)
+        return 2
     try:
-        result = integration.run(collected, scripted=(mock_responses(collected) if a.mock else None))
+        res = integration.finish(run_dir, render=not a.no_page, push=a.push)
+    except Exception as exc:
+        print('研究层收尾失败：%s' % exc, file=sys.stderr)
+        return 2
+
+    final = res['final']
+    summary = dict(status=final.status, run_dir=res['run_dir'],
+                   trade_date=res['trade_date'],
+                   orders=len(final.orders or []),
+                   violations=[v.code for v in (final.risk.violations if final.risk else [])],
+                   page=(res.get('page') or {}).get('path'),
+                   pushed=res.get('pushed'))
+    _print(summary, a.json)
+    if not a.json:
+        if summary['violations']:
+            print('')
+            print('风控问题（改完写 %s 再跑一次 --finish）：' % integration.AGENT_REPAIR)
+            for v in final.risk.violations:
+                print('  - %s %s：%s（观察 %s，要求 %s）'
+                      % (v.code, v.symbol or '', v.message, v.observed or '—', v.required or '—'))
+        print('')
+        print('报告：%s' % os.path.join(res['run_dir'], 'report.md'))
+        if os.path.exists(os.path.join(config.ROOT, 'docs', '持仓分析报告.md')):
+            print('持仓：docs/持仓分析报告.md')
+    return 0 if final.status in ('APPROVED', 'REJECTED') else 1
+
+
+def cmd_direct(a):
+    collected = {}
+    try:
+        r = pipeline.run(use_live=not a.snapshot, collect=collected.update,
+                         write_page=False, write_packet=False)
+    except Exception as exc:
+        print('确定性层运行失败：%s' % exc, file=sys.stderr)
+        return 2
+    try:
+        res = integration.run(collected, scripted=(mock_responses(collected) if a.mock else None))
     except Exception as exc:
         print('研究层运行失败：%s' % exc, file=sys.stderr)
         return 2
-
-    payload = result['payload']
+    payload = res['payload']
     if not a.no_page:
         integration.attach_to_data(collected['data'], payload)
         out = webgen.render(collected['data'], collected.get('cfg'))
         pkt = collected.get('packet') or {}
         pkt.setdefault('extras', {})['research'] = dict(
-            status=payload['meta']['status'], run_id=result['run_id'],
+            status=payload['meta']['status'], run_id=res['run_id'],
             trade_date=payload['meta']['trade_date'],
             executable=payload['meta']['executable'],
             risk_status=(payload.get('final') or {}).get('risk_status'))
         packet.write(pkt, archive_dir=os.path.join(config.ROOT, 'data', 'runs'),
                      path=os.path.join(config.WEB, 'analysis_packet.json'))
         r['html'], r['html_bytes'] = out['path'], out['bytes']
-
-    summary = dict(status=payload['meta']['status'], provider=result['provider'],
-                   run_id=result['run_id'], run_dir=result['run_dir'],
+    summary = dict(status=payload['meta']['status'], provider=res['provider'],
+                   run_id=res['run_id'], run_dir=res['run_dir'],
                    trade_date=payload['meta']['trade_date'],
                    data_date=payload['meta']['data_date'],
                    executable=payload['meta']['executable'],
                    risk=(payload.get('final') or {}).get('risk_status'),
                    violations=[v['code'] for v in
                                (payload.get('final') or {}).get('violations') or []],
-                   error=result.get('error'),
-                   page=r.get('html'))
-    if a.json:
-        print(json.dumps(summary, ensure_ascii=False))
-    else:
-        print('研究完成：%s · 数据日 %s' % (summary['status'], summary['data_date'] or '—'))
-        print('运行目录：%s' % summary['run_dir'])
-        if summary['violations']:
-            print('风控问题：%s' % '、'.join(summary['violations']))
-        if summary['error']:
-            print('错误：%s' % summary['error'])
-        print('页面：%s' % (summary['page'] or '（未渲染）'))
+                   error=res.get('error'), page=r.get('html'))
+    _print(summary, a.json)
     return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description='ETF · LLM 研究决策层')
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument('--prepare', action='store_true', help='冻结事实并生成代理任务卡')
+    g.add_argument('--finish', action='store_true', help='读代理产出，跑风控/订单/报告/页面')
+    ap.add_argument('--run-dir', help='--finish 用；缺省取最近一个待完成的运行')
+    ap.add_argument('--push', action='store_true', help='--finish 后提交并推送产物')
+    ap.add_argument('--snapshot', action='store_true', help='离线快照（不联网）')
+    ap.add_argument('--no-page', action='store_true', help='不重新渲染页面')
+    ap.add_argument('--mock', action='store_true', help='脚本回放（仅演示链路）')
+    ap.add_argument('--json', action='store_true', help='机器可读输出')
+    a = ap.parse_args()
+    if a.prepare:
+        return cmd_prepare(a)
+    if a.finish:
+        return cmd_finish(a)
+    return cmd_direct(a)
 
 
 def mock_responses(collected):
@@ -87,7 +168,6 @@ def mock_responses(collected):
     code = str(legs[0]['code']) if legs else '510300'
     date = (collected.get('meta') or {}).get('data_date') or ''
     ev_price = 'price:%s:close:%s' % (code, date)
-    ev_pos = 'position:%s:weight:%s' % (code, date)
     ev_feature = 'feature:%s:ma20_gap:%s' % (code, date)
     research = dict(
         as_of=(collected.get('meta') or {}).get('as_of'), market_regime='震荡区间',
@@ -110,13 +190,11 @@ def mock_responses(collected):
                  evidence=[dict(evidence_id=ev_price, claim='收盘价')],
                  trigger='演示触发', invalidation='演示失效',
                  execution_rule='不交易', confidence=0.3)
-    trades = [trade]
-    cash = 1.0
+    trades, cash = [trade], 1.0
     snap = integration.portfolio_from_legs(collected.get('legs') or [],
                                            collected.get('cfg'))
     if snap:
-        trades = []
-        held = 0.0
+        trades, held = [], 0.0
         for row in snap.get('rows') or []:
             weight = float(row.get('weight') or 0) / 100.0
             held += weight

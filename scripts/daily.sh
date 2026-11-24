@@ -74,6 +74,34 @@ fi
 
 say "使用解释器 $("$PY_BIN" -V 2>&1)"
 
+# ---------- 3.5 研究模式 ----------
+# agent 模式：没有模型服务，研究由「正在操作这个仓库的代理模型」完成。
+# 这里只做到「抓数 + 冻结事实 + 出任务卡」，剩下的两步交给代理。
+PROVIDER="$("$PY_BIN" - <<'PY' 2>/dev/null
+import sys
+sys.path.insert(0, 'src')
+try:
+    from etfquant.llm import policy
+    print(policy.settings().get('provider', 'agent'))
+except Exception:
+    print('agent')
+PY
+)"
+if [ "$PROVIDER" = "agent" ]; then
+  say "agent 模式：抓数并冻结事实（研究由代理完成）"
+  "$PY_BIN" scripts/fetch.py --market --national \
+    || printf '\n[警告] 部分抓取失败，沿用上次快照。\n' >&2
+  "$PY_BIN" scripts/run_research.py --prepare
+  code=$?
+  if [ "$code" != "0" ]; then
+    printf '\n[失败] prepare 失败（退出码 %s）。\n' "$code" >&2
+    exit 2
+  fi
+  say "下一步：让代理读任务卡并写 agent_output.json，然后执行"
+  say "  $PY_BIN scripts/run_research.py --finish --push"
+  exit 0
+fi
+
 # ---------- 4. 持仓数据（可选，需要口令） ----------
 # 深度持仓分析由研究层产出（docs/持仓分析报告.md）；RESEARCH=0 时才走确定性版。
 if [ -n "${POSITIONS_PASSPHRASE:-}" ] && [ -f web/positions.enc.json ]; then

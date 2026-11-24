@@ -51,11 +51,17 @@ def cmd_doctor(args) -> int:
         'require_redteam 必须为 true')
     add('数据目录', os.path.isdir(storage.RUNS_ROOT), storage.RUNS_ROOT)
     latest = storage.read_latest()
-    add('最近运行', bool(latest), (latest or {}).get('run_id') or '还没有研究运行')
+    add('最近运行', True, (latest or {}).get('run_id') or '还没有研究运行（正常，首次运行后出现）')
     try:
         conn_ok, detail = True, ''
         cfg_model = settings.get('model') or {}
-        if settings.get('provider') == 'openai_compatible':
+        provider = settings.get('provider')
+        if provider == 'agent':
+            detail = 'agent 模式：由操作者代理产出四段 JSON（run_research --prepare/--finish）'
+            pending = _pending_runs()
+            if pending:
+                detail += '；待完成运行 %d 个（最新 %s）' % (len(pending), pending[0])
+        elif provider == 'openai_compatible':
             llm = client_mod.LocalLLM(base_url=cfg_model.get('base_url'),
                                       model=cfg_model.get('model_name'),
                                       api_key=cfg_model.get('api_key', ''),
@@ -66,9 +72,9 @@ def cmd_doctor(args) -> int:
                       _short_error(ping.get('error') or ''))
         else:
             detail = 'provider=mock（仅测试/演示）'
-        add('模型连通性', conn_ok, detail)
+        add('研究通道', conn_ok, detail)
     except Exception as exc:
-        add('模型连通性', False, str(exc))
+        add('研究通道', False, str(exc))
 
     disk = checks and _disk_free_gb()
     add('磁盘可用', disk is not False and disk > 0.2, '%.1f GB' % (disk or 0))
@@ -81,6 +87,25 @@ def _disk_free_gb():
         return shutil.disk_usage(config.ROOT).free / (1024 ** 3)
     except Exception:
         return 0.0
+
+
+def _pending_runs() -> list[str]:
+    """有待完成的代理运行（有 agent_output.json、manifest 仍是 AWAITING_AGENT）。"""
+    root = storage.RUNS_ROOT
+    out = []
+    if not os.path.isdir(root):
+        return out
+    for day in sorted(os.listdir(root), reverse=True):
+        day_dir = os.path.join(root, day)
+        if not os.path.isdir(day_dir):
+            continue
+        for run_id in sorted(os.listdir(day_dir), reverse=True):
+            run_dir = os.path.join(day_dir, run_id)
+            if os.path.exists(os.path.join(run_dir, 'agent_output.json')):
+                manifest = storage.load_run(run_dir, 'manifest.json') or {}
+                if manifest.get('status') == 'AWAITING_AGENT':
+                    out.append(run_id)
+    return out
 
 
 def _short_error(text: str, limit: int = 120) -> str:

@@ -4,9 +4,16 @@
 
 ## 每天怎么用
 
+默认 **agent 模式**（不需要模型服务，我来当那个模型）：
+
 ```bash
-bash scripts/daily.sh
+bash scripts/daily.sh                              # 抓数 + 冻结事实 + 出任务卡
+#   读 <run_dir>/AGENT_TASK.md 与 context.json，写 agent_output.json
+python3 scripts/run_research.py --finish --push    # 风控 + 报告 + 页面 + 推送
 ```
+
+如果本机部署了模型服务：把 `config/llm.yaml` 的 `provider` 改成 `openai_compatible`，
+之后 `bash scripts/daily.sh` 一条命令做完。
 
 ## 在线页面
 

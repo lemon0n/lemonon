@@ -18,7 +18,9 @@ from .. import config
 
 ENC_PATH = os.path.join(config.WEB, 'positions.enc.json')
 CSV_PATH = os.path.join(config.POS, 'positions.csv')
+PASS_FILE = os.path.join(config.POS, '.passphrase')
 ENV_KEY = 'POSITIONS_PASSPHRASE'
+ENV_PASS_FILE = 'POSITIONS_PASSPHRASE_FILE'
 
 UNCLASSIFIED = '未分类'
 
@@ -207,10 +209,28 @@ def parse_csv(path):
     return dict(rows=rows, cash=cash)
 
 
+def read_passphrase(env=None):
+    """口令来源：环境变量优先，其次本地口令文件（positions/.passphrase，已 gitignore）。
+
+    文件方式是为了让「代理模型代跑」的场景不必每天 export：文件只在本地，不进仓库。
+    """
+    env = os.environ if env is None else env
+    value = (env.get(ENV_KEY) or '').strip()
+    if value:
+        return value
+    path = env.get(ENV_PASS_FILE) or PASS_FILE
+    try:
+        with open(path, encoding='utf-8') as f:
+            line = f.readline().strip()
+    except OSError:
+        return None
+    return line or None
+
+
 def load(cfg=None, env=None):
     """返回 {'rows': [...], 'cash': float} 或 None（无口令 / 无文件 / 解密失败）。"""
     env = os.environ if env is None else env
-    passwd = env.get(ENV_KEY)
+    passwd = read_passphrase(env)
     if passwd and os.path.exists(ENC_PATH):
         try:
             with open(ENC_PATH, encoding='utf-8') as f:
