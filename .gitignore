@@ -38,3 +38,6 @@ docs/rule_v3_demo.html
 docs/rule_compare_demo.html
 docs/backtest_compare_demo.html
 docs/rule_v3_compare.json
+
+# 页面 demo（含明文持仓，只在本地看，不进仓库）
+demo/
