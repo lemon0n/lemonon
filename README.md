@@ -31,6 +31,10 @@ bash scripts/daily.sh
 `web/index.html`、`web/analysis_packet.json`、`data/last_run.json`（以及上面两份持仓文件）。
 依赖：`python3.11 -m pip install -r requirements.txt`。
 
+**本地模型**：OpenAI 兼容接口，默认 `http://127.0.0.1:11434/v1`（Ollama）。换地址/模型用
+`export LLM_BASE_URL=... LLM_MODEL=...`，或直接改 `config/llm.yaml`；先跑
+`python3.11 -m etfquant.llm.cli doctor` 确认连通。
+
 **文档**：运行细节见 [AGENTS.md](AGENTS.md)；页面每块由谁产出见
 [页面区块对照](docs/页面区块对照.md)；LLM 研究层见
 [实施说明](docs/LLM研究决策层_实施说明.md)。历史设计与施工记录在
