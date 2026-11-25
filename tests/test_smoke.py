@@ -216,7 +216,7 @@ def test_portfolio_page_blocks_present(demo_page):
     """持仓页八个块与两处计算说明都在；不再有写死的行业表与旧判定。"""
     d, s = demo_page
     for txt in ('进场检查（选股三步）', '三周期', '底部评分', '顶部风险',
-                '复盘对照', '均线各自管什么', '板块健康度怎么算', '这条判断怎么算',
+                '复盘对照', '均线各自管什么：', '资金项按成交占比折算',
                 '今天动什么', '什么情况下改判'):
         assert txt in s, txt
     assert 'RS_SECTOR_MAP' not in s

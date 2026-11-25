@@ -378,11 +378,8 @@ def render(data, cfg=None, decision=True, demo=None, out_path=None):
         djs = open(dpath, encoding='utf-8').read()
     elif isinstance(data, dict):
         data.setdefault('contract', {})['engine'] = 'legacy'
-    # 模型研究页：只在有载荷时注入，避免给没有研究层的部署增加体积
+    # 研究结论已并进持仓分析页与明细表，不再单独注入页面脚本
     rjs = ''
-    rpath = os.path.join(ASSETS, 'research.js')
-    if isinstance(data, dict) and data.get('research') and os.path.exists(rpath):
-        rjs = open(rpath, encoding='utf-8').read()
     if demo:
         # demo：明文持仓直接注入，页面跳过口令锁；持仓价格随行带上
         data.setdefault('meta', {})['demo'] = True

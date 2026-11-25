@@ -2606,7 +2606,7 @@ function planFromResearch(R){
             grade:null,cap:null,tier:t.execution_rule||'',research:true,trade:t};
   });
   var sum=0; items.forEach(function(x){ sum+=n(x.target_weight); });
-  return {total_target:Math.round(sum*1000)/10,items:items,gap_threshold:1,source:'research'};
+  return {total_target:Math.round(sum*10)/10,items:items,gap_threshold:1,source:'research'};
 }
 function planItemOf(code){
   var pl=D.plan;
@@ -2855,7 +2855,7 @@ function applyRowDecision(x,total){
     if(t.action==='EXIT'){ ap='CLEAR'; }
     x.action=ap;
     x.text=(t.action_cn||t.action)+' '+Math.abs(n(x.gap)).toFixed(2)+'pct';
-    x.pace=t.priority?('优先级 '+t.priority):'';
+    x.pace='';
   }
   if(x.action==='HOLD'||x.action==='WAIT'){      /* 不动就不算订单，避免取整出 100 份假差额 */
     x.order={note:'不交易'};
@@ -2952,7 +2952,26 @@ function rsPlanRowHTML(x){
       (x.pace?'<br><span class="muted">'+esc(x.pace)+'</span>':'')+'</td></tr>';
 }
 function rsPlanRowsHTML(rows){
-  return (rows||[]).map(rsPlanRowHTML).join('');
+  /* 研究给的理由/触发/失效/执行，直接并进明细表：一行结论 + 一行依据 */
+  var trades={};
+  try{
+    ((D.research&&D.research.proposal&&D.research.proposal.trades)||[]).forEach(function(t){
+      trades[String(t.code)]=t;
+    });
+  }catch(e){}
+  return (rows||[]).map(function(x){
+    var main=rsPlanRowHTML(x);
+    var t=trades[String(x.r.code)];
+    if(!t) return main;
+    var why=[];
+    if(t.rationale) why.push('<b>理由</b> '+esc(t.rationale));
+    if(t.trigger) why.push('<b>触发</b> '+esc(t.trigger));
+    if(t.invalidation) why.push('<b>失效</b> '+esc(t.invalidation));
+    if(t.execution_rule) why.push('<b>执行</b> '+esc(t.execution_rule));
+    return main+'<tr class="rs-why"><td colspan="12" '+
+      'style="font-size:11.5px;line-height:1.8;color:#475569;background:#fbfcfd">'+
+      why.join('　')+'</td></tr>';
+  }).join('');
 }
 /* 日线在页面渲染后异步到达：重算计划并刷新表格、点评、个股卡 */
 function rsRefreshPlanTable(){
@@ -2990,11 +3009,7 @@ function rsPageHTML(p,s1,adv){
      '<th class="r">费用</th><th class="r">成本 → 现价</th><th class="r">盈亏</th>'+
      '<th class="r">5/20日上涨占比</th><th>全市场位置</th><th>动作</th>'+
      '</tr></thead><tbody id="rsPlanBody">'+rsPlanRowsHTML(orderRows)+'</tbody></table>'+
-     '<div class="rs-note">排序按本次操作金额降序；挂单价为限价保护（买 ×1.0001 进位、卖 ×0.9999 截断到 0.001），不保证成交；'+
-     '目标权重来自目标仓位表，动作与订单由它派生；规则卡只决定最早减仓时点，不另给方向。'+
-     (orderRows.some(function(x){ return x.item&&x.item.client; })
-       ?'标「本地补算」的行：该标的目标按同一口径用页面取到的日线现算。':'')+
-     '</div></div>';
+     '</div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
@@ -3026,20 +3041,9 @@ function rsPageHTML(p,s1,adv){
      tr(['波动',(rg0.vol20==null?'—':f2(rg0.vol20)+'% / '+f2(rg0.vol60)+'%'),
        (rg0.vol20!=null&&rg0.vol60!=null&&n(rg0.vol20)>n(rg0.vol60)*1.25)?'波动抬升，总上限再降 10 个百分点':'波动未抬升'])+
      '</tbody></table>'+
-     '<div class="rs-note">状态 '+esc(rg0.regime||'未知')+'，总仓位上限 '+
-       (D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':(rg0.fit_lo==null?'—':rg0.fit_lo+'~'+rg0.fit_hi+'%'))+
-       '；判据只看「收盘与 60 日线」「5 日线与 20 日线」两条。</div>'+
-     '<details class="sec-details"><summary class="sec"><span class="bar"></span>均线各自管什么 <span class="info">i</span></summary>'+
-     '<div class="sec-detail"><table class="tbl"><thead><tr><th>均线</th><th>作用</th><th>用法</th></tr></thead><tbody>'+
-     [['5 日线','短线多空分界','上方短线持有；跌破短线走弱'],
-      ['10 日线','短期趋势线 + 交易仓成本线','连续 2 日跌破，交易仓出局'],
-      ['20 日线','中期生命线','跌破且 2 日不收回，减半'],
-      ['30 日线','中期牛熊线','跌破且 2 日不收回，清差额'],
-      ['60 日线','长期趋势线','上方回调是正常调整；跌破趋势可能逆转'],
-      ['120 日线','多空转折点','站上才算主力进场；站不上多头结论降一档'],
-      ['20 月线','牛熊分界线','站上可重仓；之下一切上涨视为反弹']]
-       .map(function(x){ return tr([esc(x[0]),esc(x[1]),esc(x[2])]); }).join('')+
-     '</tbody></table></div></details></div>';
+     '<div class="rs-note">均线各自管什么：5 日看短线多空；10 日是交易仓成本线，连续 2 日跌破出局；'
+     '20 日跌破且 2 日不收回减半；30 日跌破且 2 日不收回清差额；60 日看长期趋势；'
+     '120 日站上才算主力进场；20 月线是牛熊分界。</div></div>';
 
   h+='<div class="rs-grid2" style="margin-top:10px">'+
     '<div class="box"><div class="bt">热度与情绪</div>'+
@@ -3065,13 +3069,6 @@ function rsPageHTML(p,s1,adv){
           return esc(x.sector)+' '+f2(x.share)+'%'; }).join('、'))||'暂无')+'。</div></div>'+
     '</div>';
 
-  h+='<div class="box" style="margin-top:10px"><div class="bt">隔夜与消息</div>'+
-     '<div class="rs-note" style="margin-top:0">隔夜：'+
-       (((D.market.glob&&D.market.glob.items)||[]).map(function(x){ return esc(x.k)+' '+esc(x.v); }).join('；')||'未取到')+
-     '。只算开盘扰动，不改自身周期。</div>'+
-     '<div class="rs-note">消息：'+
-       (((D.market.news||[]).slice(0,3).map(function(x){ return '['+esc(x.time)+'] '+esc(x.text); }).join('；'))||'未取到')+
-     '</div></div>';
 
   h+='<div class="rs-sub">2. 组合情况</div>';
   h+='<div class="rs-grid2">'+
@@ -3080,23 +3077,15 @@ function rsPageHTML(p,s1,adv){
     '</div>';
   h+='<div class="box" style="margin-top:10px"><div class="bt">组合与市场是否一致</div>'+
      '<div id="rsPortfolioRead" class="rs-note">加载中…</div>'+
-     '<details class="sec-details"><summary class="sec"><span class="bar"></span>这条判断怎么算 <span class="info">i</span></summary>'+
-     '<div class="sec-detail">输入：`plan.items[].target_weight`、`sector_weights`、`market.regime.leaders`、`market.flow[].share_pct`。'+
-     '最大暴露 = 各 ETF 权重 × 指数行业权重，按行业加总；超配线 25%、低配线 5%；'+
-     '走弱 = 板块四维评分 <60（C/D）且仍有暴露 ≥10%；主线按名称匹配，匹配不上写「不属于」，不猜。'+
-     '缺 `sector_weights` 的 ETF 计为「未覆盖」，不进暴露表。结论只收紧下一层：走弱板块对应的个股不加仓。</div></details></div>';
+     '</div>';
 
   h+='<div class="rs-sub">2.3 板块健康度</div>';
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr>'+
      '<th>板块</th><th class="r">评分</th><th>评级</th><th class="r">板块上限</th>'+
      '<th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th>'+
      '</tr></thead><tbody id="rsSectorTable"></tbody></table>'+
-     '<div class="rs-note">评分 = 技术 40% + 资金 25% + 政策 20% + 情绪 15%；没有行业周线时技术项按缺失处理，其余按权重折算，标「缺 N 项」。</div>'+
-     '<details class="sec-details"><summary class="sec"><span class="bar"></span>板块健康度怎么算 <span class="info">i</span></summary>'+
-     '<div class="sec-detail">资金项 = 50 + (该行业成交占比 ÷ 31 行业均值 − 1) × 20，clamp 到 0–100；'+
-     '情绪项 = 50 + 当日涨跌幅 × 8；政策项取 `market.policy_heat` 里同名或互相包含的主题热度，匹配不到记缺失；'+
-     '技术项需要行业代表 ETF 的周线，本页未接入，记缺失。缺项不补 0 分，按剩余权重折算（例：缺技术与政策 → 资金 62.5%、情绪 37.5%）。'+
-     '评级与个股同一套分档，板块上限 S25/A20/B10/C5/D0；D 级只限制新增，已持有按个股规则处理。</div></details></div>';
+     '<div class="rs-note">资金项按成交占比折算、情绪项按当日涨跌折算；技术项需行业周线（未接入），'
+     '缺项按剩余权重折算，不补 0 分。</div></div>';
 
   h+='<div class="rs-sub">3. 个股分析</div>';
   h+='<div class="rs-stockpick" id="rsStockPick">';
@@ -3105,11 +3094,6 @@ function rsPageHTML(p,s1,adv){
   });
   h+='</div><div id="rsDetail"></div>';
 
-  /* 4. 决策复核：模型结论放在「二、持仓分析」里，不另起一级板块 */
-  if(typeof researchSectionHTML==='function'){
-    h+='<div class="rs-sub">4. 决策复核（原始建议 / 反方 / 修订 / 改判）</div>';
-    h+='<div id="portfolio-research">'+researchSectionHTML()+'</div>';
-  }
 
   h+='<div class="rs-sec"><span class="bar"></span>三、市场洞察及方向</div>';
   h+='<div class="rs-sub">1. 今日定性（按时段）</div>';
@@ -3200,7 +3184,8 @@ function tick(txt,ok){
 function rsDetailFallback(code,row){
   var pr=rsPlanRow(code)||{}, o=pr.order||{};
   var px=priceOf(code), nm=nameOfRow(row)||code;
-  var w=(row&&row.weight!=null)?f2(row.weight)+'%':'—';
+  var curW=(pr.r&&pr.r.weight!=null)?pr.r.weight:(row?row.weight:null);
+  var w=(curW!=null)?f2(curW)+'%':'—';
   var tgt=(pr.target!=null)?f2(pr.target)+'%':(pr.structTarget?'结构目标待定':'—');
   var opTxt=o.delta!=null?((o.delta>0?'买 ':'卖 ')+Math.abs(o.delta).toLocaleString()+' 份'+
       (o.limit!=null?'，挂 '+f3(o.limit):'')):(pr.text||o.note||'等待确认');
@@ -3211,7 +3196,7 @@ function rsDetailFallback(code,row){
     '<span class="rs-pill">'+(pr.grade?esc(pr.grade)+' 级':'未评级')+'</span>'+
     '<span class="rs-pill">现价 '+(px&&px.last!=null?f3(px.last):'—')+'</span></div>'+
     '<div class="kpis">'+
-      kpi('仓位', w, '目标 '+tgt)+
+      kpi('仓位', w, '目标 '+tgt+(pr.gap!=null&&Math.abs(n(pr.gap))>=0.005?('，差 '+(pr.gap>0?'+':'')+f2(pr.gap)+'pct'):''))+
       kpi('评级 / 上限', (pr.grade||'—')+' / '+(pr.cap==null?'—':pr.cap+'%'), '与目标仓位表同源')+
       kpi('本次操作', opTxt, pr.pace||'')+
       kpi('数据状态', state, '腾讯 / 东财两路都没给出可用 K 线', true)+
@@ -3317,9 +3302,7 @@ function rsRenderDetail(){
         '<span class="k">持仓上下文</span><span class="v">'+ch.ctx+'</span>'+
       '</div>'+
       '<div class="rs-note">'+esc(ch.conflict)+'</div>'+
-      '<div class="rs-note">简化实现：分型→笔→中枢→背驰/买卖点，不含线段与多级别递归。'+
-      '缠论只解释买卖点位置，目标与订单以目标仓位表为准；'+
-      '要把它变成加仓过滤器，须先按 docs/缠论融合回测方案.md 跑 A/B 并通过门槛。</div></div>';
+      '</div></div>';
   }
 
   /* 3 双评分卡（只解释强弱，不改目标；评级与上限以顶部唯一出口为准） */
@@ -3335,21 +3318,20 @@ function rsRenderDetail(){
     '<span class="k">未接入</span><span class="v">'+sc.missTop+' 项（估值/龙头）</span></div>'+
     '<div class="rs-note">月线顶背离 '+(sc.items.topDiv==null?'—':sc.items.topDiv)+'/30；跌破 10 月线 '+
       (sc.items.break10m==null?'—':(sc.items.break10m?'是':'否'))+'；周线死叉 '+(sc.items.weekDeath==null?'—':sc.items.weekDeath)+'/15。'+
-      '<br>两张卡只解释强弱，不改目标；评级、上限、数量以顶部结论与明细表为准。</div></div></div>';
+      '</div></div></div>';
 
   /* 4 结构图 */
   h+='<div class="rs-grid2" style="margin-top:10px"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
     '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
     '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
-    '<div class="rs-note" id="rsChanNote">分型 → 笔 → 中枢 → 背驰 → 买卖点；不含线段与多级别递归。</div></div>'+
+    '</div>'+
     '<div class="box"><div class="bt">概率（历史相似条件）</div><div class="kpis">'+
       ['d5','d20','d60'].map(function(k){
         var it=f&&f[k];
         return '<div class="kpi"><div class="k">'+k.slice(1)+' 日上涨占比</div><div class="v">'+
           (it?f2(it.p)+'%':'—')+'</div><div class="d">'+(it?('样本 '+it.n):'样本不足')+'</div></div>';
       }).join('')+
-    '</div><div class="rs-note">'+(f&&f.d20?('20 日中位涨幅 '+f2(f.d20.med)+'%，样本区间 '+(f.d20.span||'—')):'样本不足 30 个，整列不显示')+
-    '；概率只作参考，不改评级、不改动作。</div></div></div>';
+    '</div></div></div>';
 
   /* 5 怎么做 */
   var conf=[];
@@ -3357,11 +3339,14 @@ function rsRenderDetail(){
   if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
   if(n(l.vol_ratio)>1.2) conf.push('量能放大');
   h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">怎么做</div>'+
-    '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2(row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
-    '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</span>'+
-    '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
-    '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span></div>'+
-    '<div class="rs-note">挂单价 = 买 现价×1.0001（进位）/ 卖 现价×0.9999（截断），到 0.001；数量向下取整到 100 份；价格是执行价，不保证成交。</div></div>'+
+    '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2((pr.r&&pr.r.weight!=null)?pr.r.weight:row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
+    '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(Math.abs(n(pr.gap))<0.005?'0.00':(pr.gap>0?'+':'')+f2(pr.gap))+'pct')+'</span>'+
+    (pr.item&&pr.item.research&&pr.item.trade
+      ? '<span class="k">触发条件</span><span class="v">'+esc(pr.item.trade.trigger||'—')+'</span>'+
+        '<span class="k">执行条件</span><span class="v">'+esc(pr.item.trade.execution_rule||'—')+'</span>'
+      : '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
+        '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span>')+'</div>'+
+    '</div>'+
     '<div class="box"><div class="bt">改判</div><div class="rs-note" style="margin-top:0">'+
     '转好：站上 20 日线且周线转多 → 评级重估，目标回到 '+(pr.target==null?'—':f2(pr.target)+'%')+'。<br>'+
     '恶化：收盘连续两日跌破 30 日线'+(l.ma30!=null?('（'+f3(l.ma30)+'）'):'')+' → 卖出该只全部剩余差额。<br>'+
@@ -3656,7 +3641,7 @@ function rsRenderSector(){
       '<span class="k">持有 / 有效只数</span><span class="v">'+RS_PORT.rows.length+' / '+(eff==null?'—':f2(eff))+'</span>'+
       '<span class="k">现金比例</span><span class="v">'+f2(RS_PORT.cashPct)+'%'+(n(RS_PORT.cashPct)<5?'（低于 5%）':'')+'</span>'+
       '<span class="k">TMT 合并（电子+计算机+通信）</span><span class="v">'+f2(tech)+'%'+(tech>35?'（超 35%）':'')+'</span>'+
-      '</div><div class="rs-note">暴露按**占持仓市值**计，现金单列；有效只数 = 1 ÷ HHI；TMT 合并按同主题口径看，半导体、科创与存储都在其中。</div>';
+      '</div>';
   }
   var readEl=document.getElementById('rsPortfolioRead');
   if(readEl){
