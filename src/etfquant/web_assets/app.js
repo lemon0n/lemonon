@@ -3125,6 +3125,10 @@ function rsPageHTML(p,s1,adv){
      '20 日跌破且 2 日不收回减半；30 日跌破且 2 日不收回清差额；60 日看长期趋势；'
      '120 日站上才算主力进场；20 月线是牛熊分界。</div></div>';
 
+  /* 广度数据可能比行情旧（抓取失败时保留旧值），这里标明它的数据日期 */
+  var bbAsOf=(D.market&&D.market.breadth_as_of)||null;
+  var dd=(D.meta&&D.meta.data_date)||'';
+  var bbNote=(bbAsOf&&dd&&bbAsOf!==dd)?('广度数据截至 '+esc(bbAsOf)+'（非今日，抓取失败时保留上次结果）；'):'';
   h+='<div class="rs-grid2" style="margin-top:10px">'+
     '<div class="box"><div class="bt">热度与情绪</div>'+
       '<div class="kv">'+
@@ -3136,7 +3140,7 @@ function rsPageHTML(p,s1,adv){
         '<span class="k">恐慌形态</span><span class="v">'+esc(sentItem('恐慌判定')||'未接入')+'</span>'+
         '<span class="k">连续普跌</span><span class="v">'+esc(sentItem('连续普跌天数')||'—')+' 天</span>'+
         '<span class="k">情绪温度</span><span class="v">'+n((D.market.sentiment||{}).score)+' / 100</span>'+
-      '</div><div class="rs-note">只有放量急杀才算恐慌，缩量阴跌不算；连续 2 日普涨次日易分歧，连续 3 日普跌只做试错仓。</div></div>'+
+      '</div><div class="rs-note">'+bbNote+'只有放量急杀才算恐慌，缩量阴跌不算；连续 2 日普涨次日易分歧，连续 3 日普跌只做试错仓。</div></div>'+
     '<div class="box"><div class="bt">资金动向</div>'+
       '<div class="kv">'+
         (((D.market.liquidity&&D.market.liquidity.items)||[]).map(function(x){
