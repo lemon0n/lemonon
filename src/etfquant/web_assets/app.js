@@ -277,7 +277,8 @@ function calcPort(){
     rows.push({code:String(r.code),name:nameOfRow(r),category:catOfRow(r),
       shares:shares,cost:cost,last:last,prev:prev,mv:mv,pnl:pnl,
       pnl_pct:(last!=null&&cost>0)?(last/cost-1)*100:null,
-      day:day,priced:last!=null,settle:r.settle||'T+1',leg:legOf(r.code)});
+      day:day,priced:last!=null,settle:r.settle||'T+1',leg:legOf(r.code),
+      up5:(r.up5!=null?r.up5:null),up20:(r.up20!=null?r.up20:null)});
   });
   var complete=missing.length===0;
   var totalAsset=complete?totalPos+n(HOLD.cash):null;
@@ -2167,13 +2168,43 @@ function rsAvgShare(){
   fl.forEach(function(x){ if(x.share!=null){ s+=n(x.share); c++; } });
   return c?s/c:null;
 }
+/* 行业名与政策主题不同名，先按别名找（不猜没有的主题） */
 function rsPolicyScore(name){
+  var ALIAS={
+    '电子':['半导体','芯片','光模块','消费电子'],'计算机':['算力','人工智能','AI','软件'],
+    '通信':['光模块','算力','5G'],'非银金融':['券商','证券'],'有色金属':['黄金','铜','稀土'],
+    '国防军工':['军工','卫星','航天'],'电力设备':['光伏','储能','电池'],
+    '食品饮料':['白酒'],'医药生物':['创新药','医疗'],'汽车':['智能驾驶','汽车']
+  };
   var ph=(D.market&&D.market.policy_heat)||[];
+  var keys=[String(name)].concat(ALIAS[name]||[]);
   for(var i=0;i<ph.length;i++){
     var t=String(ph[i].theme||'');
-    if(t===name||(t&&(t.indexOf(name)>=0||name.indexOf(t)>=0))) return rsClamp(n(ph[i].heat),0,100);
+    for(var j=0;j<keys.length;j++){
+      var k=keys[j];
+      if(t===k||(t&&k&&(t.indexOf(k)>=0||k.indexOf(t)>=0))) return rsClamp(n(ph[i].heat),0,100);
+    }
   }
   return null;
+}
+/* 技术项：用该板块持仓 ETF 的周线排列与位置打分（没有行业指数周线时的代理口径） */
+function sectorTechScore(name){
+  var rows=(RS_PORT&&RS_PORT.rows)||[], code=null;
+  rows.forEach(function(r){
+    if(code) return;
+    try{ if(rsSectorMap(r.code,r.name,r.category)[0][0]===name) code=String(r.code); }catch(e){}
+  });
+  if(!code) return null;
+  var lb=LBARS[code]; if(!lb) return null;
+  var wk=RS_WEEK[code]||rsWeeklyFromDaily(lb); if(!wk||!wk.closes||wk.closes.length<20) return null;
+  var c=wk.closes, ma5=maOf(c,5), ma10=maOf(c,10), ma20=maOf(c,20), ma60=maOf(c,60);
+  if(ma20==null) return null;
+  var sc=50;
+  if(ma5!=null&&ma10!=null&&ma5>ma10) sc+=12;
+  if(ma10>ma20) sc+=12;
+  if(c[c.length-1]>ma20) sc+=12;
+  if(ma60!=null&&ma20>ma60) sc+=14;
+  return rsClamp(sc,0,100);
 }
 function sectorScore(name){
   var f=rsFindFlow(name), avg=rsAvgShare();
@@ -2182,7 +2213,9 @@ function sectorScore(name){
   var fund=(share==null||!avg)?null:rsClamp(50+(share/avg-1)*20,0,100);
   var sent=(chg==null)?null:rsClamp(50+chg*8,0,100);
   var pol=rsPolicyScore(name);
+  var tech=(typeof sectorTechScore==='function')?sectorTechScore(name):null;
   var items=[];
+  if(tech!=null) items.push([tech,40]);
   if(fund!=null) items.push([fund,25]);
   if(pol!=null) items.push([pol,20]);
   if(sent!=null) items.push([sent,15]);
@@ -2190,8 +2223,14 @@ function sectorScore(name){
   var wsum=items.reduce(function(a,x){ return a+x[1]; },0);
   var score=items.reduce(function(a,x){ return a+x[0]*x[1]/wsum; },0);
   var grade=score>=85?'S':(score>=75?'A':(score>=60?'B':(score>=50?'C':'D')));
+  var missNames=[];
+  if(tech==null) missNames.push('技术');
+  if(fund==null) missNames.push('资金');
+  if(pol==null) missNames.push('政策');
+  if(sent==null) missNames.push('情绪');
   return {score:Math.round(score),grade:grade,cap:{S:25,A:20,B:10,C:5,D:0}[grade],
-          missing:4-items.length,fund:fund,pol:pol,sent:sent,share:share,chg:chg};
+          missing:missNames.length,missNames:missNames,
+          fund:fund,pol:pol,sent:sent,tech:tech,share:share,chg:chg};
 }
 /* 板块上限；D 级返回 null（只限制新增，不强制清仓，已持有按个股规则处理） */
 function sectorCapOf(name){
@@ -2241,7 +2280,8 @@ function rsSectorHealth(exp){
     var f=rsFindFlow(x.sector);
     var chg=(f&&f.chg!=null)?n(f.chg):null, share=(f&&f.share!=null)?n(f.share):null;
     return {sector:x.sector,pct:x.pct,chg:chg,share:share,
-      health:s?s.score:null,grade:s?s.grade:null,cap:s?s.cap:null,missing:s?s.missing:null,
+      health:s?s.score:null,grade:s?s.grade:null,cap:s?s.cap:null,
+      missing:s?s.missing:null,missNames:(s&&s.missNames)||[],
       relation:x.pct>=25?'超配':(x.pct<=5?'低配':'中性'),
       state:(s&&s.grade)?({S:'强',A:'强',B:'中',C:'弱',D:'弱'}[s.grade]):'—'};
   });
@@ -2257,6 +2297,23 @@ function rsRsi(vals,n){
   var ag=g/n, al=l/n;
   if(al<=1e-12) return ag>0?100:50;
   return 100-100/(1+ag/al);
+}
+
+
+/* 估值分位：只有能对上宽基指数的标的才有，行业 ETF 写未覆盖，不硬套 */
+function rsValuationOf(code){
+  var nm=String((typeof nameOfRow==='function'?nameOfRow({code:code}):'')||(window.QNAME||{})[String(code)]||'');
+  var key=nm.indexOf('科创')>=0?'科创50':(nm.indexOf('创业板')>=0?'创业板指':
+          (nm.indexOf('沪深300')>=0?'沪深300':(nm.indexOf('中证500')>=0?'中证500':null)));
+  if(!key) return null;
+  var nm2=key;
+  var items=((D.market&&D.market.valuation&&D.market.valuation.items)||[]);
+  for(var i=0;i<items.length;i++){
+    if(String(items[i].k||'').indexOf(nm2)>=0){
+      return items[i].v+(items[i].pos?('（'+items[i].pos+'）'):'');
+    }
+  }
+  return null;
 }
 
 /* 月线/周线/双评分卡：全部从已取到的日线与周线算，缺项标「未接入」 */
@@ -2924,6 +2981,15 @@ function rsSortPlanRows(rows){
   });
 }
 
+/* 近 N 个交易日里上涨的天数占比（真实口径，不是历史相似样本） */
+function rsUpDays(code,k){
+  var b=LBARS[String(code)];
+  if(!b||!b.closes||b.closes.length<k+1) return '—';
+  var c=b.closes, up=0;
+  for(var i=c.length-k;i<c.length;i++){ if(n(c[i])>n(c[i-1])) up++; }
+  return Math.round(up/k*100)+'%';
+}
+
 /* 5/20 日上涨占比：日线在内存里就直接算，没有就写「—」（样本 <30 用「样本不足」） */
 function rsFcText(code, key){
   var b=LBARS[String(code)];
@@ -2954,6 +3020,8 @@ function rsPlanRowHTML(x){
     '<td class="r">'+opTxt+'</td>'+
     '<td class="r">'+priceTxt+'</td>'+
     '<td class="r">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</td>'+
+    '<td class="r">'+(r.up5!=null?r.up5+'%':rsUpDays(r.code,5))+' / '+
+      (r.up20!=null?r.up20+'%':rsUpDays(r.code,20))+'</td>'+
     '<td class="r">'+f3(r.cost)+' → '+f3(r.last)+'</td>'+
     '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'<br><span class="muted">'+fy(r.pnl)+'</span></td>'+
     '<td>'+marketPosText(r)+'</td>'+
@@ -2977,7 +3045,7 @@ function rsPlanRowsHTML(rows){
     if(t.trigger) why.push('<b>触发</b> '+esc(t.trigger));
     if(t.invalidation) why.push('<b>失效</b> '+esc(t.invalidation));
     if(t.execution_rule) why.push('<b>执行</b> '+esc(t.execution_rule));
-    return main+'<tr class="rs-why"><td colspan="11" '+
+    return main+'<tr class="rs-why"><td colspan="12" '+
       'style="font-size:11.5px;line-height:1.8;color:#475569;background:#fbfcfd">'+
       why.join('　')+'</td></tr>';
   }).join('');
@@ -3016,6 +3084,7 @@ function rsPageHTML(p,s1,adv){
      '<th>名称 / 代码</th><th>板块</th><th class="r">仓位（现→目标）</th>'+
      '<th class="r">数量（现→建议）</th><th class="r">本次操作</th><th class="r">挂单价</th>'+
      '<th class="r">费用</th><th class="r">成本 → 现价</th><th class="r">盈亏</th>'+
+     '<th class="r" title="近 5 / 20 个交易日里上涨的天数占比">5/20 日上涨</th>'+
      '<th>全市场位置</th><th>动作</th>'+
      '</tr></thead><tbody id="rsPlanBody">'+rsPlanRowsHTML(orderRows)+'</tbody></table>'+
      '</div>';
@@ -3093,8 +3162,8 @@ function rsPageHTML(p,s1,adv){
      '<th>板块</th><th class="r">评分</th><th>评级</th><th class="r">板块上限</th>'+
      '<th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th>'+
      '</tr></thead><tbody id="rsSectorTable"></tbody></table>'+
-     '<div class="rs-note">资金项按成交占比折算、情绪项按当日涨跌折算；技术项需行业周线（未接入），'
-     '缺项按剩余权重折算，不补 0 分。</div></div>';
+     '<div class="rs-note">技术项用该板块持仓 ETF 的周线排列代理，资金项按成交占比、情绪项按当日涨跌、'
+     '政策项按政策热度（含同义主题）折算；缺项按剩余权重折算，不补 0 分。</div></div>';
 
   h+='<div class="rs-sub">3. 个股分析</div>';
   h+='<div class="rs-stockpick" id="rsStockPick">';
@@ -3134,7 +3203,7 @@ function rsAfterBars(){
     if(LBARS[c]) return;
     setTimeout(function(){
       fetchBars(c,function(b){
-        if(b&&b.closes&&b.closes.length>=20){ LBARS[c]=b; rsRefreshPlanTable(); }
+        if(b&&b.closes&&b.closes.length>=20){ LBARS[c]=b; rsRefreshPlanTable(); rsRenderSector(); }
       });
     }, 120*idx);
   });
@@ -3348,6 +3417,7 @@ function rsRenderDetail(){
   h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
     '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
     '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
+    '<span class="k">估值分位</span><span class="v">'+(rsValuationOf(code)||'未覆盖（行业 ETF 无指数估值）')+'</span>'+
     '<span class="k">未接入</span><span class="v">'+sc.missBottom+' 项（估值/领先股/景气/资金）</span></div>'+
     '<div class="rs-note">月线底背离 '+(sc.items.div==null?'—':sc.items.div)+'/25；月线倍量站上 20 月线 '+
       (sc.items.ma20m==null?'—':sc.items.ma20m)+'/20；周线排列 '+(sc.items.week==null?'—':sc.items.week)+'/15。</div></div>'+
@@ -3850,7 +3920,7 @@ function rsRenderSector(){
       var cls=x.chg==null?'':(x.chg>0?'up':(x.chg<0?'down':''));
       var gtag=x.grade
         ? ('<span class="tag '+(x.grade==='S'||x.grade==='A'?'buy':(x.grade==='D'?'sell':'hold'))+'">'+x.grade+'</span>'+
-           (x.missing?'<span class="muted"> 缺'+x.missing+'项</span>':''))
+           (x.missing?('<span class="muted"> 缺'+((x.missNames&&x.missNames.length)?x.missNames.join('/'):x.missing+'项')+'</span>'):''))
         : '—';
       return '<tr><td>'+esc(x.sector)+'</td>'+
         '<td class="r">'+(x.health==null?'—':x.health)+'</td>'+
@@ -4007,6 +4077,9 @@ function rsRenderMarket(){
       '<div class="kv">'+
       '<span class="k">MA5 / MA20 / MA60</span><span class="v">'+f2(v.ma5)+' / '+f2(v.ma20)+' / '+f2(v.ma60)+'</span>'+
       '<span class="k">仓位锚</span><span class="v">'+(D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':((D.market.regime||{}).fit_lo==null?'—':(D.market.regime||{}).fit_lo+'~'+(D.market.regime||{}).fit_hi+'%'))+'</span>'+
+      (((D.market&&D.market.valuation&&D.market.valuation.items)||[]).map(function(x){
+        return '<span class="k">'+esc(x.k)+'</span><span class="v">'+esc(x.v)+(x.pos?'（'+esc(x.pos)+'）':'')+'</span>';
+      }).join(''))+
       '</div><div class="rs-note">'+esc(oddsNote)+'</div>';
   }
   var m=document.getElementById('rsMood');

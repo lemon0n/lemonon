@@ -38,7 +38,7 @@ def latest_run() -> str:
     return names[0]
 
 
-def bars_of(code: str, n: int = 180) -> dict | None:
+def bars_of(code: str, n: int = 600) -> dict | None:
     """持仓日线（页面画均线与结构图用）；取不到就不塞，页面会走自己的取数/回退卡。"""
     df = None
     for attempt in range(3):          # 取数偶发失败：重试三次再退回快照
@@ -67,6 +67,17 @@ def bars_of(code: str, n: int = 180) -> dict | None:
                 highs=nums('high'), lows=nums('low'), vols=nums('volume'))
 
 
+
+def up_ratio(code: str, k: int):
+    """近 k 个交易日里上涨的天数占比；没有足够日线返回 None。"""
+    b = bars_of(code, 600)
+    if not b or len(b['closes']) < k + 1:
+        return None
+    c = b['closes']
+    up = sum(1 for i in range(len(c) - k, len(c)) if c[i] and c[i - 1] and c[i] > c[i - 1])
+    return round(up / k * 100)
+
+
 def demo_positions(context: dict) -> dict:
     port = context.get('portfolio') or {}
     rows = []
@@ -79,7 +90,8 @@ def demo_positions(context: dict) -> dict:
         rows.append(dict(code=str(p['symbol']), name=p.get('name') or str(p['symbol']),
                          category=p.get('category') or '未分类',
                          shares=int(p['shares']), cost=float(p.get('cost') or 0),
-                         settle='T+1', last=last, prev=prev))
+                         settle='T+1', last=last, prev=prev,
+                         up5=up_ratio(p['symbol'], 5), up20=up_ratio(p['symbol'], 20)))
     bars = {}
     for row in rows:
         b = bars_of(row['code'])

@@ -366,4 +366,4 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rp-list li{margin:2px 0}
 .rp-list li.warn{color:var(--warn)}
 /* 并列卡片按内容高度对齐，避免一侧被拉出大片空白 */
-.rs-grid2,.rs-grid3,.rs-grid4,.rs-funding,.rs-dir{align-items:start}
+.rs-grid2,.rs-grid3,.rs-grid4,.rs-funding,.rs-dir{align-items:stretch}
