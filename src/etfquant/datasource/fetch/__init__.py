@@ -25,19 +25,27 @@ LABELS = {
 
 
 def run(names=None, argv=None) -> dict:
-    """按顺序执行任务；返回 {'task': {'ok', 'seconds', 'error'}}。"""
+    """按顺序执行任务；返回 {'task': {'ok', 'seconds', 'error'}}。
+
+    argv 支持两种形式：单个列表（所有任务共用）或 {任务名: [参数]} 映射。
+    编排入口用映射把参数只发给对应任务，避免 --weeks 之类被透传给不认识它的子命令。
+    """
     names = list(names or ('market', 'national'))
+    argvs = argv if isinstance(argv, dict) else {n: argv for n in names}
     results = {}
     for name in names:
         fn = TASKS.get(name)
         if fn is None:
             results[name] = dict(ok=False, seconds=0.0, error='未知任务：%s' % name)
             continue
+        sub_argv = list(argvs.get(name) or [])
         started = time.monotonic()
         try:
-            code = fn() if name == 'market' else fn(argv)
+            code = fn() if name == 'market' else fn(sub_argv)
             ok = code in (0, None)
             error = None if ok else '退出码 %s' % code
+        except SystemExit as exc:                   # 参数解析中断等：记为失败，不拖垮其它任务
+            ok, error = False, 'SystemExit: %s' % (exc.code,)
         except Exception as exc:                    # 抓取失败不得中断主流程
             ok, error = False, '%s: %s' % (type(exc).__name__, exc)
         results[name] = dict(ok=ok, seconds=round(time.monotonic() - started, 1),
@@ -63,13 +71,14 @@ def main(argv=None) -> int:
     if args.all or not names:
         names = ['market', 'national', 'sector']
 
-    sub_argv = []
+    # 每个任务只拿自己的参数：national 认 --weeks，sector 认 --dry-run，market 无参数
+    sub_argvs = {}
     if 'national' in names:
-        sub_argv += ['--weeks', str(args.weeks)]
+        sub_argvs['national'] = ['--weeks', str(args.weeks)]
     if 'sector' in names and args.dry_run:
-        sub_argv.append('--dry-run')
+        sub_argvs['sector'] = ['--dry-run']
 
-    results = run(names, sub_argv)
+    results = run(names, sub_argvs)
     failed = [n for n, r in results.items() if not r['ok']]
     for name, r in results.items():
         print('%-9s %s  %.1fs%s' % (name, 'OK  ' if r['ok'] else 'FAIL',

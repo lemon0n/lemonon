@@ -10,6 +10,8 @@
   · premium（ETF 折溢价）：复用 akshare_adapter.fetch_spot（东财 IOPV）
 
 全部抓取异常不覆盖旧值，失败整体静默返回 0，让主流程继续。
+breadth 抓不到时额外把 breadth_as_of（广度数据自己的数据日期）写进快照：
+沿用旧值就保留旧日期，旧快照里没有就明确写 null；失败原因打到 stderr 日志。
 """
 import datetime
 import json
@@ -44,14 +46,18 @@ def _load_old():
 def _fetch_breadth():
     """东财 push2 clist：拉一页（pz=5000）全 A 股涨跌幅 + 成交额，本地聚合。
 
-    返回 dict(advance, decline, flat, limit_up, limit_down, amount_yi, amount_chg_pct, up_ratio,
-             distribution={'<-3%': n, '-3~-1%': n, '-1~0%': n, '0~1%': n, '1~3%': n, '>3%': n})
+    返回 (data, error)：成功时 error 为 None；失败时 data 为 None，error 是给人看的
+    失败原因（网络异常 / 返回空 / 样本数异常），由 main 写进日志，不再静默吞掉。
+
+    data: dict(advance, decline, flat, limit_up, limit_down, amount_yi, amount_chg_pct,
+               up_ratio, distribution={'<-3%': n, '-3~-1%': n, '-1~0%': n,
+                                      '0~1%': n, '1~3%': n, '>3%': n})
     """
     try:
         import requests
         import time as _t
-    except ImportError:
-        return None
+    except ImportError as exc:
+        return None, '缺少 requests 依赖：%s' % exc
     url = 'https://push2.eastmoney.com/api/qt/clist/get'
     params = {
         'pn': 1, 'pz': 5000, 'po': 1, 'np': 1,
@@ -60,6 +66,7 @@ def _fetch_breadth():
         'fields': 'f2,f3,f6,f12',
     }
     headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'}
+    error = '重试后仍失败（原因未知）'
     for i in range(2):
         try:
             r = requests.get(url, params=params, headers=headers, timeout=10)
@@ -67,7 +74,10 @@ def _fetch_breadth():
             j = r.json()
             items = ((j.get('data') or {}).get('diff')) or []
             if not items:
-                return None
+                error = '接口返回空数据（diff 为空）'
+                if i == 0:
+                    _t.sleep(0.8)
+                continue
             adv = dec = flat = up = dn = 0
             amount = 0.0
             d_buckets = {'<-3%': 0, '-3~-1%': 0, '-1~0%': 0,
@@ -103,7 +113,10 @@ def _fetch_breadth():
                     d_buckets['>3%'] += 1
             total = adv + dec + flat
             if total < 1000:
-                return None
+                error = '样本数异常（%d < 1000，疑似分页或接口改版）' % total
+                if i == 0:
+                    _t.sleep(0.8)
+                continue
             up_ratio = round(adv / total * 100, 1) if total else 0.0
             return dict(
                 advance=adv, decline=dec, flat=flat,
@@ -112,11 +125,12 @@ def _fetch_breadth():
                 amount_chg_pct=None,   # 需要对比昨日总额，这里只填今天的值
                 up_ratio=up_ratio,
                 distribution=d_buckets,
-            )
-        except Exception:
+            ), None
+        except Exception as exc:
+            error = '%s: %s' % (type(exc).__name__, exc)
             if i == 0:
                 _t.sleep(0.8)
-    return None
+    return None, error
 
 
 # ---------------------------------------------------------------- global（外盘）
@@ -219,27 +233,40 @@ def main():
 
     now = _now_bj()
     updated = {}
-
+    changed = False        # 是否有字段需要落盘
     core_updated = False   # 只有 breadth 成功才刷新总 as_of：它是「快照日」的唯一依据，
                            # 情绪/新闻/政策仍是人工维护，刷新总时间戳会把旧内容说成今天
 
     # 1. breadth + distribution
-    got = _fetch_breadth()
+    got, err = _fetch_breadth()
     if got:
         dist = got.pop('distribution')
         updated['breadth'] = got
         updated['distribution'] = dist
+        # 该字段自己的数据日期：实时行情，取抓取当天，和 breadth 一起刷新
+        updated['breadth_as_of'] = now.strftime('%Y-%m-%d')
         core_updated = True
+        changed = True
         print(f'  breadth: advance={got["advance"]} decline={got["decline"]} '
               f'limit_up={got["limit_up"]} limit_down={got["limit_down"]} '
-              f'amount={got["amount_yi"]}亿')
+              f'amount={got["amount_yi"]}亿  breadth_as_of={updated["breadth_as_of"]}')
     else:
-        print('  breadth/distribution：抓取失败，保留旧值', file=sys.stderr)
+        reason = err or '原因未知'
+        # 降级：保留旧 breadth/distribution，同时把「该字段自己的数据日期」交代清楚。
+        # 旧快照里没有这个日期就明确写 null，让页面知道广度不是今天的，
+        # 而不是留空、被总 as_of 冒充。
+        prev_date = old.get('breadth_as_of') or None
+        if prev_date is None:
+            updated['breadth_as_of'] = None
+            changed = True
+        print('  breadth/distribution：抓取失败（%s），保留旧值，breadth_as_of=%s'
+              % (reason, prev_date or 'null'), file=sys.stderr)
 
     # 2. global（外盘）
     got = _fetch_global()
     if got:
         updated['global'] = dict(items=got)
+        changed = True
         print(f'  global: {len(got)} 项外盘指数')
     else:
         print('  global：抓取失败，保留旧值', file=sys.stderr)
@@ -248,11 +275,12 @@ def main():
     got = _fetch_premium()
     if got:
         updated['premium'] = got
+        changed = True
         print(f'  premium: avg_pct={got["avg_pct"]} high={got["high_count"]} low={got["low_count"]}')
     else:
         print('  premium：抓取失败，保留旧值', file=sys.stderr)
 
-    if not updated:
+    if not changed:
         print('全部实时抓取失败，market.json 保持不变', file=sys.stderr)
         return 0
 
@@ -272,7 +300,10 @@ def main():
         json.dump(merged, f, ensure_ascii=False, indent=2)
     os.replace(tmp, MARKET_PATH)
     as_of_now = updated.get('as_of') or old.get('as_of') or 'unknown'
-    new_count = len([k for k in updated if k != 'as_of'])
-    print(f'market.json 已更新：as_of={as_of_now}，本次刷新 {new_count} 个字段')
+    new_count = len([k for k in updated if k not in ('as_of', 'breadth_as_of')])
+    placeholder = ''
+    if 'breadth_as_of' in updated and not core_updated:
+        placeholder = '（breadth 未抓到，另写入 breadth_as_of=null 标明广度数据日期）'
+    print(f'market.json 已更新：as_of={as_of_now}，本次刷新 {new_count} 个字段{placeholder}')
     return 0
 
