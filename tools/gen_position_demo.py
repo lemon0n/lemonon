@@ -38,7 +38,7 @@ def latest_run() -> str:
     return names[0]
 
 
-def bars_of(code: str, n: int = 600) -> dict | None:
+def bars_of(code: str, n: int = 600, data_date: str | None = None) -> dict | None:
     """持仓日线（页面画均线与结构图用）；取不到就不塞，页面会走自己的取数/回退卡。"""
     df = None
     for attempt in range(3):          # 取数偶发失败：重试三次再退回快照
@@ -59,6 +59,12 @@ def bars_of(code: str, n: int = 600) -> dict | None:
                 df = None
     if df is None or len(df) < 30:
         return None
+    if data_date:                     # 与持仓快照同一数据日，避免图和表不是同一天
+        try:
+            import pandas as _pd
+            df = df[_pd.to_datetime(df['date']) <= _pd.Timestamp(data_date)]
+        except Exception:
+            pass
     df = df.tail(n)
     def nums(col):
         return [None if v != v else float(v) for v in df[col].tolist()]
@@ -68,9 +74,9 @@ def bars_of(code: str, n: int = 600) -> dict | None:
 
 
 
-def up_ratio(code: str, k: int):
+def up_ratio(code: str, k: int, data_date: str | None = None):
     """近 k 个交易日里上涨的天数占比；没有足够日线返回 None。"""
-    b = bars_of(code, 600)
+    b = bars_of(code, 600, data_date)
     if not b or len(b['closes']) < k + 1:
         return None
     c = b['closes']
@@ -91,10 +97,12 @@ def demo_positions(context: dict) -> dict:
                          category=p.get('category') or '未分类',
                          shares=int(p['shares']), cost=float(p.get('cost') or 0),
                          settle='T+1', last=last, prev=prev,
-                         up5=up_ratio(p['symbol'], 5), up20=up_ratio(p['symbol'], 20)))
+                         up5=up_ratio(p['symbol'], 5, (context.get('meta') or {}).get('data_date')),
+                         up20=up_ratio(p['symbol'], 20, (context.get('meta') or {}).get('data_date'))))
+    data_date = (context.get('meta') or {}).get('data_date')
     bars = {}
     for row in rows:
-        b = bars_of(row['code'])
+        b = bars_of(row['code'], 600, data_date)
         if b:
             bars[row['code']] = b
     return dict(rows=rows, cash=float(port.get('cash') or 0), bars=bars)

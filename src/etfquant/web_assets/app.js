@@ -2999,6 +2999,38 @@ function rsFcText(code, key){
   return f2(f[key].p)+'%';
 }
 
+
+/* 卡片墙自适应：按实测高度贪心分两列，整体等高、不拉长单卡 */
+function rsBalanceWalls(){
+  var groups={};
+  [].forEach.call(document.querySelectorAll('.rs-wall[data-wall]'), function(w){
+    var k=w.getAttribute('data-wall');
+    (groups[k]=groups[k]||[]).push(w);
+  });
+  Object.keys(groups).forEach(function(k){
+    var walls=groups[k];
+    if(!walls.length) return;
+    var host=walls[0], cards=[];
+    walls.forEach(function(w){
+      [].forEach.call(w.children, function(c){ cards.push(c); });
+    });
+    var colA=document.createElement('div'), colB=document.createElement('div');
+    colA.className='rs-col'; colB.className='rs-col';
+    walls.forEach(function(w){ if(w!==host && w.parentNode) w.parentNode.removeChild(w); });
+    host.innerHTML='';
+    host.appendChild(colA); host.appendChild(colB);
+    /* 先全部放进 A 列量高度（此时已是列宽） */
+    cards.forEach(function(c){ colA.appendChild(c); });
+    var hs=cards.map(function(c){ return c.offsetHeight||0; });
+    var ha=0, hb=0;
+    cards.forEach(function(c,i){
+      var gap=12;
+      if(ha<=hb){ colA.appendChild(c); ha+=hs[i]+gap; }
+      else{ colB.appendChild(c); hb+=hs[i]+gap; }
+    });
+  });
+}
+
 function rsPlanRowHTML(x){
   var r=x.r, o=x.order||{};
   var kind=x.action==='ADD'?'buy':(x.action==='TRIM'?'sell':'hold');
@@ -3362,7 +3394,17 @@ function rsRenderDetail(){
     (kind==='sell'?'var(--down)':(kind==='buy'?'var(--up)':'var(--blue-d)'))+'">'+
     '<div class="vh"><span class="rs-pill '+kind+'">结论：'+esc(pr.text||'目标缺失')+'</span>'+
     '<span class="rs-pill">'+esc(nm)+'（'+esc(code)+'）</span>'+
-    '<span class="rs-pill">'+(pr.grade||'—')+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%')+'</span>'+
+    (function(){
+      var g=pr.grade, cp=pr.cap;
+      if(g==null||cp==null){
+        try{
+          var sec=rsSectorMap(code)[0][0], ss=sectorScore(sec)||{};
+          if(g==null) g=ss.grade||null;
+          if(cp==null) cp=(ss.cap==null?null:ss.cap);
+        }catch(e){}
+      }
+      return '<span class="rs-pill">'+(g||'—')+' 级 · 上限 '+(cp==null?'—':cp+'%')+'</span>';
+    })()+
     '<span class="rs-pill">现价 '+f3(l.last)+' · '+esc((D.meta&&D.meta.data_date)||'—')+'</span></div>'+
     '<div class="kpis">'+
       '<div class="kpi"><div class="k">仓位</div><div class="v">'+f2(curWeightOf(pr,row))+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</div><div class="d">差额 '+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</div></div>'+
@@ -3384,7 +3426,7 @@ function rsRenderDetail(){
   var stand=l.stand_back==null?null:!!l.stand_back;
   var shrink=l.shrink==null?null:!!l.shrink;
   var fake=l.false_breakout==null?null:!!l.false_breakout;
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
+  h+='<div class="rs-wall" data-wall="d" style="margin-top:10px"><div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
     '环境：总仓位上限 '+(cap==null?'缺失':f2(cap)+'%')+'，上限不足时只做试错仓。<br>'+
     '第 1 步 底部震荡：'+tick(notNewLow===null?'数据不足':(notNewLow?'近 20 日未创新低':'仍在创新低'),notNewLow)+'<br>'+
     '第 2 步 放量突破：'+tick('均线多头（5>10>20）',maOk)+' '+tick('实体阳线、无长上影',bodyOk)+' '+tick('站上 120 日线',above120)+'<br>'+
@@ -3421,7 +3463,7 @@ function rsRenderDetail(){
   }
 
   /* 3 双评分卡（只解释强弱，不改目标；评级与上限以顶部唯一出口为准） */
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
+  h+='<div class="rs-wall" data-wall="d" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
     '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
     '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
     '<span class="k">估值分位</span><span class="v">'+(rsValuationOf(code)||'未覆盖（行业 ETF 无指数估值）')+'</span>'+
@@ -3437,7 +3479,7 @@ function rsRenderDetail(){
       '</div></div></div>';
 
   /* 4 结构图 */
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
+  h+='<div class="rs-grid2" style="margin-top:10px;align-items:start"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
     '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
     '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
     '</div>'+
@@ -3454,7 +3496,7 @@ function rsRenderDetail(){
   if(l.ma10!=null&&n(l.last)>n(l.ma10)) conf.push('站上 10 日线');
   if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
   if(n(l.vol_ratio)>1.2) conf.push('量能放大');
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">怎么做</div>'+
+  h+='<div class="rs-wall" data-wall="d" style="margin-top:10px"><div class="box"><div class="bt">怎么做</div>'+
     '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2((pr.r&&pr.r.weight!=null)?pr.r.weight:row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
     '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(Math.abs(n(pr.gap))<0.005?'0.00':(pr.gap>0?'+':'')+f2(pr.gap))+'pct')+'</span>'+
     (pr.item&&pr.item.research&&pr.item.trade
@@ -3469,6 +3511,7 @@ function rsRenderDetail(){
     '<span class="muted">止损分两套：交易仓（C/B）破 10 日线 2 日出局；核心仓（A/S）破 20 日线 2 日减半、破 30 日线 2 日清差额、破 60 日线立即。</span></div></div></div>';
 
   el.innerHTML=h;
+  setTimeout(rsBalanceWalls,0);
   rsDrawChart(code);
   setTimeout(function(){ if(RS_SELECTED) rsDrawChart(RS_SELECTED); },60);
 }
@@ -3663,11 +3706,12 @@ function rsChanPoints(chan, rows){
   var last=rows[rows.length-1].c, out=[], marks=[], buy=false, sell=false;
   function mark(i,label,up){ if(i>=0&&i<rows.length) marks.push({i:i,label:label,up:up}); }
   var L=st.filter(function(p){ return p.kind==='L'; }), H=st.filter(function(p){ return p.kind==='H'; });
-  if(sig&&sig.label==='底背驰'&&L.length>=2&&L[L.length-1].px<=L[L.length-2].px){
+  var belowZd=!!(pv&&last<pv.zd);
+  if(!belowZd&&sig&&sig.label==='底背驰'&&L.length>=2&&L[L.length-1].px<=L[L.length-2].px){
     out.push('一买（下跌背驰后创新低，力度衰竭）'); buy=true;
     mark(sig.i,'1买',true);
   }
-  if(pv){
+  if(pv&&!belowZd){
     var recentLow=lows.length?Math.min.apply(null,lows.slice(-5)):null;
     if(recentLow!=null&&recentLow>=pv.zd*0.98&&recentLow<=pv.zd*1.02&&last>pv.zd){
       out.push('二买（回踩不破 ZD '+f3(pv.zd)+'）'); buy=true;
@@ -3677,9 +3721,9 @@ function rsChanPoints(chan, rows){
       out.push('三买（站上 ZG '+f3(pv.zg)+' 后回踩不破）'); buy=true;
       mark(rows.length-1,'3买',true);
     }
-    if(last<pv.zd){ out.push('三卖（跌破 ZD 后未能收回）'); sell=true;
-      mark(rows.length-1,'3卖',false); }
   }
+  if(pv&&last<pv.zd){ out.push('三卖（跌破 ZD 后未能收回）'); sell=true;
+    mark(rows.length-1,'3卖',false); }
   if(sig&&sig.label==='顶背驰'&&H.length>=2&&H[H.length-1].px>=H[H.length-2].px){
     out.push('一卖（上涨背驰后创新高）'); sell=true;
     mark(sig.i,'1卖',false);
@@ -3701,10 +3745,13 @@ function rsVolumePrice(rows){
   if(vr>=1.3&&ret3<=0.5) return {text:'放量滞涨（量比 '+f2(vr)+'，3 日 '+f2(ret3)+'%）',score:-1};
   if(vr>=1.3&&ret3<-2) return {text:'放量下跌（量比 '+f2(vr)+'）',score:-1};
   if(vr<=0.8&&ret3>-3&&c[n-1]>ma20) return {text:'缩量回踩（量比 '+f2(vr)+'，仍在 MA20 上）',score:1};
-  var hiVol=0;
-  for(var i=n-20;i<n;i++){ if(c[i]>=h20*0.999){ hiVol=v[i]; break; } }
-  if(hiVol>0&&lastV<hiVol*0.8)
+  var hiVol=0, hiIdx=-1;
+  for(var i=n-20;i<n-1;i++){ if(c[i]>=h20*0.999){ hiVol=v[i]; hiIdx=i; break; } }
+  var atHigh=c[n-1]>=h20*0.999;                 /* 今天自己就是 20 日高点 */
+  if(atHigh&&hiVol>0&&lastV<hiVol*0.8)
     return {text:'量价背离（价创新高，量只有前次 '+Math.round(lastV/hiVol*100)+'%）',score:-1};
+  if(!atHigh&&hiVol>0&&lastV<hiVol*0.8)
+    return {text:'缩量下行（未创新高，量能低于前次高点当日）',score:-1};
   return {text:'量价正常（量比 '+f2(vr)+'）',score:0};
 }
 
@@ -3827,7 +3874,7 @@ function rsChanText(code,l,pr,row){
   var sec=rsSectorMap(code)[0][0], f=rsFindFlow(sec);
   var rg=(D.market&&D.market.regime)||{};
   var ctx=(pr.grade?esc(pr.grade)+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%'):'未评级')+
-    ' · 现仓 '+((row&&row.weight!=null)?f2(row.weight)+'%':'—')+
+    ' · 现仓 '+((pr&&pr.r&&pr.r.weight!=null)?f2(pr.r.weight)+'%':((row&&row.weight!=null)?f2(row.weight)+'%':'—'))+
     ' → 目标 '+(pr.target==null?'—':f2(pr.target)+'%')+
     ' · 板块 '+(sec==='未覆盖'?'未覆盖':esc(sec)+(f?'（成交占比 '+f2(f.share)+'%）':''))+
     ' · 大盘 '+esc(rg.regime||'未知');
@@ -4303,5 +4350,6 @@ function boot(){
   /* 窄屏首次打开默认收起，避免导航挤占正文；用户手动切换后记住选择 */
   if(saved==null ? window.innerWidth<720 : saved==='1') setSide(true, false);
 }
-window.addEventListener('resize', function(){ layoutHeatmap(); });
+window.addEventListener('resize', function(){ layoutHeatmap();
+  clearTimeout(window.__balT); window.__balT=setTimeout(rsBalanceWalls,150); });
 boot();

@@ -367,3 +367,8 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rp-list li.warn{color:var(--warn)}
 /* 并列卡片按内容高度对齐，避免一侧被拉出大片空白 */
 .rs-grid2,.rs-grid3,.rs-grid4,.rs-funding,.rs-dir{align-items:stretch}
+
+/* 卡片墙：按内容高度分成两列，短卡不再被拉长 */
+.rs-wall{display:flex;gap:12px;align-items:flex-start;margin-top:10px}
+.rs-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:12px}
+.rs-wall>.box,.rs-col>.box{margin:0}
