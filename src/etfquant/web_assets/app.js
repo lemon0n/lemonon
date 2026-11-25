@@ -3080,6 +3080,8 @@ function rsPageHTML(p,s1,adv){
 
   var planRows=rsPlanRows(p);
   var orderRows=rsSortPlanRows(planRows);
+  /* 默认选中「本次操作金额最大」的那只，个股卡的结构图才有东西可看 */
+  if(!RS_SELECTED && orderRows.length){ RS_SELECTED=String(orderRows[0].r.code); }
   h+='<div class="box tight rs-scroll" style="margin-top:11px"><table class="tbl"><thead><tr>'+
      '<th>名称 / 代码</th><th>板块</th><th class="r">仓位（现→目标）</th>'+
      '<th class="r">数量（现→建议）</th><th class="r">本次操作</th><th class="r">挂单价</th>'+
@@ -3349,6 +3351,7 @@ function rsRenderDetail(){
   var low20=dl.length?Math.min.apply(null,dl):null;
   var cap=(D.plan&&D.plan.total_target!=null)?n(D.plan.total_target):null;
   var kind=pr.action==='ADD'?'buy':(pr.action==='TRIM'?'sell':'');
+  var nm=nameOfRow(row)||code;      /* 标题要写「名称（代码）」 */
 
   /* 1 结论 */
   var h='<div class="rs-verdict" style="border-top-color:'+
@@ -3536,6 +3539,12 @@ function rsDrawChart(code){
     ctx.font='bold 9px ui-monospace,Menlo,monospace'; ctx.textAlign='center';
     ctx.fillText(label,px,up?py+11:py-3); ctx.textAlign='left'; }
   if(chan.signal) marker(chan.signal.i,chan.signal.label,chan.signal.up);
+  try{
+    var pts=rsChanPoints(chan,bars);
+    (pts.list||[]).forEach(function(p){ marker(p.i,p.label,p.up); });
+    var bd=rsBackdiv(chan,closes);
+    if(bd) marker(bd.i,bd.label,bd.up);
+  }catch(e){}
   var vmax=Math.max.apply(null,vols)||1, vBase=H-padB+12;
   bars.forEach(function(b,i){ var hh=b.v/vmax*volH; ctx.fillStyle=b.c>=b.o?'rgba(192,57,43,.5)':'rgba(20,143,91,.5)'; ctx.fillRect(x(i)-Math.max(1,step*0.35),vBase+volH-hh,Math.max(1,step*0.7),hh); });
   ctx.fillStyle='#94a3b8'; ctx.fillText('VOL',padL,vBase+9);
@@ -3647,26 +3656,32 @@ function rsPivotType(chan){
 function rsChanPoints(chan, rows){
   var st=chan.strokes||[], pv=chan.pivot, sig=chan.signal;
   var lows=rows.map(function(x){ return x.l; }), highs=rows.map(function(x){ return x.h; });
-  var last=rows[rows.length-1].c, out=[], buy=false, sell=false;
+  var last=rows[rows.length-1].c, out=[], marks=[], buy=false, sell=false;
+  function mark(i,label,up){ if(i>=0&&i<rows.length) marks.push({i:i,label:label,up:up}); }
   var L=st.filter(function(p){ return p.kind==='L'; }), H=st.filter(function(p){ return p.kind==='H'; });
   if(sig&&sig.label==='底背驰'&&L.length>=2&&L[L.length-1].px<=L[L.length-2].px){
     out.push('一买（下跌背驰后创新低，力度衰竭）'); buy=true;
+    mark(sig.i,'1买',true);
   }
   if(pv){
     var recentLow=lows.length?Math.min.apply(null,lows.slice(-5)):null;
     if(recentLow!=null&&recentLow>=pv.zd*0.98&&recentLow<=pv.zd*1.02&&last>pv.zd){
       out.push('二买（回踩不破 ZD '+f3(pv.zd)+'）'); buy=true;
+      mark(rows.length-1,'2买',true);
     }
     if(last>pv.zg&&recentLow!=null&&recentLow>=pv.zg*0.99){
       out.push('三买（站上 ZG '+f3(pv.zg)+' 后回踩不破）'); buy=true;
+      mark(rows.length-1,'3买',true);
     }
-    if(last<pv.zd){ out.push('三卖（跌破 ZD 后未能收回）'); sell=true; }
+    if(last<pv.zd){ out.push('三卖（跌破 ZD 后未能收回）'); sell=true;
+      mark(rows.length-1,'3卖',false); }
   }
   if(sig&&sig.label==='顶背驰'&&H.length>=2&&H[H.length-1].px>=H[H.length-2].px){
     out.push('一卖（上涨背驰后创新高）'); sell=true;
+    mark(sig.i,'1卖',false);
   }
   return {text:out.length?out.join('；'):'无（既非背驰，也非三类买卖点）',
-          buy:buy, sell:sell};
+          buy:buy, sell:sell, list:marks};
 }
 
 /* 量价状态：放量滞涨 / 放量下跌 / 缩量回踩 / 量价背离 */
@@ -3716,6 +3731,30 @@ function rsConfluence(d){
   return {text:label+'（结构 '+_sym(d.structure)+' · 量价 '+_sym(d.volume)+
                 ' · 形态 '+_sym(d.candle)+' · 趋势 '+_sym(d.trend)+'）',
           score:pos-neg};
+}
+
+
+/* 面积背驰：最后两个同向笔之间，价格创新极值但 MACD 柱面积缩小 → 背驰 */
+function rsBackdiv(chan, closes){
+  if(!chan||!chan.strokes||chan.strokes.length<4) return null;
+  var macd=rsMacd(closes);
+  if(!macd||!macd.hist) return null;
+  var st=chan.strokes;
+  function area(a,b){
+    var s=0;
+    for(var i=Math.max(1,a);i<=Math.min(b,macd.hist.length-1);i++) s+=Math.abs(macd.hist[i]);
+    return s;
+  }
+  var last=st[st.length-1], prev=st[st.length-3];
+  if(!prev) return null;
+  var a0=area(prev.i, st[st.length-2] ? st[st.length-2].i : last.i);
+  var a1=area(st[st.length-2] ? st[st.length-2].i : last.i, last.i);
+  if(!(a0>0&&a1>0)) return null;
+  if(last.kind==='L'&&last.px<=prev.px&&a1<a0*0.8)
+    return {i:last.i,label:'底背驰',up:true};
+  if(last.kind==='H'&&last.px>=prev.px&&a1<a0*0.8)
+    return {i:last.i,label:'顶背驰',up:false};
+  return null;
 }
 
 /* 缠论展示层：把结构翻译成人话，并和持仓上下文（目标、评级、板块、大盘）对照。
