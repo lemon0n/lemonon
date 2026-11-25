@@ -2606,7 +2606,7 @@ function planFromResearch(R){
             grade:null,cap:null,tier:t.execution_rule||'',research:true,trade:t};
   });
   var sum=0; items.forEach(function(x){ sum+=n(x.target_weight); });
-  return {total_target:Math.round(sum*10)/10,items:items,gap_threshold:1,source:'research'};
+  return {total_target:Math.round(sum*100)/100,items:items,gap_threshold:1,source:'research'};
 }
 function planItemOf(code){
   var pl=D.plan;
@@ -2923,6 +2923,16 @@ function rsSortPlanRows(rows){
     return bv-av;
   });
 }
+
+/* 5/20 日上涨占比：日线在内存里就直接算，没有就写「—」（样本 <30 用「样本不足」） */
+function rsFcText(code, key){
+  var b=LBARS[String(code)];
+  if(!b) return '—';
+  var f=rsForecast(b);
+  if(!f||!f[key]) return '样本不足';
+  return f2(f[key].p)+'%';
+}
+
 function rsPlanRowHTML(x){
   var r=x.r, o=x.order||{};
   var kind=x.action==='ADD'?'buy':(x.action==='TRIM'?'sell':'hold');
@@ -2946,7 +2956,6 @@ function rsPlanRowHTML(x){
     '<td class="r">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</td>'+
     '<td class="r">'+f3(r.cost)+' → '+f3(r.last)+'</td>'+
     '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'<br><span class="muted">'+fy(r.pnl)+'</span></td>'+
-    '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td>'+
     '<td>'+marketPosText(r)+'</td>'+
     '<td><span class="tag '+kind+'">'+esc(x.text)+'</span>'+
       (x.pace?'<br><span class="muted">'+esc(x.pace)+'</span>':'')+'</td></tr>';
@@ -2968,7 +2977,7 @@ function rsPlanRowsHTML(rows){
     if(t.trigger) why.push('<b>触发</b> '+esc(t.trigger));
     if(t.invalidation) why.push('<b>失效</b> '+esc(t.invalidation));
     if(t.execution_rule) why.push('<b>执行</b> '+esc(t.execution_rule));
-    return main+'<tr class="rs-why"><td colspan="12" '+
+    return main+'<tr class="rs-why"><td colspan="11" '+
       'style="font-size:11.5px;line-height:1.8;color:#475569;background:#fbfcfd">'+
       why.join('　')+'</td></tr>';
   }).join('');
@@ -3007,7 +3016,7 @@ function rsPageHTML(p,s1,adv){
      '<th>名称 / 代码</th><th>板块</th><th class="r">仓位（现→目标）</th>'+
      '<th class="r">数量（现→建议）</th><th class="r">本次操作</th><th class="r">挂单价</th>'+
      '<th class="r">费用</th><th class="r">成本 → 现价</th><th class="r">盈亏</th>'+
-     '<th class="r">5/20日上涨占比</th><th>全市场位置</th><th>动作</th>'+
+     '<th>全市场位置</th><th>动作</th>'+
      '</tr></thead><tbody id="rsPlanBody">'+rsPlanRowsHTML(orderRows)+'</tbody></table>'+
      '</div>';
 
@@ -3090,7 +3099,7 @@ function rsPageHTML(p,s1,adv){
   h+='<div class="rs-sub">3. 个股分析</div>';
   h+='<div class="rs-stockpick" id="rsStockPick">';
   p.rows.forEach(function(r,i){
-    h+='<button type="button" class="'+(i===0?'on':'')+'" data-code="'+esc(r.code)+'" onclick="rsSelect(\''+esc(r.code)+'\')">'+esc(r.code)+' '+esc(r.name)+'</button>';
+    h+='<button type="button" class="'+(i===0?'on':'')+'" data-code="'+esc(r.code)+'" onclick="rsSelect(\''+esc(r.code)+'\')">'+esc(nameOfRow(r)||r.name||r.code)+'（'+esc(r.code)+'）</button>';
   });
   h+='</div><div id="rsDetail"></div>';
 
@@ -3118,6 +3127,17 @@ function rsPageHTML(p,s1,adv){
 function rsAfterBars(){
   if(!RS_PORT) return;
   rsRefreshPlanTable();
+  rsRenderForecastCells();          /* 日线到位后再算一次，避免明细表停在「样本不足」 */
+  /* 明细表的 5/20 占比需要每只持仓的日线：一次补齐，之后只重算单元格 */
+  (HOLD.rows||[]).forEach(function(r,idx){
+    var c=String(r.code);
+    if(LBARS[c]) return;
+    setTimeout(function(){
+      fetchBars(c,function(b){
+        if(b&&b.closes&&b.closes.length>=20){ LBARS[c]=b; rsRefreshPlanTable(); }
+      });
+    }, 120*idx);
+  });
   rsRenderBrief(RS_PORT,RS_S1);
   rsRenderSector();
   rsRenderMarket();
@@ -3265,7 +3285,8 @@ function rsRenderDetail(){
   var h='<div class="rs-verdict" style="border-top-color:'+
     (kind==='sell'?'var(--down)':(kind==='buy'?'var(--up)':'var(--blue-d)'))+'">'+
     '<div class="vh"><span class="rs-pill '+kind+'">结论：'+esc(pr.text||'目标缺失')+'</span>'+
-    '<span class="rs-pill">'+esc(code)+' · '+(pr.grade||'—')+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%')+'</span>'+
+    '<span class="rs-pill">'+esc(nm)+'（'+esc(code)+'）</span>'+
+    '<span class="rs-pill">'+(pr.grade||'—')+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%')+'</span>'+
     '<span class="rs-pill">现价 '+f3(l.last)+' · '+esc((D.meta&&D.meta.data_date)||'—')+'</span></div>'+
     '<div class="kpis">'+
       '<div class="kpi"><div class="k">仓位</div><div class="v">'+f2(curWeightOf(pr,row))+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</div><div class="d">差额 '+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</div></div>'+
