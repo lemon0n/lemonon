@@ -3036,6 +3036,10 @@ function rsPlanRowHTML(x){
   var kind=x.action==='ADD'?'buy':(x.action==='TRIM'?'sell':'hold');
   var sharesTxt=(r.shares==null?'—':Math.round(n(r.shares)).toLocaleString())+
     (o.shares==null?'':' → '+o.shares.toLocaleString());
+  if(o.shares==null&&x.target!=null&&n(r.last)>0&&RS_PORT&&RS_PORT.totalAsset){
+    var tq=Math.floor(n(RS_PORT.totalAsset)*n(x.target)/100/n(r.last)/100)*100;
+    if(tq>0&&Math.round(n(r.shares))!==tq){ sharesTxt+=' <span class="muted">（目标 '+tq.toLocaleString()+'）</span>'; }
+  }
   var opTxt='—';
   if(o.delta!=null){
     opTxt=(o.delta>0?'+':'')+o.delta.toLocaleString()+
@@ -3369,6 +3373,21 @@ function rsRetryBars(code){
   fetchBars(code,function(o){ if(o) LBARS[code]=o; done(); });
   rsFetchWeekly(code,function(o){ if(o) RS_WEEK[code]=o; done(); });
 }
+
+/* 个股卡选项卡：概览 / 结构与图 / 评分与概率 */
+function rsTab(btn){
+  var wrap=btn.closest('.rs-tabwrap');
+  if(!wrap) return;
+  var name=btn.getAttribute('data-t');
+  [].forEach.call(wrap.querySelectorAll('.rs-tabs button'), function(x){
+    x.classList.toggle('on', x===btn);
+  });
+  [].forEach.call(wrap.querySelectorAll('.rs-pane'), function(p){
+    p.classList.toggle('on', p.getAttribute('data-p')===name);
+  });
+  if(name==='struct'){ setTimeout(function(){ if(RS_SELECTED) rsDrawChart(RS_SELECTED); }, 30); }
+}
+
 function rsRenderDetail(){
   var el=document.getElementById('rsDetail');
   if(!el) return;
@@ -3413,7 +3432,7 @@ function rsRenderDetail(){
       '<div class="kpi"><div class="k">费用</div><div class="v">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</div><div class="d">佣金+滑点</div></div>'+
     '</div></div>';
 
-  /* 2 进场检查 */
+  /* 概览 / 结构 / 评分：每个选项卡里按「一块一件事」竖向平铺；只有成对的卡才并两栏 */
   var maOk=(l.ma5!=null&&l.ma10!=null&&l.ma20!=null)?(n(l.ma5)>n(l.ma10)&&n(l.ma10)>n(l.ma20)):null;
   var bodyOk=null;
   if(b.opens&&b.highs&&b.lows&&b.closes&&b.closes.length){
@@ -3426,12 +3445,54 @@ function rsRenderDetail(){
   var stand=l.stand_back==null?null:!!l.stand_back;
   var shrink=l.shrink==null?null:!!l.shrink;
   var fake=l.false_breakout==null?null:!!l.false_breakout;
-  h+='<div class="rs-wall" data-wall="d" style="margin-top:10px"><div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
+  var conf=[];
+  if(l.ma10!=null&&n(l.last)>n(l.ma10)) conf.push('站上 10 日线');
+  if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
+  if(n(l.vol_ratio)>1.2) conf.push('量能放大');
+
+  var paneOvw=''+
+    '<div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
     '环境：总仓位上限 '+(cap==null?'缺失':f2(cap)+'%')+'，上限不足时只做试错仓。<br>'+
     '第 1 步 底部震荡：'+tick(notNewLow===null?'数据不足':(notNewLow?'近 20 日未创新低':'仍在创新低'),notNewLow)+'<br>'+
     '第 2 步 放量突破：'+tick('均线多头（5>10>20）',maOk)+' '+tick('实体阳线、无长上影',bodyOk)+' '+tick('站上 120 日线',above120)+'<br>'+
     '第 3 步 回踩确认：'+tick('回踩不破关键位',stand)+' '+tick('缩量',shrink)+' '+(fake?'<span class="tag sell">✗ 假突破（放量下跌）</span>':'')+
     '<br><span class="muted">突破当天只标关注，回踩才是确认；三条缺一条写「突破不成立」。</span></div></div>'+
+    '<div class="box"><div class="bt">执行与改判</div>'+
+      '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2((pr.r&&pr.r.weight!=null)?pr.r.weight:row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
+      '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(Math.abs(n(pr.gap))<0.005?'0.00':(pr.gap>0?'+':'')+f2(pr.gap))+'pct')+'</span>'+
+      (pr.item&&pr.item.research&&pr.item.trade
+        ? '<span class="k">触发条件</span><span class="v">'+esc(pr.item.trade.trigger||'—')+'</span>'+
+          '<span class="k">执行条件</span><span class="v">'+esc(pr.item.trade.execution_rule||'—')+'</span>'
+        : '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
+          '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span>')+
+      '</div>'+
+      '<div class="rs-note" style="margin-top:8px">'+
+      '转好：站上 20 日线且周线转多 → 评级重估，目标回到 '+(pr.target==null?'—':f2(pr.target)+'%')+'。<br>'+
+      '恶化：收盘连续两日跌破 30 日线'+(l.ma30!=null?('（'+f3(l.ma30)+'）'):'')+' → 卖出该只全部剩余差额。<br>'+
+      '<span class="muted">止损两套：交易仓（C/B）破 10 日线 2 日出局；核心仓（A/S）破 20 日线 2 日减半、破 30 日线 2 日清差额、破 60 日线立即。</span></div></div>';
+
+  var ch=rsChanText(code,l,pr,row);
+  var chanKv='';
+  if(ch){
+    chanKv='<div class="rs-kv2">'+
+      '<div><b>中枢</b> '+esc(ch.pivotTxt)+'</div>'+
+      '<div><b>现价位置</b> '+esc(ch.posTxt)+'</div>'+
+      '<div><b>最近一笔</b> '+esc(ch.strokeTxt)+'</div>'+
+      '<div><b>结构信号</b> '+esc(ch.sigTxt)+'</div>'+
+      '<div><b>中枢类型</b> '+esc(ch.pivotTypeTxt)+'</div>'+
+      '<div><b>三类买卖点</b> '+esc(ch.pointsTxt)+'</div>'+
+      '<div><b>量价状态</b> '+esc(ch.volTxt)+'</div>'+
+      '<div><b>K 线形态</b> '+esc(ch.candleTxt)+'</div>'+
+      '<div><b>多维共振</b> '+esc(ch.confTxt)+'</div>'+
+      '<div><b>与目标的关系</b> '+esc(ch.rel)+'</div>'+
+      '<div><b>持仓上下文</b> '+ch.ctx+'</div>'+
+      '</div>'+
+      '<div class="rs-note">'+esc(ch.conflict)+'</div>';
+  }
+  var paneStruct=
+    '<div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
+    '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
+    '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas></div>'+
     '<div class="box"><div class="bt">三周期</div><table class="tbl"><thead><tr><th>周期</th><th>位置</th><th>结论</th></tr></thead><tbody>'+
     tr(['月线',(sc.month?('收 '+f3(sc.month.last)+' / 20 月线 '+(sc.month.ma20==null?'—':f3(sc.month.ma20))):'月线数据不足'),
       (sc.month&&sc.month.ma20!=null)?(n(sc.month.last)>n(sc.month.ma20)?'20 月线上方，可重仓区':'20 月线下方，上涨当反弹'):'—'])+
@@ -3439,49 +3500,23 @@ function rsRenderDetail(){
       (sc.items.week==null)?'—':(sc.items.week>=15?'多头排列':(sc.items.week>=10?'金叉初期':(sc.items.week>=5?'粘合':'空头')))])+
     tr(['日线','MA5 '+f3(l.ma5)+' / MA10 '+f3(l.ma10)+' / MA20 '+f3(l.ma20)+' / MA60 '+f3(l.ma60)+' / MA120 '+f3(l.ma120),
       (l.vol_ratio!=null?'量比 '+f2(l.vol_ratio):'量比缺失')+'；'+(l.ma_state||'—')])+
-    '</tbody></table><div class="rs-note">日线服从周线：周线向上，日线回踩是买点；周线向下，日线反弹是卖点。</div></div></div>';
+    '</tbody></table><div class="rs-note">日线服从周线：周线向上，日线回踩是买点；周线向下，日线反弹是卖点。</div></div>'+
+    (ch? '<div class="box"><div class="bt">缠论结构（展示层 · 不改动作）</div>'+chanKv+'</div>' : '');
 
-  /* 2.5 缠论结构（展示层）：只解释动作，不改目标与订单 */
-  var ch=rsChanText(code,l,pr,row);
-  if(ch){
-    h+='<div class="box" style="margin-top:10px"><div class="bt">缠论结构（展示层 · 不改动作）</div>'+
-      '<div class="kv">'+
-        '<span class="k">中枢</span><span class="v">'+esc(ch.pivotTxt)+'</span>'+
-        '<span class="k">现价位置</span><span class="v">'+esc(ch.posTxt)+'</span>'+
-        '<span class="k">最近一笔</span><span class="v">'+esc(ch.strokeTxt)+'</span>'+
-        '<span class="k">结构信号</span><span class="v">'+esc(ch.sigTxt)+'</span>'+
-        '<span class="k">中枢类型</span><span class="v">'+esc(ch.pivotTypeTxt)+'</span>'+
-        '<span class="k">三类买卖点</span><span class="v">'+esc(ch.pointsTxt)+'</span>'+
-        '<span class="k">量价状态</span><span class="v">'+esc(ch.volTxt)+'</span>'+
-        '<span class="k">K 线形态</span><span class="v">'+esc(ch.candleTxt)+'</span>'+
-        '<span class="k">多维共振</span><span class="v">'+esc(ch.confTxt)+'</span>'+
-        '<span class="k">与目标的关系</span><span class="v">'+esc(ch.rel)+'</span>'+
-        '<span class="k">持仓上下文</span><span class="v">'+ch.ctx+'</span>'+
-      '</div>'+
-      '<div class="rs-note">'+esc(ch.conflict)+'</div>'+
-      '</div></div>';
-  }
-
-  /* 3 双评分卡（只解释强弱，不改目标；评级与上限以顶部唯一出口为准） */
-  h+='<div class="rs-wall" data-wall="d" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
-    '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
-    '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
-    '<span class="k">估值分位</span><span class="v">'+(rsValuationOf(code)||'未覆盖（行业 ETF 无指数估值）')+'</span>'+
-    '<span class="k">未接入</span><span class="v">'+sc.missBottom+' 项（估值/领先股/景气/资金）</span></div>'+
-    '<div class="rs-note">月线底背离 '+(sc.items.div==null?'—':sc.items.div)+'/25；月线倍量站上 20 月线 '+
-      (sc.items.ma20m==null?'—':sc.items.ma20m)+'/20；周线排列 '+(sc.items.week==null?'—':sc.items.week)+'/15。</div></div>'+
-    '<div class="box"><div class="bt">顶部风险</div>'+
-    '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.top==null?'—':sc.top)+' / 100</span>'+
-    '<span class="k">风险提示</span><span class="v">'+(sc.top==null?'—':(sc.top>=80?'高位风险高':(sc.top>=60?'高位风险偏高':(sc.top>=40?'有警惕信号':'正常'))))+'</span>'+
-    '<span class="k">未接入</span><span class="v">'+sc.missTop+' 项（估值/龙头）</span></div>'+
-    '<div class="rs-note">月线顶背离 '+(sc.items.topDiv==null?'—':sc.items.topDiv)+'/30；跌破 10 月线 '+
-      (sc.items.break10m==null?'—':(sc.items.break10m?'是':'否'))+'；周线死叉 '+(sc.items.weekDeath==null?'—':sc.items.weekDeath)+'/15。'+
-      '</div></div></div>';
-
-  /* 4 结构图 */
-  h+='<div class="rs-grid2" style="margin-top:10px;align-items:start"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
-    '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
-    '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
+  var paneScore='<div class="rs-two">'+
+    '<div class="box"><div class="bt">底部评分</div><div class="kv">'+
+      '<span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
+      '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
+      '<span class="k">估值分位</span><span class="v">'+(rsValuationOf(code)||'未覆盖（行业 ETF 无指数估值）')+'</span>'+
+      '<span class="k">未接入</span><span class="v">'+sc.missBottom+' 项（估值/领先股/景气/资金）</span></div>'+
+      '<div class="rs-note">月线底背离 '+(sc.items.div==null?'—':sc.items.div)+'/25；月线倍量站上 20 月线 '+
+        (sc.items.ma20m==null?'—':sc.items.ma20m)+'/20；周线排列 '+(sc.items.week==null?'—':sc.items.week)+'/15。</div></div>'+
+    '<div class="box"><div class="bt">顶部风险</div><div class="kv">'+
+      '<span class="k">总分</span><span class="v">'+(sc.top==null?'—':sc.top)+' / 100</span>'+
+      '<span class="k">风险提示</span><span class="v">'+(sc.top==null?'—':(sc.top>=80?'高位风险高':(sc.top>=60?'高位风险偏高':(sc.top>=40?'有警惕信号':'正常'))))+'</span>'+
+      '<span class="k">未接入</span><span class="v">'+sc.missTop+' 项（估值/龙头）</span></div>'+
+      '<div class="rs-note">月线顶背离 '+(sc.items.topDiv==null?'—':sc.items.topDiv)+'/30；跌破 10 月线 '+
+        (sc.items.break10m==null?'—':(sc.items.break10m?'是':'否'))+'；周线死叉 '+(sc.items.weekDeath==null?'—':sc.items.weekDeath)+'/15。</div></div>'+
     '</div>'+
     '<div class="box"><div class="bt">概率（历史相似条件）</div><div class="kpis">'+
       ['d5','d20','d60'].map(function(k){
@@ -3489,26 +3524,18 @@ function rsRenderDetail(){
         return '<div class="kpi"><div class="k">'+k.slice(1)+' 日上涨占比</div><div class="v">'+
           (it?f2(it.p)+'%':'—')+'</div><div class="d">'+(it?('样本 '+it.n):'样本不足')+'</div></div>';
       }).join('')+
-    '</div></div></div>';
+    '</div><div class="rs-note">样本不足 30 时不显示；概率只作参考，不改评级与动作。</div></div>';
 
-  /* 5 怎么做 */
-  var conf=[];
-  if(l.ma10!=null&&n(l.last)>n(l.ma10)) conf.push('站上 10 日线');
-  if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
-  if(n(l.vol_ratio)>1.2) conf.push('量能放大');
-  h+='<div class="rs-wall" data-wall="d" style="margin-top:10px"><div class="box"><div class="bt">怎么做</div>'+
-    '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2((pr.r&&pr.r.weight!=null)?pr.r.weight:row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
-    '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(Math.abs(n(pr.gap))<0.005?'0.00':(pr.gap>0?'+':'')+f2(pr.gap))+'pct')+'</span>'+
-    (pr.item&&pr.item.research&&pr.item.trade
-      ? '<span class="k">触发条件</span><span class="v">'+esc(pr.item.trade.trigger||'—')+'</span>'+
-        '<span class="k">执行条件</span><span class="v">'+esc(pr.item.trade.execution_rule||'—')+'</span>'
-      : '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
-        '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span>')+'</div>'+
+  h+='<div class="rs-tabwrap">'+
+    '<div class="rs-tabs">'+
+      '<button type="button" class="on" data-t="ovw" onclick="rsTab(this)">概览</button>'+
+      '<button type="button" data-t="struct" onclick="rsTab(this)">结构与图</button>'+
+      '<button type="button" data-t="score" onclick="rsTab(this)">评分与概率</button>'+
     '</div>'+
-    '<div class="box"><div class="bt">改判</div><div class="rs-note" style="margin-top:0">'+
-    '转好：站上 20 日线且周线转多 → 评级重估，目标回到 '+(pr.target==null?'—':f2(pr.target)+'%')+'。<br>'+
-    '恶化：收盘连续两日跌破 30 日线'+(l.ma30!=null?('（'+f3(l.ma30)+'）'):'')+' → 卖出该只全部剩余差额。<br>'+
-    '<span class="muted">止损分两套：交易仓（C/B）破 10 日线 2 日出局；核心仓（A/S）破 20 日线 2 日减半、破 30 日线 2 日清差额、破 60 日线立即。</span></div></div></div>';
+    '<div class="rs-pane on" data-p="ovw">'+paneOvw+'</div>'+
+    '<div class="rs-pane" data-p="struct">'+paneStruct+'</div>'+
+    '<div class="rs-pane" data-p="score">'+paneScore+'</div>'+
+    '</div>';
 
   el.innerHTML=h;
   setTimeout(rsBalanceWalls,0);
@@ -3578,7 +3605,11 @@ function rsDrawChart(code){
     chan.strokes.forEach(function(p,i){ if(i===0) ctx.moveTo(x(p.i),y(p.px)); else ctx.lineTo(x(p.i),y(p.px)); });
     ctx.stroke();
   }
-  function marker(i,label,up){ if(i>=n) return; var px=x(i),py=up?y(lows[i])+11:y(highs[i])-11;
+  var _mkLast=[];
+  function marker(i,label,up){ if(i>=n) return;
+    var px=Math.min(x(i),padL+plotW-18), py=up?y(lows[i])+11:y(highs[i])-11;
+    _mkLast.forEach(function(m){ if(Math.abs(m.px-px)<26&&m.up===up) py=m.py+(up?16:-16); });
+    _mkLast.push({px:px,py:py,up:up});
     ctx.fillStyle=up?'#148f5b':'#c0392b'; ctx.beginPath();
     if(up){ ctx.moveTo(px,py-7); ctx.lineTo(px-5,py); ctx.lineTo(px+5,py); }
     else { ctx.moveTo(px,py+7); ctx.lineTo(px-5,py); ctx.lineTo(px+5,py); }
@@ -4121,7 +4152,8 @@ function marketOutlook(){
     var oddsTxt=pos.odds==null?'—':f2(pos.odds,1)+' : 1';
     posTxt='近120日 高 '+f2(pos.high120)+' / 低 '+f2(pos.low120)+
       '；现价距高点 '+f2(pos.high_dist_pct)+'%、距低点 '+f2(pos.low_dist_pct)+'%；'+
-      '向上空间 '+f2(pos.up_room_pct)+'%、向下空间 '+f2(pos.down_room_pct)+'%，赔率 '+oddsTxt+'。';
+      '向上空间 '+f2(pos.up_room_pct)+'%、向下空间 '+f2(pos.down_room_pct)+'%，赔率 '+oddsTxt+
+      ((pos.odds!=null&&n(pos.odds)>10)?'（贴近前低，赔率失真，只说明位置便宜）':'')+'。';
   }
 
   /* 情景：触发值来自真实均线与区间，不用写死系数 */
@@ -4351,5 +4383,8 @@ function boot(){
   if(saved==null ? window.innerWidth<720 : saved==='1') setSide(true, false);
 }
 window.addEventListener('resize', function(){ layoutHeatmap();
-  clearTimeout(window.__balT); window.__balT=setTimeout(rsBalanceWalls,150); });
+  clearTimeout(window.__balT); window.__balT=setTimeout(rsBalanceWalls,150);
+  clearTimeout(window.__chartT); window.__chartT=setTimeout(function(){
+    if(RS_SELECTED && document.getElementById('rsKline')) rsDrawChart(RS_SELECTED);
+  },180); });
 boot();
