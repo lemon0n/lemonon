@@ -1,15 +1,15 @@
 {
   "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-26 14:10:30",
+  "ran_at": "2026-11-26 14:14:38",
   "mode": "agent",
-  "data_date": "2026-11-24",
+  "data_date": "2026-11-25",
   "degraded": false,
   "synthetic": false,
   "levels": 5,
   "level_count": {
-    "EXIT": 2,
-    "REDUCE": 1,
+    "REDUCE": 2,
+    "EXIT": 1,
     "HOLD": 2
   },
   "action_count": {
@@ -24,10 +24,10 @@
   },
   "research": {
     "status": "APPROVED",
-    "run_id": "162444_6a6db7c3"
+    "run_id": "141239_47815b89"
   },
-  "run_id": "162444_6a6db7c3",
-  "input_hash": "sha256:710b737c68b75df43479d121fc6078f698c8ae4d2f331916050b1634398afa4c",
+  "run_id": "141239_47815b89",
+  "input_hash": "sha256:da3a97dd8f6347f992621a751bb42ba8d27e19a03d2ddff9580d6e510ccc17d3",
   "config_hash": null,
-  "html": "D:\\缓存\\其他\\L-mx\\repo\\web\\index.html"
+  "html": "/workspace/web/index.html"
 }

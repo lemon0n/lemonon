@@ -1,20 +1,20 @@
 {
   "benchmark": {
-    "as_of": "2026-11-24",
+    "as_of": "2026-11-25",
     "code": "000300",
     "observations": [
-      "基准收盘 3963.82 / MA20 4022.94 / MA60 4273.87",
+      "基准收盘 3898.24 / MA20 4013.65 / MA60 4262.97",
       "MA5 低于 MA20",
-      "20日年化波动 13.80% vs 60日 13.51%（未抬升）",
-      "近120日 高 5059.66 / 低 3954.57（现价距高点 -21.66%、距低点 0.23%）"
+      "20日年化波动 14.36% vs 60日 13.82%（未抬升）",
+      "近120日 高 5059.66 / 低 3898.24（现价距高点 -22.95%、距低点 0.00%）"
     ]
   },
-  "code_version": "b539449",
+  "code_version": "51ed446",
   "config_hash": "7dc121bf9c53564c",
-  "data_date": "2026-11-24",
+  "data_date": "2026-11-25",
   "data_quality": {
     "blockers": [],
-    "checked_at": "2026-11-24 16:24:44",
+    "checked_at": "2026-11-26 14:12:39",
     "conflicts": [
       "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ],
@@ -27,12 +27,12 @@
     "synthetic_fields": []
   },
   "decisions": [],
-  "generated_at": "2026-11-24 16:24:26",
+  "generated_at": "2026-11-26 14:12:37",
   "input_hash": "4f53cda18c2baa0c",
   "legs": [],
   "market": {
-    "benchmark_date": "2026-11-24",
-    "data_date": "2026-11-24",
+    "benchmark_date": "2026-11-25",
+    "data_date": "2026-11-25",
     "market_json_is_synthetic": true,
     "regime": "下行趋势"
   },
@@ -47,18 +47,18 @@
   },
   "portfolio_before": null,
   "regime": {
-    "as_of": "2026-11-24",
+    "as_of": "2026-11-25",
     "fit_hi": 40,
     "fit_lo": 30,
     "observations": [
-      "基准收盘 3963.82 / MA20 4022.94 / MA60 4273.87",
+      "基准收盘 3898.24 / MA20 4013.65 / MA60 4262.97",
       "MA5 低于 MA20",
-      "20日年化波动 13.80% vs 60日 13.51%（未抬升）",
-      "近120日 高 5059.66 / 低 3954.57（现价距高点 -21.66%、距低点 0.23%）"
+      "20日年化波动 14.36% vs 60日 13.82%（未抬升）",
+      "近120日 高 5059.66 / 低 3898.24（现价距高点 -22.95%、距低点 0.00%）"
     ],
     "regime": "下行趋势"
   },
-  "run_id": "20261124T162426-4f53cda18c2baa0c",
+  "run_id": "20261126T141237-4f53cda18c2baa0c",
   "schema_version": "2.0",
   "status": "OK",
   "validation": {
@@ -73,8 +73,8 @@
   "extras": {
     "research": {
       "status": "APPROVED",
-      "run_id": "162444_6a6db7c3",
-      "trade_date": "2026-11-24",
+      "run_id": "141239_47815b89",
+      "trade_date": "2026-11-25",
       "executable": true,
       "risk_status": "APPROVED"
     }
