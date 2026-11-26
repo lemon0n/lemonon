@@ -1,253 +1,82 @@
 {
-  "schema_version": "2.0",
-  "run_id": "20261124T075846-114c8330eb79a187",
-  "status": "OK",
-  "generated_at": "2026-11-24 07:58:46",
-  "data_date": "2026-11-23",
-  "code_version": "fa0d55e",
+  "benchmark": {
+    "as_of": "2026-11-24",
+    "code": "000300",
+    "observations": [
+      "基准收盘 3963.82 / MA20 4022.94 / MA60 4273.87",
+      "MA5 低于 MA20",
+      "20日年化波动 13.80% vs 60日 13.51%（未抬升）",
+      "近120日 高 5059.66 / 低 3954.57（现价距高点 -21.66%、距低点 0.23%）"
+    ]
+  },
+  "code_version": "b539449",
   "config_hash": "7dc121bf9c53564c",
-  "input_hash": "114c8330eb79a187",
+  "data_date": "2026-11-24",
   "data_quality": {
-    "status": "OK",
-    "coverage_pct": 100.0,
-    "synthetic_fields": [],
-    "stale_fields": [],
+    "blockers": [],
+    "checked_at": "2026-11-24 16:24:44",
     "conflicts": [
       "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ],
-    "blockers": [],
-    "premium_ok": false,
+    "coverage_pct": 0.0,
     "market_snapshot": true,
+    "premium_ok": false,
     "sector_snapshot": false,
-    "checked_at": "2026-11-24 07:58:50"
+    "stale_fields": [],
+    "status": "OK",
+    "synthetic_fields": []
   },
-  "regime": {
-    "regime": "下行趋势",
-    "fit_lo": 30,
-    "fit_hi": 40,
-    "as_of": "2026-11-23",
-    "observations": [
-      "基准收盘 3958.29 / MA20 4027.22 / MA60 4283.85",
-      "MA5 低于 MA20",
-      "20日年化波动 14.42% vs 60日 13.63%（未抬升）",
-      "近120日 高 5059.66 / 低 3954.57（现价距高点 -21.77%、距低点 0.09%）"
-    ]
-  },
+  "decisions": [],
+  "generated_at": "2026-11-24 16:24:26",
+  "input_hash": "4f53cda18c2baa0c",
+  "legs": [],
   "market": {
-    "regime": "下行趋势",
-    "data_date": "2026-11-23",
-    "benchmark_date": "2026-11-23",
-    "market_json_is_synthetic": true
-  },
-  "portfolio_before": null,
-  "legs": [
-    {
-      "code": "510300",
-      "name": "沪深300ETF",
-      "category": "宽基",
-      "data_status": "OK",
-      "data_date": "2026-11-23",
-      "observations": [
-        "close=4.023",
-        "MA5=4.040 MA10=4.074 MA20=4.099",
-        "vol_ratio=0.5270908836416816",
-        "ret5=-0.76 ret20=-3.73"
-      ],
-      "signal_id": "R-D1",
-      "signal_state": "EXIT",
-      "action": "CLEAR",
-      "level": "D",
-      "rule_ids": [
-        "R-D1"
-      ],
-      "counter_evidence": [
-        "5 日跑输基准 -0.22pct",
-        "突破四条仅 2/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
-      ],
-      "unknowns": [
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
-      ],
-      "quality_blocking": []
-    },
-    {
-      "code": "510500",
-      "name": "中证500ETF",
-      "category": "宽基",
-      "data_status": "OK",
-      "data_date": "2026-11-23",
-      "observations": [
-        "close=6.160",
-        "MA5=6.225 MA10=6.400 MA20=6.476",
-        "vol_ratio=0.7082102883694942",
-        "ret5=-2.75 ret20=-8.74"
-      ],
-      "signal_id": "R-D1",
-      "signal_state": "EXIT",
-      "action": "CLEAR",
-      "level": "D",
-      "rule_ids": [
-        "R-D1"
-      ],
-      "counter_evidence": [
-        "5 日跑输基准 -0.08pct",
-        "突破四条仅 2/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
-      ],
-      "unknowns": [
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
-      ],
-      "quality_blocking": []
-    },
-    {
-      "code": "588000",
-      "name": "科创50ETF",
-      "category": "宽基",
-      "data_status": "OK",
-      "data_date": "2026-11-23",
-      "observations": [
-        "close=1.298",
-        "MA5=1.312 MA10=1.329 MA20=1.315",
-        "vol_ratio=1.1334396380230336",
-        "ret5=1.25 ret20=-6.01"
-      ],
-      "signal_id": "R-D1",
-      "signal_state": "EXIT",
-      "action": "CLEAR",
-      "level": "D",
-      "rule_ids": [
-        "R-D1"
-      ],
-      "counter_evidence": [
-        "突破四条仅 1/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
-      ],
-      "unknowns": [
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
-      ],
-      "quality_blocking": []
-    },
-    {
-      "code": "159915",
-      "name": "创业板ETF",
-      "category": "宽基",
-      "data_status": "OK",
-      "data_date": "2026-11-23",
-      "observations": [
-        "close=2.295",
-        "MA5=2.294 MA10=2.387 MA20=2.451",
-        "vol_ratio=1.1356627358798657",
-        "ret5=-1.67 ret20=-13.43"
-      ],
-      "signal_id": "R-D1",
-      "signal_state": "EXIT",
-      "action": "CLEAR",
-      "level": "D",
-      "rule_ids": [
-        "R-D1"
-      ],
-      "counter_evidence": [
-        "突破四条仅 1/4",
-        "IOPV 缺失：折溢价条件未验证（缺失不视为满足）"
-      ],
-      "unknowns": [
-        "资金净流入 / 申赎 / 机构持仓等底层数据未接入"
-      ],
-      "quality_blocking": []
-    }
-  ],
-  "decisions": [
-    {
-      "code": "510300",
-      "action": "CLEAR",
-      "reason_ids": [
-        "R-D1"
-      ],
-      "current_shares": null,
-      "target_shares": null,
-      "price_type": {
-        "entry": "限价保护价（不保证成交）",
-        "stop": null,
-        "tp": null
-      },
-      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
-      "constraints_applied": []
-    },
-    {
-      "code": "510500",
-      "action": "CLEAR",
-      "reason_ids": [
-        "R-D1"
-      ],
-      "current_shares": null,
-      "target_shares": null,
-      "price_type": {
-        "entry": "限价保护价（不保证成交）",
-        "stop": null,
-        "tp": null
-      },
-      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
-      "constraints_applied": []
-    },
-    {
-      "code": "588000",
-      "action": "CLEAR",
-      "reason_ids": [
-        "R-D1"
-      ],
-      "current_shares": null,
-      "target_shares": null,
-      "price_type": {
-        "entry": "限价保护价（不保证成交）",
-        "stop": null,
-        "tp": null
-      },
-      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
-      "constraints_applied": []
-    },
-    {
-      "code": "159915",
-      "action": "CLEAR",
-      "reason_ids": [
-        "R-D1"
-      ],
-      "current_shares": null,
-      "target_shares": null,
-      "price_type": {
-        "entry": "限价保护价（不保证成交）",
-        "stop": null,
-        "tp": null
-      },
-      "price_note": "清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标",
-      "constraints_applied": []
-    }
-  ],
-  "orders": [],
-  "portfolio_after": {
-    "position_pct": null,
-    "cash": null,
-    "estimated_cost": 0.0,
-    "constraint_checks": [],
-    "note": "公开观察池：不含个人持仓"
-  },
-  "validation": {
-    "schema_ok": true,
-    "accounting_ok": true,
-    "decision_consistency_ok": true,
-    "post_trade_ok": true,
-    "ok": true,
-    "errors": [],
-    "warnings": []
+    "benchmark_date": "2026-11-24",
+    "data_date": "2026-11-24",
+    "market_json_is_synthetic": true,
+    "regime": "下行趋势"
   },
   "methodology_version": "2.0",
-  "benchmark": {
-    "code": "000300",
-    "as_of": "2026-11-23",
+  "orders": [],
+  "portfolio_after": {
+    "cash": null,
+    "constraint_checks": [],
+    "estimated_cost": 0.0,
+    "note": "公开观察池：不含个人持仓",
+    "position_pct": null
+  },
+  "portfolio_before": null,
+  "regime": {
+    "as_of": "2026-11-24",
+    "fit_hi": 40,
+    "fit_lo": 30,
     "observations": [
-      "基准收盘 3958.29 / MA20 4027.22 / MA60 4283.85",
+      "基准收盘 3963.82 / MA20 4022.94 / MA60 4273.87",
       "MA5 低于 MA20",
-      "20日年化波动 14.42% vs 60日 13.63%（未抬升）",
-      "近120日 高 5059.66 / 低 3954.57（现价距高点 -21.77%、距低点 0.09%）"
-    ]
+      "20日年化波动 13.80% vs 60日 13.51%（未抬升）",
+      "近120日 高 5059.66 / 低 3954.57（现价距高点 -21.66%、距低点 0.23%）"
+    ],
+    "regime": "下行趋势"
+  },
+  "run_id": "20261124T162426-4f53cda18c2baa0c",
+  "schema_version": "2.0",
+  "status": "OK",
+  "validation": {
+    "accounting_ok": true,
+    "decision_consistency_ok": true,
+    "errors": [],
+    "ok": true,
+    "post_trade_ok": true,
+    "schema_ok": true,
+    "warnings": []
+  },
+  "extras": {
+    "research": {
+      "status": "APPROVED",
+      "run_id": "162444_6a6db7c3",
+      "trade_date": "2026-11-24",
+      "executable": true,
+      "risk_status": "APPROVED"
+    }
   }
 }

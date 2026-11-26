@@ -404,6 +404,7 @@ def render(data, cfg=None, decision=True, demo=None, out_path=None):
                  .replace('@@DATA@@', payload)
                  .replace('@@JS@@', rules + '\n' + djs + '\n' + rjs + '\n' + js))
     if demo:
+        html = html.replace('<div class="app">', banner + '<div class="app">', 1)
         html = html.replace('class="lock on" id="lock"',
                             'class="lock" id="lock"')
     path = out_path or os.path.join(config.WEB, 'index.html')

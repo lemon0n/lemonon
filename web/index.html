@@ -368,6 +368,56 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
 .rs-pill.sell{background:#e8f6ef;border-color:#bfe6d2;color:var(--down)}
 .rs-pill.buy{background:#fdecea;border-color:#f3c6c0;color:var(--up)}
 
+/* ---- 模型研究页（research.js）：五块内容 ---- */
+.rp-list{margin:4px 0 10px;padding-left:18px;font-size:12px;line-height:1.8;color:var(--text)}
+.rp-list li{margin:2px 0}
+.rp-list li.warn{color:var(--warn)}
+/* 并列卡片按内容高度对齐，避免一侧被拉出大片空白 */
+.rs-grid2,.rs-grid3,.rs-grid4,.rs-funding,.rs-dir{align-items:stretch}
+
+/* 卡片墙：按内容高度分成两列，短卡不再被拉长 */
+.rs-wall{display:flex;gap:12px;align-items:flex-start;margin-top:10px}
+.rs-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:12px;justify-content:space-between}
+.rs-wall>.box,.rs-col>.box{margin:0}
+
+/* 卡片内两栏（窄屏自动叠成一行） */
+.rs-duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.rs-duo>div{min-width:0}
+/* 卡片墙里的表格不许撑破卡片 */
+.rs-col table{width:100%;table-layout:fixed}
+.rs-col td,.rs-col th{white-space:normal;overflow-wrap:anywhere}
+.rs-col>.box,.rs-wall>.box{min-width:0;overflow:hidden}
+
+/* .rs-scroll .tbl 有 min-width:560px，卡片墙里的表格要取消，否则撑破卡片 */
+.rs-col table.tbl,.rs-wall table.tbl{min-width:0!important}
+
+/* 个股卡选项卡 */
+.rs-tabwrap{margin-top:12px}
+.rs-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:2px}
+.rs-tabs button{border:1px solid var(--line);border-bottom:none;background:#fff;padding:7px 14px;
+  font:inherit;font-size:12px;color:var(--muted);cursor:pointer;border-radius:4px 4px 0 0}
+.rs-tabs button:hover{background:var(--blue-l2)}
+.rs-tabs button.on{background:var(--blue-l);color:var(--blue-d);font-weight:650}
+.rs-pane{display:none;padding-top:10px}
+.rs-pane.on{display:block}
+.rs-pane .box{margin-top:0;margin-bottom:10px}
+.rs-tabwrap .rs-duo{gap:10px}
+.bt.sm{font-size:11.5px;color:var(--muted);margin:2px 0 4px;border-bottom:1px dashed var(--line);padding-bottom:3px}
+
+/* 选项卡内容：竖向平铺，成对的两栏等高 */
+.rs-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch}
+.rs-two>.box{margin:0}
+.rs-kv2{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;font-size:12px;line-height:1.8}
+.rs-kv2 b{font-weight:600;color:#374151;margin-right:4px}
+.rs-pane>.box{margin-top:0;margin-bottom:12px}
+.rs-pane>.rs-two+.box{margin-top:12px}
+.rs-chartcard+.box{margin-top:12px}
+@media (max-width:900px){ .rs-two{grid-template-columns:1fr} .rs-kv2{grid-template-columns:1fr} }
+
+/* 选项卡内的 KPI（概率卡）：一行三个 */
+.rs-pane .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+@media (max-width:760px){ .rs-pane .kpis{grid-template-columns:1fr} }
+
 </style>
 </head>
 <body>
@@ -426,7 +476,7 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
            onchange="loadEncFile(this)">
   </div>
 </div>
-<script>window.DASHBOARD = {"meta":{"as_of":"2026-11-24 07:58:46","data_date":"2026-11-23","run_date":"2026-11-24","mode":"live","status":"OK","run_id":"20261124T075846-114c8330eb79a187","source":{"channels":{"daily":{"510300":"live","510500":"live","588000":"live","159915":"live"},"daily_vendor":{"510300":"sina","510500":"sina","588000":"sina","159915":"sina"},"spot":"live","spot_vendor":"tencent","index_daily":{"000300":"live","000905":"live","000688":"live","399006":"live"},"sector":"live","indices":"live","market":"snapshot"},"live":true,"degraded":false,"synthetic":false,"index_live":true,"daily_live":true,"spot_live":true,"market_snapshot":true,"sector_snapshot":false,"premium_ok":false,"premium_missing_reason":"兜底行情源无 IOPV","mode":"live","fallback":["实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"],"checked_at":"2026-11-24 07:58:50"},"skipped":[],"version":"3.0","dashboard_version":"4.0","tz":"Asia/Shanghai","snapshot_date":"2026-11-12","benchmark_date":"2026-11-23"},"packet":{"schema_version":"2.0","status":"OK","run_id":"20261124T075846-114c8330eb79a187","generated_at":"2026-11-24 07:58:46","config_hash":"7dc121bf9c53564c","input_hash":"114c8330eb79a187","validation":{"schema_ok":true,"accounting_ok":true,"decision_consistency_ok":true,"post_trade_ok":true,"ok":true,"errors":[],"warnings":[]},"data_quality":{"status":"OK","coverage_pct":100.0,"synthetic_fields":[],"stale_fields":[],"conflicts":["实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"],"blockers":[],"premium_ok":false,"market_snapshot":true,"sector_snapshot":false,"checked_at":"2026-11-24 07:58:50"},"extras":null},"market":{"as_of":"2026-11-12 09:05:00","indices":[{"name":"上证指数","last":3503.52,"chg_pct":-0.86,"ma_state":"跌破五均线","url":"https://quote.eastmoney.com/zs000001.html"},{"name":"深证成指","last":10155.6,"chg_pct":-0.98,"ma_state":"跌破五均线","url":"https://quote.eastmoney.com/zs399001.html"},{"name":"创业板指","last":2195.52,"chg_pct":-0.75,"ma_state":"站回五均线 · 站上1日","url":"https://quote.eastmoney.com/zs399006.html"},{"name":"科创50","last":1211.44,"chg_pct":-1.6,"ma_state":"跌破五均线","url":"https://quote.eastmoney.com/zs000688.html"},{"name":"沪深300","last":3931.47,"chg_pct":-0.58,"ma_state":"跌破五均线","url":"https://quote.eastmoney.com/zs000300.html"},{"name":"中证500","last":5932.57,"chg_pct":-1.22,"ma_state":"跌破五均线","url":"https://quote.eastmoney.com/zs000905.html"}],"breadth":{"advance":2687,"decline":2314,"flat":186,"limit_up":48,"limit_down":11,"amount_yi":17842,"amount_chg_pct":-8.6,"up_ratio":53.7},"sentiment":{"score":58,"label":"中性偏暖","panic":false,"items":[{"k":"涨跌家数比","v":"1.16","url":"https://www.10jqka.com.cn/"},{"k":"涨停/跌停","v":"48 / 11","url":"https://www.10jqka.com.cn/"},{"k":"连板高度","v":"5 板","url":"https://www.10jqka.com.cn/"},{"k":"昨日涨停今日表现","v":"+2.1%","url":"https://www.10jqka.com.cn/"},{"k":"成交额环比","v":"-8.6%（缩量）","url":"https://www.10jqka.com.cn/"},{"k":"恐慌判定","v":"未触发","url":"https://www.10jqka.com.cn/"},{"k":"连续普跌天数","v":"0","url":"https://www.10jqka.com.cn/"},{"k":"情绪节点","v":"分歧转一致","url":"https://www.10jqka.com.cn/"},{"k":"赚钱效应延续","v":"有","url":"https://www.10jqka.com.cn/"},{"k":"首次分歧","v":"已过","url":"https://www.10jqka.com.cn/"},{"k":"预期差方向","v":"科技","url":"https://www.10jqka.com.cn/"},{"k":"大数定律偏向","v":"偏多","url":"https://www.10jqka.com.cn/"}]},"rotation":{"stage":"缩量横盘整理 · 反弹主线决胜期","leaders":["光模块","机器人","固态电池"],"laggards":["光伏","白酒"],"note":"5/10/20 聚集缠绕，待 5 上穿 20 确认扭转"},"distribution":{"\u003c-3%":312,"-3~-1%":1042,"-1~0%":960,"0~1%":1180,"1~3%":892,"\u003e3%":401},"premium":{"avg_pct":0.0,"high_count":0,"low_count":0,"items":[{"code":"510300","name":"沪深300ETF华泰柏瑞","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"},{"code":"510500","name":"中证500ETF南方","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"},{"code":"588000","name":"科创50ETF华夏","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"},{"code":"159915","name":"创业板ETF易方达","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"}]},"valuation":{"items":[{"k":"沪深300 PE","v":"12.8","pos":"近5年 46% 分位","url":"https://www.csindex.com.cn/"},{"k":"创业板指 PE","v":"34.2","pos":"近5年 31% 分位","url":"https://www.csindex.com.cn/"},{"k":"中证500 PE","v":"22.1","pos":"近5年 52% 分位","url":"https://www.csindex.com.cn/"},{"k":"科创50 PE","v":"48.6","pos":"近5年 61% 分位","url":"https://www.csindex.com.cn/"}]},"glob":{"items":[{"k":"纳斯达克","v":"+369939.29%","url":"https://finance.sina.com.cn/"},{"k":"标普500","v":"+152905.71%","url":"https://finance.sina.com.cn/"},{"k":"道琼斯","v":"+1647584.67%","url":"https://finance.sina.com.cn/"}]},"liquidity":{"items":[{"k":"两融余额","v":"24,860 亿","url":"https://data.eastmoney.com/rzrq/"},{"k":"北向成交","v":"1,842 亿","url":"https://data.eastmoney.com/hsgt/index.html"},{"k":"新成立基金","v":"128 亿","url":"https://fund.eastmoney.com/"},{"k":"ETF 份额周变化","v":"+64 亿份","url":"https://fund.eastmoney.com/"},{"k":"逆回购净投放","v":"+320 亿","url":"http://www.pbc.gov.cn/"},{"k":"DR007","v":"1.52%","url":"https://www.chinamoney.com.cn/"}]},"macro":{"items":[{"k":"CPI 同比","v":"+0.3%","url":"https://www.stats.gov.cn/sj/zxfb/"},{"k":"PPI 同比","v":"-1.2%","url":"https://www.stats.gov.cn/sj/zxfb/"},{"k":"GDP 当季","v":"4.8%","url":"https://www.stats.gov.cn/sj/zxfb/"},{"k":"制造业 PMI","v":"50.1","url":"https://www.stats.gov.cn/sj/zxfb/"},{"k":"中债10Y","v":"1.78%","url":"https://www.chinabond.com.cn/"},{"k":"美债10Y","v":"4.12%","url":"https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve"},{"k":"中美利差","v":"-2.34pct","url":"https://data.eastmoney.com/cjsj/zmgzsyl.html"},{"k":"人民币中间价","v":"7.08","url":"https://www.chinamoney.com.cn/"}]},"news":[{"time":"08:52","text":"央行开展 3200 亿元 7 天期逆回购操作","url":"http://www.pbc.gov.cn/"},{"time":"08:30","text":"工信部：加快人形机器人创新体系建设","url":"https://www.miit.gov.cn/"},{"time":"07:45","text":"隔夜美股三大指数收涨，纳指涨 0.42%","url":"https://finance.sina.com.cn/"},{"time":"昨 21:10","text":"证监会优化 ETF 快速注册机制","url":"http://www.csrc.gov.cn/"},{"time":"昨 18:30","text":"多家光模块龙头披露三季度订单","url":"https://kuaixun.eastmoney.com/"},{"time":"昨 16:00","text":"财政部：11 月国债发行计划公布","url":"http://www.mof.gov.cn/"}],"calendar":[{"date":"11-12","event":"美国 CPI 数据（21:30）","level":"高","url":"https://data.eastmoney.com/cjrl/"},{"date":"11-13","event":"国内 10 月金融数据","level":"高","url":"http://www.pbc.gov.cn/"},{"date":"11-14","event":"MSCI 季度调整生效","level":"中","url":"https://www.csindex.com.cn/"},{"date":"11-15","event":"MLF 续作","level":"中","url":"http://www.pbc.gov.cn/"}],"news_sentiment":{"score":62,"label":"偏暖","positive":58,"neutral":31,"negative":11,"note":"央行 3200 亿逆回购是主要正面积分，人形机器人政策给了主题；负面 11% 落在权重股。分数偏暖只说明消息面没拖后腿，开盘仍看量能能不能接住。"},"policy_heat":[{"theme":"人形机器人","heat":88,"chg":"+12","url":"https://kuaixun.eastmoney.com/"},{"theme":"算力/光模块","heat":81,"chg":"+7","url":"https://kuaixun.eastmoney.com/"},{"theme":"固态电池","heat":73,"chg":"+5","url":"https://kuaixun.eastmoney.com/"},{"theme":"并购重组","heat":54,"chg":"-3","url":"https://kuaixun.eastmoney.com/"},{"theme":"房地产","heat":31,"chg":"-8","url":"https://kuaixun.eastmoney.com/"}],"heat":[{"name":"电子","cap":113038.57,"chg":2.12,"v":4046.79},{"name":"银行","cap":116808.74,"chg":-0.8,"v":470.11},{"name":"电力设备","cap":50362.55,"chg":1.74,"v":962.85},{"name":"非银金融","cap":49416.49,"chg":-0.73,"v":315.45},{"name":"医药生物","cap":50528.65,"chg":2.39,"v":816.73},{"name":"机械设备","cap":39493.06,"chg":4.04,"v":1249.48},{"name":"通信","cap":30443.97,"chg":4.34,"v":1144.25},{"name":"有色金属","cap":31882.95,"chg":3.0,"v":660.4},{"name":"基础化工","cap":33122.87,"chg":1.89,"v":676.15},{"name":"计算机","cap":30689.35,"chg":2.41,"v":918.93},{"name":"食品饮料","cap":38199.55,"chg":-1.32,"v":308.11},{"name":"公用事业","cap":35052.6,"chg":-0.87,"v":301.18},{"name":"石油石化","cap":34109.55,"chg":-1.25,"v":125.59},{"name":"汽车","cap":27839.03,"chg":2.47,"v":581.53},{"name":"交通运输","cap":28122.07,"chg":-0.36,"v":216.75},{"name":"国防军工","cap":19705.41,"chg":1.61,"v":333.51},{"name":"煤炭","cap":18167.86,"chg":-1.17,"v":87.38},{"name":"家用电器","cap":17492.19,"chg":0.54,"v":294.12},{"name":"建筑装饰","cap":13387.63,"chg":-0.02,"v":196.82},{"name":"传媒","cap":12490.85,"chg":4.43,"v":596.22},{"name":"农林牧渔","cap":9034.82,"chg":1.62,"v":203.76},{"name":"建筑材料","cap":6972.92,"chg":1.26,"v":165.03},{"name":"房地产","cap":7596.77,"chg":0.2,"v":104.02},{"name":"轻工制造","cap":6955.53,"chg":1.78,"v":144.34},{"name":"商贸零售","cap":7251.89,"chg":1.54,"v":139.7},{"name":"钢铁","cap":6870.85,"chg":-0.28,"v":52.3},{"name":"环保","cap":6232.21,"chg":1.86,"v":137.39},{"name":"纺织服饰","cap":5128.75,"chg":2.46,"v":122.88},{"name":"社会服务","cap":3596.74,"chg":2.35,"v":91.63},{"name":"美容护理","cap":1801.46,"chg":1.87,"v":32.86},{"name":"综合","cap":1313.32,"chg":1.52,"v":27.31}],"flow":[{"sector":"电子","code":"BK1201","turnover":4046.79,"share":26.07,"chg":2.12,"cap":113038.57},{"sector":"银行","code":"BK1283","turnover":470.11,"share":3.03,"chg":-0.8,"cap":116808.74},{"sector":"电力设备","code":"BK1200","turnover":962.85,"share":6.2,"chg":1.74,"cap":50362.55},{"sector":"非银金融","code":"BK1203","turnover":315.45,"share":2.03,"chg":-0.73,"cap":49416.49},{"sector":"医药生物","code":"BK1216","turnover":816.73,"share":5.26,"chg":2.39,"cap":50528.65},{"sector":"机械设备","code":"BK1205","turnover":1249.48,"share":8.05,"chg":4.04,"cap":39493.06},{"sector":"通信","code":"BK1215","turnover":1144.25,"share":7.37,"chg":4.34,"cap":30443.97},{"sector":"有色金属","code":"BK0478","turnover":660.4,"share":4.25,"chg":3.0,"cap":31882.95},{"sector":"基础化工","code":"BK1206","turnover":676.15,"share":4.36,"chg":1.89,"cap":33122.87},{"sector":"计算机","code":"BK1207","turnover":918.93,"share":5.92,"chg":2.41,"cap":30689.35},{"sector":"食品饮料","code":"BK0438","turnover":308.11,"share":1.98,"chg":-1.32,"cap":38199.55},{"sector":"公用事业","code":"BK0427","turnover":301.18,"share":1.94,"chg":-0.87,"cap":35052.6},{"sector":"石油石化","code":"BK0464","turnover":125.59,"share":0.81,"chg":-1.25,"cap":34109.55},{"sector":"汽车","code":"BK1211","turnover":581.53,"share":3.75,"chg":2.47,"cap":27839.03},{"sector":"交通运输","code":"BK1210","turnover":216.75,"share":1.4,"chg":-0.36,"cap":28122.07},{"sector":"国防军工","code":"BK1204","turnover":333.51,"share":2.15,"chg":1.61,"cap":19705.41},{"sector":"煤炭","code":"BK0437","turnover":87.38,"share":0.56,"chg":-1.17,"cap":18167.86},{"sector":"家用电器","code":"BK0456","turnover":294.12,"share":1.89,"chg":0.54,"cap":17492.19},{"sector":"建筑装饰","code":"BK1209","turnover":196.82,"share":1.27,"chg":-0.02,"cap":13387.63},{"sector":"传媒","code":"BK0486","turnover":596.22,"share":3.84,"chg":4.43,"cap":12490.85},{"sector":"农林牧渔","code":"BK0433","turnover":203.76,"share":1.31,"chg":1.62,"cap":9034.82},{"sector":"建筑材料","code":"BK1208","turnover":165.03,"share":1.06,"chg":1.26,"cap":6972.92},{"sector":"房地产","code":"BK1202","turnover":104.02,"share":0.67,"chg":0.2,"cap":7596.77},{"sector":"轻工制造","code":"BK1212","turnover":144.34,"share":0.93,"chg":1.78,"cap":6955.53},{"sector":"商贸零售","code":"BK1213","turnover":139.7,"share":0.9,"chg":1.54,"cap":7251.89},{"sector":"钢铁","code":"BK0479","turnover":52.3,"share":0.34,"chg":-0.28,"cap":6870.85},{"sector":"环保","code":"BK0728","turnover":137.39,"share":0.89,"chg":1.86,"cap":6232.21},{"sector":"纺织服饰","code":"BK0436","turnover":122.88,"share":0.79,"chg":2.46,"cap":5128.75},{"sector":"社会服务","code":"BK1214","turnover":91.63,"share":0.59,"chg":2.35,"cap":3596.74},{"sector":"美容护理","code":"BK1035","turnover":32.86,"share":0.21,"chg":1.87,"cap":1801.46},{"sector":"综合","code":"BK1217","turnover":27.31,"share":0.18,"chg":1.52,"cap":1313.32}],"national_team":{"as_of":"2026-11-20","unit":"亿份","order":["沪深300","上证50","中证500","中证1000","中证A500","科创50","全宽基合计"],"source":"上交所 ETF 份额披露（与 AKShare fund_etf_scale_sse 同源）","series":[{"date":"2026-04-24","groups":{"沪深300":1007.76,"上证50":211.84,"中证500":123.58,"中证1000":83.02,"科创50":808.64,"中证A500":768.24,"全宽基合计":3003.08}},{"date":"2026-04-27","groups":{"沪深300":994.57,"上证50":205.32,"中证500":119.86,"中证1000":72.92,"科创50":793.56,"中证A500":760.41,"全宽基合计":2946.64}},{"date":"2026-04-29","groups":{"沪深300":979.02,"上证50":189.07,"中证500":116.34,"中证1000":69.24,"科创50":791.77,"中证A500":751.07,"全宽基合计":2896.51}},{"date":"2026-04-30","groups":{"沪深300":960.69,"上证50":176.16,"中证500":105.63,"中证1000":56.08,"科创50":752.61,"中证A500":737.7,"全宽基合计":2788.87}},{"date":"2026-05-07","groups":{"沪深300":921.39,"上证50":157.45,"中证500":98.1,"中证1000":58.74,"科创50":710.16,"中证A500":720.33,"全宽基合计":2666.17}},{"date":"2026-05-08","groups":{"沪深300":904.1,"上证50":144.68,"中证500":89.68,"中证1000":53.84,"科创50":708.97,"中证A500":716.49,"全宽基合计":2617.76}},{"date":"2026-05-15","groups":{"沪深300":835.44,"上证50":122.75,"中证500":77.0,"中证1000":44.08,"科创50":660.84,"中证A500":680.65,"全宽基合计":2420.76}},{"date":"2026-05-22","groups":{"沪深300":785.69,"上证50":99.48,"中证500":72.69,"中证1000":44.64,"科创50":620.77,"中证A500":657.67,"全宽基合计":2280.94}},{"date":"2026-05-29","groups":{"沪深300":732.31,"上证50":81.68,"中证500":67.46,"中证1000":44.64,"科创50":605.27,"中证A500":658.16,"全宽基合计":2189.52}},{"date":"2026-06-05","groups":{"沪深300":729.88,"上证50":80.15,"中证500":69.32,"中证1000":42.08,"科创50":595.85,"中证A500":654.72,"全宽基合计":2172.0}},{"date":"2026-06-12","groups":{"沪深300":741.27,"上证50":85.16,"中证500":68.92,"中证1000":44.04,"科创50":594.02,"中证A500":658.32,"全宽基合计":2191.73}},{"date":"2026-06-15","groups":{"沪深300":726.6,"上证50":86.4,"中证500":71.41,"中证1000":44.38,"科创50":588.33,"中证A500":659.41,"全宽基合计":2176.53}},{"date":"2026-06-16","groups":{"沪深300":710.12,"上证50":86.84,"中证500":70.04,"中证1000":40.9,"科创50":591.97,"中证A500":654.91,"全宽基合计":2154.78}},{"date":"2026-06-17","groups":{"沪深300":687.5,"上证50":81.14,"中证500":70.11,"中证1000":42.34,"科创50":580.43,"中证A500":650.63,"全宽基合计":2112.15}},{"date":"2026-06-18","groups":{"沪深300":674.04,"上证50":80.54,"中证500":70.21,"中证1000":43.06,"科创50":566.33,"中证A500":645.0,"全宽基合计":2079.18}},{"date":"2026-06-25","groups":{"沪深300":523.15,"上证50":68.08,"中证500":66.55,"中证1000":42.62,"科创50":564.34,"中证A500":641.36,"全宽基合计":1906.1}},{"date":"2026-06-26","groups":{"沪深300":523.61,"上证50":67.25,"中证500":65.59,"中证1000":46.08,"科创50":564.67,"中证A500":636.56,"全宽基合计":1903.76}},{"date":"2026-06-30","groups":{"沪深300":469.45,"上证50":67.43,"中证500":65.11,"中证1000":54.98,"科创50":548.8,"中证A500":639.26,"全宽基合计":1845.03}},{"date":"2026-07-03","groups":{"沪深300":427.69,"上证50":68.75,"中证500":67.15,"中证1000":50.06,"科创50":574.02,"中证A500":646.36,"全宽基合计":1834.03}},{"date":"2026-07-06","groups":{"沪深300":424.51,"上证50":67.42,"中证500":67.6,"中证1000":54.68,"科创50":578.77,"中证A500":646.37,"全宽基合计":1839.35}},{"date":"2026-07-08","groups":{"沪深300":429.37,"上证50":69.32,"中证500":70.59,"中证1000":75.5,"科创50":578.74,"中证A500":658.83,"全宽基合计":1882.35}},{"date":"2026-07-10","groups":{"沪深300":429.29,"上证50":67.41,"中证500":70.06,"中证1000":68.8,"科创50":596.59,"中证A500":657.15,"全宽基合计":1889.3}},{"date":"2026-07-13","groups":{"沪深300":445.28,"上证50":70.0,"中证500":78.6,"中证1000":89.54,"科创50":607.44,"中证A500":673.11,"全宽基合计":1963.97}},{"date":"2026-07-16","groups":{"沪深300":470.34,"上证50":84.88,"中证500":84.87,"中证1000":105.68,"科创50":637.17,"中证A500":678.15,"全宽基合计":2061.09}},{"date":"2026-07-17","groups":{"沪深300":502.61,"上证50":85.83,"中证500":87.63,"中证1000":116.9,"科创50":674.9,"中证A500":724.78,"全宽基合计":2192.65}},{"date":"2026-07-20","groups":{"沪深300":536.16,"上证50":86.78,"中证500":91.13,"中证1000":125.84,"科创50":758.66,"中证A500":741.29,"全宽基合计":2339.86}},{"date":"2026-07-23","groups":{"沪深300":541.57,"上证50":81.8,"中证500":85.81,"中证1000":108.14,"科创50":774.71,"中证A500":749.59,"全宽基合计":2341.62}},{"date":"2026-07-24","groups":{"沪深300":547.75,"上证50":77.9,"中证500":86.24,"中证1000":105.7,"科创50":769.3,"中证A500":760.11,"全宽基合计":2347.0}},{"date":"2026-07-27","groups":{"沪深300":551.98,"上证50":79.66,"中证500":90.86,"中证1000":117.06,"科创50":776.43,"中证A500":768.32,"全宽基合计":2384.31}},{"date":"2026-07-31","groups":{"沪深300":576.14,"上证50":75.54,"中证500":91.47,"中证1000":139.82,"科创50":849.12,"中证A500":837.47,"全宽基合计":2569.56}},{"date":"2026-08-04","groups":{"沪深300":577.85,"上证50":79.79,"中证500":92.45,"中证1000":149.8,"科创50":869.33,"中证A500":846.58,"全宽基合计":2615.8}},{"date":"2026-08-07","groups":{"沪深300":560.88,"上证50":72.32,"中证500":83.73,"中证1000":111.94,"科创50":820.58,"中证A500":842.25,"全宽基合计":2491.7}},{"date":"2026-08-10","groups":{"沪深300":557.37,"上证50":71.11,"中证500":81.34,"中证1000":101.24,"科创50":824.51,"中证A500":840.62,"全宽基合计":2476.19}},{"date":"2026-08-12","groups":{"沪深300":544.84,"上证50":73.34,"中证500":80.3,"中证1000":91.4,"科创50":814.89,"中证A500":840.22,"全宽基合计":2444.99}},{"date":"2026-08-14","groups":{"沪深300":536.97,"上证50":74.1,"中证500":78.06,"中证1000":85.22,"科创50":816.31,"中证A500":834.39,"全宽基合计":2425.05}},{"date":"2026-08-17","groups":{"沪深300":531.04,"上证50":72.5,"中证500":78.38,"中证1000":85.38,"科创50":793.93,"中证A500":827.94,"全宽基合计":2389.17}},{"date":"2026-08-20","groups":{"沪深300":539.86,"上证50":76.14,"中证500":77.53,"中证1000":86.92,"科创50":836.76,"中证A500":832.71,"全宽基合计":2449.92}},{"date":"2026-08-21","groups":{"沪深300":535.35,"上证50":76.48,"中证500":77.24,"中证1000":84.42,"科创50":837.01,"中证A500":820.81,"全宽基合计":2431.31}},{"date":"2026-08-28","groups":{"沪深300":533.69,"上证50":71.52,"中证500":80.68,"中证1000":85.34,"科创50":843.3,"中证A500":824.65,"全宽基合计":2439.18}},{"date":"2026-09-01","groups":{"沪深300":529.03,"上证50":68.59,"中证500":78.56,"中证1000":80.68,"科创50":855.2,"中证A500":819.58,"全宽基合计":2431.64}},{"date":"2026-09-03","groups":{"沪深300":530.03,"上证50":68.84,"中证500":76.59,"中证1000":79.58,"科创50":870.55,"中证A500":815.91,"全宽基合计":2441.5}},{"date":"2026-09-04","groups":{"沪深300":533.81,"上证50":71.36,"中证500":78.43,"中证1000":84.32,"科创50":893.86,"中证A500":821.05,"全宽基合计":2482.83}},{"date":"2026-09-11","groups":{"沪深300":533.59,"上证50":73.62,"中证500":78.78,"中证1000":79.56,"科创50":926.0,"中证A500":810.85,"全宽基合计":2502.4}},{"date":"2026-09-18","groups":{"沪深300":535.18,"上证50":82.9,"中证500":84.46,"中证1000":82.84,"科创50":907.83,"中证A500":808.24,"全宽基合计":2501.45}},{"date":"2026-09-21","groups":{"沪深300":536.18,"上证50":80.24,"中证500":83.15,"中证1000":81.84,"科创50":910.08,"中证A500":803.22,"全宽基合计":2494.71}},{"date":"2026-09-22","groups":{"沪深300":546.5,"上证50":78.12,"中证500":84.55,"中证1000":84.76,"科创50":898.89,"中证A500":802.23,"全宽基合计":2495.05}},{"date":"2026-09-23","groups":{"沪深300":558.36,"上证50":77.17,"中证500":85.29,"中证1000":85.38,"科创50":897.25,"中证A500":803.97,"全宽基合计":2507.42}},{"date":"2026-09-24","groups":{"沪深300":556.15,"上证50":74.95,"中证500":81.84,"中证1000":85.3,"科创50":906.99,"中证A500":801.62,"全宽基合计":2506.85}},{"date":"2026-09-28","groups":{"沪深300":559.4,"上证50":76.94,"中证500":82.18,"中证1000":92.98,"科创50":926.62,"中证A500":807.52,"全宽基合计":2545.64}},{"date":"2026-09-29","groups":{"沪深300":558.95,"上证50":75.82,"中证500":83.19,"中证1000":92.34,"科创50":931.29,"中证A500":806.1,"全宽基合计":2547.69}},{"date":"2026-09-30","groups":{"沪深300":557.98,"上证50":72.71,"中证500":83.15,"中证1000":93.64,"科创50":954.37,"中证A500":808.05,"全宽基合计":2569.9}},{"date":"2026-10-08","groups":{"沪深300":557.2,"上证50":72.66,"中证500":83.12,"中证1000":96.6,"科创50":984.07,"中证A500":804.74,"全宽基合计":2598.39}},{"date":"2026-10-09","groups":{"沪深300":560.6,"上证50":74.55,"中证500":85.29,"中证1000":104.52,"科创50":1014.52,"中证A500":810.48,"全宽基合计":2649.96}},{"date":"2026-10-14","groups":{"沪深300":565.15,"上证50":76.46,"中证500":83.32,"中证1000":102.72,"科创50":1040.42,"中证A500":820.78,"全宽基合计":2688.85}},{"date":"2026-10-16","groups":{"沪深300":654.7,"上证50":92.44,"中证500":85.12,"中证1000":107.1,"科创50":1098.51,"中证A500":821.56,"全宽基合计":2859.43}},{"date":"2026-10-23","groups":{"沪深300":777.31,"上证50":133.24,"中证500":101.58,"中证1000":135.54,"科创50":1230.81,"中证A500":838.05,"全宽基合计":3216.53}},{"date":"2026-10-28","groups":{"沪深300":848.4,"上证50":128.9,"中证500":99.51,"中证1000":146.36,"科创50":1263.04,"中证A500":904.87,"全宽基合计":3391.08}},{"date":"2026-10-29","groups":{"沪深300":862.0,"上证50":126.53,"中证500":95.92,"中证1000":141.56,"科创50":1294.8,"中证A500":908.32,"全宽基合计":3429.13}},{"date":"2026-10-30","groups":{"沪深300":879.82,"上证50":126.52,"中证500":97.12,"中证1000":144.44,"科创50":1318.96,"中证A500":921.96,"全宽基合计":3488.82}},{"date":"2026-11-06","groups":{"沪深300":1035.86,"上证50":166.64,"中证500":129.46,"中证1000":236.04,"科创50":1508.93,"中证A500":1010.43,"全宽基合计":4087.36}},{"date":"2026-11-13","groups":{"沪深300":1026.03,"上证50":165.26,"中证500":118.81,"中证1000":208.78,"科创50":1469.97,"中证A500":976.06,"全宽基合计":3964.91}},{"date":"2026-11-16","groups":{"沪深300":1048.87,"上证50":168.54,"中证500":120.2,"中证1000":206.38,"科创50":1495.83,"中证A500":972.74,"全宽基合计":4012.56}},{"date":"2026-11-19","groups":{"沪深300":1143.19,"上证50":169.9,"中证500":135.75,"中证1000":233.4,"科创50":1558.02,"中证A500":949.19,"全宽基合计":4189.45}},{"date":"2026-11-20","groups":{"沪深300":1192.34,"上证50":244.65,"中证500":150.26,"中证1000":266.28,"科创50":1597.14,"中证A500":943.82,"全宽基合计":4394.49}}],"fetched_at":"2026-11-24 07:58:45"},"regime":{"regime":"下行趋势","fit_lo":30,"fit_hi":40,"stage_note":"5/10/20 聚集缠绕，待 5 上穿 20 确认扭转","leaders":["光模块","机器人","固态电池"],"laggards":["光伏","白酒"],"observations":["基准收盘 3958.29 / MA20 4027.22 / MA60 4283.85","MA5 低于 MA20","20日年化波动 14.42% vs 60日 13.63%（未抬升）","近120日 高 5059.66 / 低 3954.57（现价距高点 -21.77%、距低点 0.09%）"],"as_of":"2026-11-23","close":3958.29,"ma5":3971.59,"ma10":4003.28,"ma20":4027.22,"ma30":4068.61,"ma60":4283.85,"ma120":4524.02,"ma_spread_pct":7.86,"days_above_ma5":0,"gaps":[{"type":"down","date":"2026-11-16","lo":3997.4,"hi":4004.5}],"vol20":14.42,"vol60":13.63,"position":{"high120":5059.66,"low120":3954.57,"high_dist_pct":-21.77,"low_dist_pct":0.09,"up_room_pct":27.82,"down_room_pct":0.09,"odds":295.35,"span_pct":27.94}}},"legs":[{"code":"510300","name":"沪深300ETF","category":"宽基","track":"沪深300","benchmark":"000300","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":4.023,"change":0.12,"ma5":4.04,"ma10":4.074,"ma20":4.099,"ma60":4.354,"ma120":4.581,"ma_state":"空头排列","five":"未站回MA5","vol_desc":"缩量上行","vol_ratio":0.53,"expand":false,"shrink":true,"stand_back":false,"days_above_ma5":0,"below_ma10":8,"true_cnt":2,"true_items":{"不破关键位":false,"明显缩量":true,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 2/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":-0.76,"ret20":-3.73,"vol20":13.93,"support":{"ma5":4.0402,"ma10":4.0737,"ma20":4.09945,"low20":3.97,"low60":3.97,"prev_low":3.97},"reduce":{"high20":4.216,"high60":4.706,"upper_shadow_pct":0.3},"rs":{"label":"与基准同步","excess5":-0.22,"excess20":-0.19,"known":true,"benchmark":"000300","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":4.023,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 4.023（+0.12%），数据日 2026-11-23","MA5 4.040 / MA10 4.074 / MA20 4.099，站上 MA5 0 日，连续低于 MA10 8 日","量比 0.53（缩量）","20 日年化波动 13.93%"],"comparisons":["5 日超额 -0.22pct、20 日超额 -0.19pct（基准 000300，基准日 2026-11-23）","距 MA20 -1.86%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 2/4，结构条件不完整","5 日跑输基准 -0.22pct，不支持「相对强势」的假设","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}},{"code":"510500","name":"中证500ETF","category":"宽基","track":"中证500","benchmark":"000905","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":6.16,"change":1.77,"ma5":6.225,"ma10":6.4,"ma20":6.476,"ma60":7.145,"ma120":7.691,"ma_state":"空头排列","five":"未站回MA5","vol_desc":"缩量上行","vol_ratio":0.71,"expand":false,"shrink":true,"stand_back":false,"days_above_ma5":0,"below_ma10":7,"true_cnt":2,"true_items":{"不破关键位":false,"明显缩量":true,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 2/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":-2.75,"ret20":-8.74,"vol20":35.27,"support":{"ma5":6.225,"ma10":6.4,"ma20":6.476299999999999,"low20":5.937,"low60":5.937,"prev_low":6.051},"reduce":{"high20":6.853,"high60":8.004,"upper_shadow_pct":0.95},"rs":{"label":"与基准同步","excess5":-0.08,"excess20":-0.04,"known":true,"benchmark":"000905","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":6.16,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 6.160（+1.77%），数据日 2026-11-23","MA5 6.225 / MA10 6.400 / MA20 6.476，站上 MA5 0 日，连续低于 MA10 7 日","量比 0.71（缩量）","20 日年化波动 35.27%"],"comparisons":["5 日超额 -0.08pct、20 日超额 -0.04pct（基准 000905，基准日 2026-11-23）","距 MA20 -4.88%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 2/4，结构条件不完整","5 日跑输基准 -0.08pct，不支持「相对强势」的假设","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}},{"code":"588000","name":"科创50ETF","category":"宽基","track":"上证科创板50","benchmark":"000688","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":1.298,"change":-0.15,"ma5":1.312,"ma10":1.329,"ma20":1.315,"ma60":1.517,"ma120":1.717,"ma_state":"交织","five":"未站回MA5","vol_desc":"量能平淡","vol_ratio":1.13,"expand":false,"shrink":false,"stand_back":false,"days_above_ma5":0,"below_ma10":2,"true_cnt":1,"true_items":{"不破关键位":false,"明显缩量":false,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 1/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":1.25,"ret20":-6.01,"vol20":59.09,"support":{"ma5":1.3115999999999999,"ma10":1.3287,"ma20":1.3154,"low20":1.197,"low60":1.197,"prev_low":1.268},"reduce":{"high20":1.442,"high60":1.807,"upper_shadow_pct":0.45},"rs":{"label":"与基准同步","excess5":0.08,"excess20":0.65,"known":true,"benchmark":"000688","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":1.298,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 1.298（-0.15%），数据日 2026-11-23","MA5 1.312 / MA10 1.329 / MA20 1.315，站上 MA5 0 日，连续低于 MA10 2 日","量比 1.13（平量）","20 日年化波动 59.09%"],"comparisons":["5 日超额 +0.08pct、20 日超额 +0.65pct（基准 000688，基准日 2026-11-23）","距 MA20 -1.32%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 1/4，结构条件不完整","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}},{"code":"159915","name":"创业板ETF","category":"宽基","track":"创业板指","benchmark":"399006","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":2.295,"change":2.91,"ma5":2.294,"ma10":2.387,"ma20":2.451,"ma60":2.939,"ma120":3.381,"ma_state":"空头排列","five":"站回MA5 · 1日","vol_desc":"量能平淡","vol_ratio":1.14,"expand":false,"shrink":false,"stand_back":true,"days_above_ma5":1,"below_ma10":7,"true_cnt":1,"true_items":{"不破关键位":false,"明显缩量":false,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 1/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":-1.67,"ret20":-13.43,"vol20":50.16,"support":{"ma5":2.2941999999999996,"ma10":2.387,"ma20":2.45125,"low20":2.202,"low60":2.202,"prev_low":2.23},"reduce":{"high20":2.69,"high60":3.57,"upper_shadow_pct":1.0},"rs":{"label":"与基准同步","excess5":0.05,"excess20":0.14,"known":true,"benchmark":"399006","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":2.295,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 2.295（+2.91%），数据日 2026-11-23","MA5 2.294 / MA10 2.387 / MA20 2.451，站上 MA5 1 日，连续低于 MA10 7 日","量比 1.14（平量）","20 日年化波动 50.16%"],"comparisons":["5 日超额 +0.05pct、20 日超额 +0.14pct（基准 399006，基准日 2026-11-23）","距 MA20 -6.37%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 1/4，结构条件不完整","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}}],"orders":[{"code":"510300","name":"沪深300ETF","category":"宽基","track":"沪深300","benchmark":"000300","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":4.023,"change":0.12,"ma5":4.04,"ma10":4.074,"ma20":4.099,"ma60":4.354,"ma120":4.581,"ma_state":"空头排列","five":"未站回MA5","vol_desc":"缩量上行","vol_ratio":0.53,"expand":false,"shrink":true,"stand_back":false,"days_above_ma5":0,"below_ma10":8,"true_cnt":2,"true_items":{"不破关键位":false,"明显缩量":true,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 2/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":-0.76,"ret20":-3.73,"vol20":13.93,"support":{"ma5":4.0402,"ma10":4.0737,"ma20":4.09945,"low20":3.97,"low60":3.97,"prev_low":3.97},"reduce":{"high20":4.216,"high60":4.706,"upper_shadow_pct":0.3},"rs":{"label":"与基准同步","excess5":-0.22,"excess20":-0.19,"known":true,"benchmark":"000300","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":4.023,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 4.023（+0.12%），数据日 2026-11-23","MA5 4.040 / MA10 4.074 / MA20 4.099，站上 MA5 0 日，连续低于 MA10 8 日","量比 0.53（缩量）","20 日年化波动 13.93%"],"comparisons":["5 日超额 -0.22pct、20 日超额 -0.19pct（基准 000300，基准日 2026-11-23）","距 MA20 -1.86%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 2/4，结构条件不完整","5 日跑输基准 -0.22pct，不支持「相对强势」的假设","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}},{"code":"510500","name":"中证500ETF","category":"宽基","track":"中证500","benchmark":"000905","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":6.16,"change":1.77,"ma5":6.225,"ma10":6.4,"ma20":6.476,"ma60":7.145,"ma120":7.691,"ma_state":"空头排列","five":"未站回MA5","vol_desc":"缩量上行","vol_ratio":0.71,"expand":false,"shrink":true,"stand_back":false,"days_above_ma5":0,"below_ma10":7,"true_cnt":2,"true_items":{"不破关键位":false,"明显缩量":true,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 2/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":-2.75,"ret20":-8.74,"vol20":35.27,"support":{"ma5":6.225,"ma10":6.4,"ma20":6.476299999999999,"low20":5.937,"low60":5.937,"prev_low":6.051},"reduce":{"high20":6.853,"high60":8.004,"upper_shadow_pct":0.95},"rs":{"label":"与基准同步","excess5":-0.08,"excess20":-0.04,"known":true,"benchmark":"000905","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":6.16,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 6.160（+1.77%），数据日 2026-11-23","MA5 6.225 / MA10 6.400 / MA20 6.476，站上 MA5 0 日，连续低于 MA10 7 日","量比 0.71（缩量）","20 日年化波动 35.27%"],"comparisons":["5 日超额 -0.08pct、20 日超额 -0.04pct（基准 000905，基准日 2026-11-23）","距 MA20 -4.88%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 2/4，结构条件不完整","5 日跑输基准 -0.08pct，不支持「相对强势」的假设","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}},{"code":"588000","name":"科创50ETF","category":"宽基","track":"上证科创板50","benchmark":"000688","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":1.298,"change":-0.15,"ma5":1.312,"ma10":1.329,"ma20":1.315,"ma60":1.517,"ma120":1.717,"ma_state":"交织","five":"未站回MA5","vol_desc":"量能平淡","vol_ratio":1.13,"expand":false,"shrink":false,"stand_back":false,"days_above_ma5":0,"below_ma10":2,"true_cnt":1,"true_items":{"不破关键位":false,"明显缩量":false,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 1/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":1.25,"ret20":-6.01,"vol20":59.09,"support":{"ma5":1.3115999999999999,"ma10":1.3287,"ma20":1.3154,"low20":1.197,"low60":1.197,"prev_low":1.268},"reduce":{"high20":1.442,"high60":1.807,"upper_shadow_pct":0.45},"rs":{"label":"与基准同步","excess5":0.08,"excess20":0.65,"known":true,"benchmark":"000688","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":1.298,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 1.298（-0.15%），数据日 2026-11-23","MA5 1.312 / MA10 1.329 / MA20 1.315，站上 MA5 0 日，连续低于 MA10 2 日","量比 1.13（平量）","20 日年化波动 59.09%"],"comparisons":["5 日超额 +0.08pct、20 日超额 +0.65pct（基准 000688，基准日 2026-11-23）","距 MA20 -1.32%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 1/4，结构条件不完整","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}},{"code":"159915","name":"创业板ETF","category":"宽基","track":"创业板指","benchmark":"399006","status":"OK","data_status":"OK","data_date":"2026-11-23","level":"D","action":"CLEAR","action_text":"清仓","rule_ids":["R-D1"],"hits":[{"id":"R-D1","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","level":"D","action":"CLEAR","name":"收盘跌破MA10","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"}],"blocked_by":[],"last":2.295,"change":2.91,"ma5":2.294,"ma10":2.387,"ma20":2.451,"ma60":2.939,"ma120":3.381,"ma_state":"空头排列","five":"站回MA5 · 1日","vol_desc":"量能平淡","vol_ratio":1.14,"expand":false,"shrink":false,"stand_back":true,"days_above_ma5":1,"below_ma10":7,"true_cnt":1,"true_items":{"不破关键位":false,"明显缩量":false,"慢跌快涨":false,"有承接":true},"false_breakout":false,"cycle":"下行趋势（连续低于MA10且低于MA20）","breakout":"突破四条 1/4","premium_available":false,"premium_pct":null,"premium_state":"数据不可用","ret5":-1.67,"ret20":-13.43,"vol20":50.16,"support":{"ma5":2.2941999999999996,"ma10":2.387,"ma20":2.45125,"low20":2.202,"low60":2.202,"prev_low":2.23},"reduce":{"high20":2.69,"high60":3.57,"upper_shadow_pct":1.0},"rs":{"label":"与基准同步","excess5":0.05,"excess20":0.14,"known":true,"benchmark":"399006","benchmark_date":"2026-11-23"},"price":{"side":"sell","entry":2.295,"stop":null,"tp":null,"types":{"entry":"限价保护价（不保证成交）","stop":null,"tp":null},"note":"清仓语义：目标份额为 0；未成交部分滚存到下一可交易日，不设普通止盈目标","basis":["目标份额 0，按下一可交易时段限价卖出"]},"quality":{"status":"OK","blocking":[],"warnings":[],"bars":1200},"evidence":{"facts":["收盘 2.295（+2.91%），数据日 2026-11-23","MA5 2.294 / MA10 2.387 / MA20 2.451，站上 MA5 1 日，连续低于 MA10 7 日","量比 1.14（平量）","20 日年化波动 50.16%"],"comparisons":["5 日超额 +0.05pct、20 日超额 +0.14pct（基准 399006，基准日 2026-11-23）","距 MA20 -6.37%"],"rules":["R-D1 收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）（3657）"],"portfolio_impact":["公开观察池标的：未持有，权重未纳入；仅做单标的技术面事实","市场状态「下行趋势」对应仓位区间 30~40%"],"counter_evidence":["突破四条仅满足 1/4，结构条件不完整","IOPV 缺失，折溢价条件无法验证（缺失不视为满足）"],"unknowns":["折溢价/估值位置未知","资金流向、机构持仓与持仓集中度的底层穿透数据未接入"],"invalidation":["收盘重新站稳 MA10（当前退出条件失效）","收盘重新站上 MA10 且连续满足站上 MA5 阈值","量比回落到平量且结构条件改善","下一次运行出现与当前等级相反的规则命中"]}}],"trading":{"market":"CN-ETF","base_currency":"CNY","quote_precision":0.001,"stamp_duty_exempt":true,"lot_size":100,"benchmarks":{"000300":"沪深300","000905":"中证500","399006":"创业板指","000688":"科创50","NDX":"纳斯达克100","AU9999":"黄金现货","CBA00301":"中债总财富"},"etfs":[{"code":"510300","name":"沪深300ETF","category":"宽基","settle":"T+1","benchmark":"000300","track":"沪深300","watchlist":true},{"code":"510500","name":"中证500ETF","category":"宽基","settle":"T+1","benchmark":"000905","track":"中证500","watchlist":true},{"code":"588000","name":"科创50ETF","category":"宽基","settle":"T+1","benchmark":"000688","track":"上证科创板50","watchlist":true},{"code":"159915","name":"创业板ETF","category":"宽基","settle":"T+1","benchmark":"399006","track":"创业板指","watchlist":true}]},"methodology":{"version":"2.0","actions":{"CLEAR":"清仓","TRIM":"分批减仓","ADD":"加仓","HOLD":"持有","WATCH":"观察"},"levels":{"D":{"label":"风险退出","rank":4},"C":{"label":"减仓保利","rank":3},"A":{"label":"可加仓","rank":2},"B":{"label":"等待确认","rank":1}},"predicates":{"below_ma10_days_gte":"连续收盘低于 MA10 的日数 \u003e= N","false_breakout":"放量下跌且收盘低于 MA20（可观测事件）","expand_down_break_ma20":"放量、当日跌幅 \u003c -2%、收盘低于 MA20","not_stand_back_expand":"未站上 MA5 且放量","upper_shadow_gt":"倒数第三根 K 线上影线 % \u003e N（生产/回测同一根）","not_stand_back_premium_gt":"未站上 MA5 且折溢价 % \u003e N（IOPV 缺失时不命中）","stand_back_days_gte":"收盘站上 MA5 且连续日数 \u003e= N","true_breakout":"突破四条全部满足","is_20d_low":"收盘为 20 日新低","always":"恒真（仅允许用于最低优先级的兜底规则）"},"rules":[{"id":"R-D1","level":"D","priority":100,"name":"收盘跌破MA10","when":{"below_ma10_days_gte":2},"action":"CLEAR","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","src":"3657","rationale":{"phen":"收盘价连续低于 MA10。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。"},"exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。"},{"id":"R-D2","level":"D","priority":99,"name":"放量下跌破MA20","when":{"false_breakout":true},"action":"CLEAR","text":"放量 + 收盘下跌 + 收盘低于 MA20（可观测组合）","src":"3657","rationale":{"phen":"当日量比放大、收盘下跌且收盘低于 MA20。","judge":"这是三个可观测条件的组合，不是对资金意图的判断；是否有效需时间外验证。","act":"目标份额降至 0。"},"exec":"确认当日收盘后生成卖出政策，次日执行。"},{"id":"R-D3","level":"D","priority":98,"name":"放量破位","when":{"expand_down_break_ma20":true},"action":"CLEAR","text":"放量且跌幅超 2% 且收盘低于 MA20","src":"3657","rationale":{"phen":"放量、当日跌幅超过 2%、收盘低于 MA20。","judge":"放量下跌叠加均线破位属高波动事件，规则在此选择退出而不是预测反弹。","act":"目标份额降至 0。"},"exec":"次日限价卖出；未成交部分保留到下一可交易日。"},{"id":"R-D4","level":"D","priority":97,"name":"20日新低","when":{"is_20d_low":true,"below_ma10_days_gte":1},"action":"CLEAR","text":"收盘创 20 日新低且低于 MA10","src":"3657","rationale":{"phen":"收盘价等于或低于近 20 日最低收盘，且低于 MA10。","judge":"这是趋势与位置的客观描述（新低 + 均线下方），不含对交易对手意图的推断。","act":"目标份额降至 0。"},"exec":"次日执行；若次日跳空低开，限价保护可能无法成交，按未成交政策处理。"},{"id":"R-C1","level":"C","priority":80,"name":"未站上MA5且放量","when":{"not_stand_back_expand":true},"action":"TRIM","text":"收盘未站上 MA5 且量比放大","src":"7477/7570","rationale":{"phen":"收盘价低于 MA5，且当日量比高于放量阈值。","judge":"该组合描述「价格未回到短期均线上方、成交放大」，属于风险提示而非因果断言。","act":"目标权重减半（TRIM），保留剩余仓位。"},"exec":"次日限价减仓一半；剩余仓位按下一交易日重新求值。"},{"id":"R-C2","level":"C","priority":79,"name":"上影线超阈值","when":{"upper_shadow_gt":2},"action":"TRIM","text":"倒数第三根 K 线上影线超过 2%","src":"7477","rationale":{"phen":"指定 K 线的上影线占收盘价比例超过 2%。","judge":"上影线长度是价格拒绝的几何描述，不推断买卖方身份。","act":"目标权重减半。"},"exec":"次日执行；若当日已触发 D 级规则，D 级优先。"},{"id":"R-C3","level":"C","priority":78,"name":"折溢价偏高","when":{"not_stand_back_premium_gt":1.0},"action":"TRIM","text":"收盘未站上 MA5 且折溢价高于 1%（IOPV 缺失时不命中）","src":"7477","rationale":{"phen":"未站上 MA5 且 IOPV 折溢价高于 1%。","judge":"溢价表示价格高于实时估值，买入成本更高；这是可观测的定价偏差。","act":"目标权重减半；IOPV 缺失时该规则不参与判定（缺失不等于满足）。"},"exec":"等溢价回落到 0.5% 以内再考虑加仓。"},{"id":"R-A1","level":"A","priority":60,"name":"站上MA5且突破四条","when":{"stand_back_days_gte":3,"true_breakout":true},"action":"ADD","text":"收盘站上 MA5 满 3 日且突破四条全中","src":"3657/7879","rationale":{"phen":"连续 3 日收盘高于 MA5；突破四条（不破关键位、明显缩量、慢跌快涨、有承接）全部满足。","judge":"规则把「站上均线 + 四条结构条件」作为候选加仓条件；其有效性必须由时间外回测证明，不能默认成立。","act":"在组合约束允许时加仓；超配 / 浮亏超阈值时由覆盖规则降级为持有。"},"exec":"分批进场，回踩 MA5 附近先半仓；止损条件在开仓前确定。"},{"id":"R-A2","level":"A","priority":50,"name":"站上MA5确认","when":{"stand_back_days_gte":2},"action":"HOLD","text":"收盘站上 MA5 满 2 日（未满 3 日不加仓）","src":"7879","rationale":{"phen":"连续 2 日收盘高于 MA5。","judge":"仅表示短期价格回到 MA5 上方，尚不满足加仓条件。","act":"持有，不加仓。"},"exec":"跌破 MA10 当日重新求值并降级。"},{"id":"R-B1","level":"B","priority":20,"name":"缺确认等待","when":{"always":true},"action":"HOLD","text":"未命中任何明确条件（兜底：持有等待）","src":"8231","rationale":{"phen":"未满足任何具有明确阈值的规则。","judge":"兜底规则只表示「没有可执行信号」，不代表趋势判断。","act":"持有，等待下一交易日重新求值。"},"exec":"不加仓、不减仓。"}],"pricing":{"ADD":{"side":"buy","entry":"pullback_ma5","stop":"support_below","tp":"reference_resistance"},"HOLD":{"side":"buy","entry":"pullback_ma5","stop":"support_below","tp":"reference_resistance"},"WATCH":{"side":"buy","entry":"pullback_ma5","stop":"support_below","tp":"reference_resistance"},"TRIM":{"side":"sell","entry":"bounce_up","stop":"support_below","tp":"reference_resistance"},"CLEAR":{"side":"sell","entry":"bounce_up","stop":null,"tp":null,"target_shares":0}},"overrides":[{"id":"O-1","name":"超配禁加仓","when":"position_pct_gt_regime_hi","demote":"ADD-\u003eHOLD","src":"3657","text":"总仓位高于阶段区间上限，ADD 降级为 HOLD","rationale":"超配时先降总仓，不新增敞口"},{"id":"O-2","name":"浮亏禁加仓","when":"pnl_pct_lt_-8","demote":"ADD-\u003eHOLD","src":"L4-08","text":"单腿浮亏超过 -8%，ADD 降级为 HOLD","rationale":"成本价锚定不应驱动加仓；先核对风险预算再决定"},{"id":"O-3","name":"大浮盈不加仓","when":"pnl_pct_gt_30","demote":"ADD-\u003eHOLD","src":"L4-09","text":"单腿浮盈超过 +30%，ADD 降级为 HOLD","rationale":"大额浮盈时不追高，先检查集中度"},{"id":"O-4","name":"数据不足不出单","when":"data_status_not_ok","demote":"any-\u003eABSTAIN","src":"P0","text":"关键数据缺失 / 陈旧 / 冲突，禁止输出交易动作","rationale":"数据不足不等于持有；状态必须为 ABSTAIN"}],"regime_fit":{"上行趋势":{"lo":80,"hi":90},"震荡区间":{"lo":60,"hi":70},"下行趋势":{"lo":30,"hi":40},"下行趋势 · 波动抬升":{"lo":20,"hi":30},"上行趋势 · 波动抬升":{"lo":60,"hi":70},"未知":{"lo":null,"hi":null}},"pipeline":[{"step":"S1","name":"市场定仓","output":["regime","fit_lo","fit_hi","position_pct","position_action"]},{"step":"S2","name":"结构核对","output":["category","current_pct_of_invested","target_pct_of_invested","deviation_pct"]},{"step":"S3","name":"逐只评级","output":["code","name","level","action","hits"]},{"step":"S4","name":"动作生成","output":["code","action","entry","stop","tp","rule_ids","target_weight_pct"]},{"step":"S5","name":"组合输出","output":["orders","target_shares","portfolio_after","risk_flags"]}],"sentiment_cycle":["亢奋","分歧","退潮","冰点","回暖","再亢奋"],"brief":{"header_phen":"市场状态「{regime}」，仓位区间 {lo}~{hi}%；当前总仓位 {pos}%，{pos_state}；今日待执行 {n} 笔","header_judge":"{regime_note}","header_act":"今日动作：{acts}；先降风险敞口，再调结构","no_action":"今日无触发动作：全部规则求值为持有，下一交易日重新求值"},"actions_doc":{"CLEAR":"清仓","TRIM":"分批减仓","ADD":"加仓","HOLD":"持有","WATCH":"观察"}},"targets":{"宽基":50,"行业":25,"债券":15,"黄金":5,"海外":5},"plan":{"total_target":35.0,"fit_lo":30,"fit_hi":40,"regime":"下行趋势","gap_threshold":3.0,"top_n":6,"max_single":25.0,"items":[{"code":"510300","name":"沪深300ETF","score":25.0,"grade":"D","cap":3.0,"vol20":13.93,"target_weight":3.0,"wk_up":false,"confirm":1,"tier":"跌破MA30：差额可一次性卖出","ma10":4.07,"ma20":4.1,"ma30":4.14,"ma60":4.35,"above_ma10":false},{"code":"510500","name":"中证500ETF","score":25.0,"grade":"D","cap":3.0,"vol20":35.27,"target_weight":3.0,"wk_up":false,"confirm":0,"tier":"跌破MA30：差额可一次性卖出","ma10":6.4,"ma20":6.48,"ma30":6.6,"ma60":7.14,"above_ma10":false},{"code":"159915","name":"创业板ETF","score":25.0,"grade":"D","cap":3.0,"vol20":50.16,"target_weight":3.0,"wk_up":false,"confirm":1,"tier":"跌破MA30：差额可一次性卖出","ma10":2.39,"ma20":2.45,"ma30":2.56,"ma60":2.94,"above_ma10":false},{"code":"588000","name":"科创50ETF","score":35.0,"grade":"D","cap":3.0,"vol20":59.09,"target_weight":3.0,"wk_up":false,"confirm":1,"tier":"跌破MA30：差额可一次性卖出","ma10":1.33,"ma20":1.32,"ma30":1.35,"ma60":1.52,"above_ma10":false}]},"brief":null,"sector_weights":{"as_of":"2026-11-20","generated_at":"2026-11-20T15:17:11","stale":false,"unit":"%","source":{"000300":"东方财富数据中心 指数成分权重","000688":"东方财富数据中心 指数成分权重","000905":"东方财富数据中心 指数成分权重","399006":"国证指数官网 样本详情导出"},"method":{"000300":{"method":"official","official_sum":100.04},"000688":{"method":"official","official_sum":100.02},"000905":{"method":"official","official_sum":100.11},"399006":{"method":"official+ff","official_sum":50.1}},"weights_date":{"000300":"2026-11-20","000688":"2026-11-20","000905":"2026-11-20","399006":"2026-11-19"},"indices":{"000300":{"银行":14.36,"房地产":0.37,"通信":5.56,"电子":15.49,"机械设备":2.53,"非银金融":9.36,"石油石化":1.82,"家用电器":3.55,"汽车":3.19,"基础化工":2.03,"医药生物":4.86,"食品饮料":7.01,"有色金属":5.02,"钢铁":0.49,"国防军工":1.99,"计算机":3.1,"交通运输":3.35,"传媒":0.94,"电力设备":6.63,"农林牧渔":1.2,"公用事业":3.52,"美容护理":0.06,"建筑装饰":1.43,"建筑材料":0.48,"煤炭":1.33,"商贸零售":0.37},"000688":{"国防军工":3.98,"电子":80.42,"机械设备":2.58,"通信":0.8,"计算机":3.42,"家用电器":1.24,"电力设备":2.24,"医药生物":4.45,"汽车":0.89},"000905":{"综合":0.15,"电子":20.96,"公用事业":3.03,"建筑装饰":0.64,"计算机":4.58,"机械设备":5.33,"有色金属":4.57,"交通运输":2.32,"电力设备":8.44,"非银金融":5.46,"医药生物":9.3,"国防军工":4.9,"汽车":3.94,"环保":0.75,"钢铁":1.43,"基础化工":4.85,"石油石化":1.31,"煤炭":1.8,"食品饮料":1.61,"商贸零售":0.17,"建筑材料":1.28,"家用电器":1.5,"轻工制造":0.84,"农林牧渔":0.83,"房地产":0.67,"通信":3.98,"传媒":2.27,"银行":1.78,"社会服务":0.56,"美容护理":0.41,"纺织服饰":0.45},"399006":{"电力设备":26.33,"通信":20.65,"非银金融":5.89,"医药生物":8.19,"机械设备":5.25,"农林牧渔":2.77,"电子":17.75,"计算机":5.37,"传媒":2.47,"国防军工":1.66,"社会服务":0.6,"建筑材料":0.39,"基础化工":0.3,"有色金属":0.4,"汽车":0.3,"食品饮料":0.4,"美容护理":0.59,"纺织服饰":0.71}},"etf_index":{"510300":"000300","510500":"000905","588000":"000688","159915":"399006"},"unmapped":{},"errors":[]},"contract":{"version":"1.0","config_hash":"7dc121bf9c53564c","constraints":{"max_single_weight_pct":25,"max_category_weight_pct":60,"min_cash_pct":5,"max_legs":8,"lot_size":100,"commission_bps":0.5,"min_commission_cny":5.0,"slippage_bps":1.0,"t_plus":1},"execution":{"trim_ratio":0.5,"add_step_pct":5,"initiate_target_pct":5,"rebalance_band_pct":2,"clear_target":0},"asset_buckets":{"现金":"现金","货币":"货币","债券":"债券","黄金":"商品","商品":"商品","宽基":"境内权益","行业":"境内权益","海外":"海外权益","未分类":"未分类"},"correlation":{"min_obs":40,"high_threshold":0.7}},"decision":null};</script>
+<script>window.DASHBOARD = {"brief":{"blocks":[{"k":"今天是什么日子","refs":[],"v":"不是恐慌日，是没人愿意先动手的阴跌日。成交额 17,842 亿、环比 -8.6%，但涨跌家数 2,687 对 2,314（上涨占比 53.7%）、涨停 48 家、跌停 11 家，情绪读数 58（中性偏暖）——如果是真恐慌，涨停板会先消失、跌停会成片出现。指数贴着 120 日低点只有 0.23%，波动率 13.8% 却没有抬升，说明筹码在慢慢磨，不是被一棒子打下去。这种结构最消磨人：跌不深、也涨不动，谁先满仓谁先难受。"},{"k":"我们现在站在哪","refs":[],"v":"指数 3,963.82，在 MA20（4,022.94）和 MA60（4,273.87）下方，距 120 日高点 -21.66%、距低点 +0.23%。向上空间 27.6%、向下 0.2%，名义赔率 118:1 —— 这个数字现在没有参考价值，因为向下空间被前低锁死了，真正的风险不是跌到前低，而是横着磨三个月。组合这边：五只里四只已在 MA20 下方——创业板算力ETF华夏（158041）-8.9%、黄金股ETF平安（159322）-9.4%、卫星ETF广发（512630）-8.5%、券商ETF华宝（512000）-2.3%；只有科创半导体ETF华夏（588170）还在 MA20 上方 1.1%。也就是说，成本线已经先于指数失守。"},{"k":"组合的真实问题","refs":[],"v":"第一，67.04% 全押在行业 ETF 上，超过 60% 的类别上限，五只跌的是同一类风险，不是「选错了某一只」，而是「只押了一个方向」。第二，最重的仓位（创业板算力ETF华夏（158041），23.37%）恰好是 20 日跑输基准 16% 的那只，回撤由它主导。第三，32.96% 的现金躺在活期，等待期收益为零，既没缓冲波动，也没产生收益。第四，本来想用黄金股对冲，结果它 5 日跌 8.4%、跌破 MA20 9.4%，跟股票一起跌，对冲是负的。"},{"k":"哪只该动、为什么是它","refs":[],"v":"先动 创业板算力ETF华夏（158041） 和 黄金股ETF平安（159322）：前者趋势与相对强弱都是组合内最差（超额 -16%），后者对冲功能已经失效，留着它们只是把风险敞口固定在错误的方向上。科创半导体ETF华夏（588170） 减到 12%：它是唯一正超额（+7.5%），但年化波动 96%，对 7.6k 的组合来说，18% 的仓位意味着单日 ±3% 的净值波动，留 12% 是为了保留「科技先转强」的观察位，而不是赌方向。券商ETF华宝（512000） 和 卫星ETF广发（512630） 不动：前者波动最低（21.5%）、跌幅小于中证500，是组合里最像「市场平均」的一只；后者只有 5.5%，为它下单的摩擦成本不划算。"},{"k":"如果我错了","refs":[],"v":"最可能错在「卖在低点」。如果 创业板算力ETF华夏（158041） 在清仓后 3 个交易日内放量站回 MA20、并且 20 日超额转正，那就说明这只是一次超跌反弹，我把反弹当成了趋势破坏。第二个错误是「对 科创半导体ETF华夏（588170） 太谨慎」：如果它继续放量新高、成为真正的抱团主线，12% 会让我少赚；但 96% 的波动意味着这种钱不是这个账户该赚的。第三个错误是「现金太多」：如果指数收复 MA20 且成交连续三天放大，70% 现金就是我踏空的证据。"},{"k":"今天做什么","refs":[],"v":"两笔清仓、一笔减仓，其余不动。创业板算力ETF华夏（158041）先卖差额的一半，收盘没收回 MA20 再清剩下的；黄金股ETF平安（159322）分两笔限价卖出；科创半导体ETF华夏（588170）在反弹日减到 12%。三笔合计约减持 24 个百分点仓位，费用不到成交额的 0.3%，卖完现金约 70%。不在急跌里挂市价，也不用一次性砸出。"},{"k":"什么情况下改主意","refs":[],"v":"四个可验证的信号：① 指数收复 MA20（4,022.94）且成交连续 3 日放大 → 把 科创半导体ETF华夏（588170） 加回 16-18%，现金降到 60% 以下；② 创业板算力ETF华夏（158041） 清仓后 3 日内站回 MA20 且超额转正 → 暂停第二批卖出，重新评估；③ 科创半导体ETF华夏（588170） 单日跌超 5% 或 20 日超额转负 → 直接降到 0，不留观察仓；④ 成交连续 5 日放大而券商不涨 → 券商ETF华宝（512000） 的贝塔逻辑失效，一起减。"},{"k":"没解决的事","refs":[],"v":"现金 70% 没有货币类持仓，等待期收益为零——不是没想到，是本轮研究范围只含持仓，货币 ETF 不在可交易范围；要解决得先放宽 scope。另外三周期（月/周）、缠论结构、概率三项没有接入，板块评分缺政策与情绪两维，持仓成本是手工录入、无法核对真实成交时间。这些会让结论偏保守而不是偏激进，但在下一轮之前必须知道边界在哪。"}],"conclusion":"缩量阴跌里先把最差的仓位换成现金，等它自己证明能站住。","data_date":"2026-11-24"},"contract":{"asset_buckets":{"债券":"债券","商品":"商品","宽基":"境内权益","未分类":"未分类","海外":"海外权益","现金":"现金","行业":"境内权益","货币":"货币","黄金":"商品"},"config_hash":"7dc121bf9c53564c","constraints":{"commission_bps":0.5,"lot_size":100,"max_category_weight_pct":60,"max_legs":8,"max_single_weight_pct":25,"min_cash_pct":5,"min_commission_cny":5.0,"slippage_bps":1.0,"t_plus":1},"correlation":{"high_threshold":0.7,"min_obs":40},"execution":{"add_step_pct":5,"clear_target":0,"initiate_target_pct":5,"rebalance_band_pct":2,"trim_ratio":0.5},"version":"1.0"},"decision":null,"legs":[],"market":{"as_of":"2026-11-12 09:05:00","breadth":{"advance":2687,"amount_chg_pct":-8.6,"amount_yi":17842,"decline":2314,"flat":186,"limit_down":11,"limit_up":48,"up_ratio":53.7},"calendar":[{"date":"11-12","event":"美国 CPI 数据（21:30）","level":"高","url":"https://data.eastmoney.com/cjrl/"},{"date":"11-13","event":"国内 10 月金融数据","level":"高","url":"http://www.pbc.gov.cn/"},{"date":"11-14","event":"MSCI 季度调整生效","level":"中","url":"https://www.csindex.com.cn/"},{"date":"11-15","event":"MLF 续作","level":"中","url":"http://www.pbc.gov.cn/"}],"distribution":{"-1~0%":960,"-3~-1%":1042,"0~1%":1180,"1~3%":892,"\u003c-3%":312,"\u003e3%":401},"flow":[{"cap":114886.49,"chg":0.87,"code":"BK1201","sector":"电子","share":27.25,"turnover":4545.2},{"cap":117614.18,"chg":-0.31,"code":"BK1283","sector":"银行","share":2.48,"turnover":414.41},{"cap":50674.04,"chg":-0.32,"code":"BK1200","sector":"电力设备","share":6.53,"turnover":1088.42},{"cap":49500.35,"chg":-1.33,"code":"BK1203","sector":"非银金融","share":1.91,"turnover":317.98},{"cap":50018.7,"chg":-1.09,"code":"BK1216","sector":"医药生物","share":4.4,"turnover":734.42},{"cap":40405.99,"chg":0.31,"code":"BK1205","sector":"机械设备","share":8.39,"turnover":1399.0},{"cap":30711.22,"chg":0.53,"code":"BK1215","sector":"通信","share":8.25,"turnover":1376.09},{"cap":31124.84,"chg":-1.33,"code":"BK0478","sector":"有色金属","share":4.24,"turnover":706.83},{"cap":33383.03,"chg":-0.28,"code":"BK1206","sector":"基础化工","share":4.35,"turnover":725.69},{"cap":30573.05,"chg":-0.11,"code":"BK1207","sector":"计算机","share":5.87,"turnover":978.43},{"cap":38737.86,"chg":-0.08,"code":"BK0438","sector":"食品饮料","share":1.76,"turnover":293.4},{"cap":34996.54,"chg":-1.22,"code":"BK0427","sector":"公用事业","share":1.69,"turnover":281.53},{"cap":33282.54,"chg":-1.07,"code":"BK0464","sector":"石油石化","share":0.76,"turnover":126.59},{"cap":28725.35,"chg":0.69,"code":"BK1211","sector":"汽车","share":3.93,"turnover":654.86},{"cap":28406.99,"chg":-0.54,"code":"BK1210","sector":"交通运输","share":1.2,"turnover":200.78},{"cap":20596.67,"chg":1.16,"code":"BK1204","sector":"国防军工","share":2.34,"turnover":389.96},{"cap":18600.29,"chg":-2.07,"code":"BK0437","sector":"煤炭","share":0.56,"turnover":93.31},{"cap":17821.14,"chg":1.16,"code":"BK0456","sector":"家用电器","share":1.86,"turnover":310.62},{"cap":13501.17,"chg":-0.49,"code":"BK1209","sector":"建筑装饰","share":1.15,"turnover":192.25},{"cap":12375.9,"chg":0.05,"code":"BK0486","sector":"传媒","share":3.85,"turnover":642.19},{"cap":9085.91,"chg":0.03,"code":"BK0433","sector":"农林牧渔","share":1.27,"turnover":212.65},{"cap":6889.28,"chg":-1.01,"code":"BK1208","sector":"建筑材料","share":1.03,"turnover":171.61},{"cap":7397.09,"chg":-0.76,"code":"BK1202","sector":"房地产","share":0.56,"turnover":93.91},{"cap":7160.43,"chg":0.44,"code":"BK1212","sector":"轻工制造","share":0.91,"turnover":151.28},{"cap":7160.48,"chg":-0.1,"code":"BK1213","sector":"商贸零售","share":0.83,"turnover":137.8},{"cap":6747.98,"chg":-1.44,"code":"BK0479","sector":"钢铁","share":0.27,"turnover":45.83},{"cap":6133.63,"chg":-1.02,"code":"BK0728","sector":"环保","share":0.81,"turnover":135.73},{"cap":5137.63,"chg":0.43,"code":"BK0436","sector":"纺织服饰","share":0.69,"turnover":115.21},{"cap":3733.47,"chg":-0.62,"code":"BK1214","sector":"社会服务","share":0.51,"turnover":84.45},{"cap":1987.83,"chg":0.21,"code":"BK1035","sector":"美容护理","share":0.2,"turnover":32.87},{"cap":1437.7,"chg":-0.59,"code":"BK1217","sector":"综合","share":0.15,"turnover":25.42}],"glob":{"items":[{"k":"纳斯达克","url":"https://finance.sina.com.cn/","v":"+369939.29%"},{"k":"标普500","url":"https://finance.sina.com.cn/","v":"+152905.71%"},{"k":"道琼斯","url":"https://finance.sina.com.cn/","v":"+1647584.67%"}]},"heat":[{"cap":114886.49,"chg":0.87,"name":"电子","v":4545.2},{"cap":117614.18,"chg":-0.31,"name":"银行","v":414.41},{"cap":50674.04,"chg":-0.32,"name":"电力设备","v":1088.42},{"cap":49500.35,"chg":-1.33,"name":"非银金融","v":317.98},{"cap":50018.7,"chg":-1.09,"name":"医药生物","v":734.42},{"cap":40405.99,"chg":0.31,"name":"机械设备","v":1399.0},{"cap":30711.22,"chg":0.53,"name":"通信","v":1376.09},{"cap":31124.84,"chg":-1.33,"name":"有色金属","v":706.83},{"cap":33383.03,"chg":-0.28,"name":"基础化工","v":725.69},{"cap":30573.05,"chg":-0.11,"name":"计算机","v":978.43},{"cap":38737.86,"chg":-0.08,"name":"食品饮料","v":293.4},{"cap":34996.54,"chg":-1.22,"name":"公用事业","v":281.53},{"cap":33282.54,"chg":-1.07,"name":"石油石化","v":126.59},{"cap":28725.35,"chg":0.69,"name":"汽车","v":654.86},{"cap":28406.99,"chg":-0.54,"name":"交通运输","v":200.78},{"cap":20596.67,"chg":1.16,"name":"国防军工","v":389.96},{"cap":18600.29,"chg":-2.07,"name":"煤炭","v":93.31},{"cap":17821.14,"chg":1.16,"name":"家用电器","v":310.62},{"cap":13501.17,"chg":-0.49,"name":"建筑装饰","v":192.25},{"cap":12375.9,"chg":0.05,"name":"传媒","v":642.19},{"cap":9085.91,"chg":0.03,"name":"农林牧渔","v":212.65},{"cap":6889.28,"chg":-1.01,"name":"建筑材料","v":171.61},{"cap":7397.09,"chg":-0.76,"name":"房地产","v":93.91},{"cap":7160.43,"chg":0.44,"name":"轻工制造","v":151.28},{"cap":7160.48,"chg":-0.1,"name":"商贸零售","v":137.8},{"cap":6747.98,"chg":-1.44,"name":"钢铁","v":45.83},{"cap":6133.63,"chg":-1.02,"name":"环保","v":135.73},{"cap":5137.63,"chg":0.43,"name":"纺织服饰","v":115.21},{"cap":3733.47,"chg":-0.62,"name":"社会服务","v":84.45},{"cap":1987.83,"chg":0.21,"name":"美容护理","v":32.87},{"cap":1437.7,"chg":-0.59,"name":"综合","v":25.42}],"indices":[{"chg_pct":0.82,"last":3567.84,"ma_state":"跌破五均线","name":"上证指数","url":"https://quote.eastmoney.com/zs000001.html"},{"chg_pct":2.43,"last":10708.61,"ma_state":"跌破五均线","name":"深证成指","url":"https://quote.eastmoney.com/zs399001.html"},{"chg_pct":3.88,"last":2368.7,"ma_state":"站回五均线 · 站上2日","name":"创业板指","url":"https://quote.eastmoney.com/zs399006.html"},{"chg_pct":3.25,"last":1267.77,"ma_state":"站回五均线 · 站上1日","name":"科创50","url":"https://quote.eastmoney.com/zs000688.html"},{"chg_pct":1.16,"last":4004.04,"ma_state":"跌破五均线","name":"沪深300","url":"https://quote.eastmoney.com/zs000300.html"},{"chg_pct":2.14,"last":6260.03,"ma_state":"跌破五均线","name":"中证500","url":"https://quote.eastmoney.com/zs000905.html"}],"liquidity":{"items":[{"k":"两融余额","url":"https://data.eastmoney.com/rzrq/","v":"24,860 亿"},{"k":"北向成交","url":"https://data.eastmoney.com/hsgt/index.html","v":"1,842 亿"},{"k":"新成立基金","url":"https://fund.eastmoney.com/","v":"128 亿"},{"k":"ETF 份额周变化","url":"https://fund.eastmoney.com/","v":"+64 亿份"},{"k":"逆回购净投放","url":"http://www.pbc.gov.cn/","v":"+320 亿"},{"k":"DR007","url":"https://www.chinamoney.com.cn/","v":"1.52%"}]},"macro":{"items":[{"k":"CPI 同比","url":"https://www.stats.gov.cn/sj/zxfb/","v":"+0.3%"},{"k":"PPI 同比","url":"https://www.stats.gov.cn/sj/zxfb/","v":"-1.2%"},{"k":"GDP 当季","url":"https://www.stats.gov.cn/sj/zxfb/","v":"4.8%"},{"k":"制造业 PMI","url":"https://www.stats.gov.cn/sj/zxfb/","v":"50.1"},{"k":"中债10Y","url":"https://www.chinabond.com.cn/","v":"1.78%"},{"k":"美债10Y","url":"https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve","v":"4.12%"},{"k":"中美利差","url":"https://data.eastmoney.com/cjsj/zmgzsyl.html","v":"-2.34pct"},{"k":"人民币中间价","url":"https://www.chinamoney.com.cn/","v":"7.08"}]},"national_team":{"as_of":"2026-11-23","fetched_at":"2026-11-24 15:50:47","order":["沪深300","上证50","中证500","中证1000","中证A500","科创50","全宽基合计"],"series":[{"date":"2026-04-24","groups":{"上证50":211.84,"中证1000":83.02,"中证500":123.58,"中证A500":768.24,"全宽基合计":3003.08,"沪深300":1007.76,"科创50":808.64}},{"date":"2026-04-27","groups":{"上证50":205.32,"中证1000":72.92,"中证500":119.86,"中证A500":760.41,"全宽基合计":2946.64,"沪深300":994.57,"科创50":793.56}},{"date":"2026-04-29","groups":{"上证50":189.07,"中证1000":69.24,"中证500":116.34,"中证A500":751.07,"全宽基合计":2896.51,"沪深300":979.02,"科创50":791.77}},{"date":"2026-04-30","groups":{"上证50":176.16,"中证1000":56.08,"中证500":105.63,"中证A500":737.7,"全宽基合计":2788.87,"沪深300":960.69,"科创50":752.61}},{"date":"2026-05-07","groups":{"上证50":157.45,"中证1000":58.74,"中证500":98.1,"中证A500":720.33,"全宽基合计":2666.17,"沪深300":921.39,"科创50":710.16}},{"date":"2026-05-08","groups":{"上证50":144.68,"中证1000":53.84,"中证500":89.68,"中证A500":716.49,"全宽基合计":2617.76,"沪深300":904.1,"科创50":708.97}},{"date":"2026-05-15","groups":{"上证50":122.75,"中证1000":44.08,"中证500":77.0,"中证A500":680.65,"全宽基合计":2420.76,"沪深300":835.44,"科创50":660.84}},{"date":"2026-05-22","groups":{"上证50":99.48,"中证1000":44.64,"中证500":72.69,"中证A500":657.67,"全宽基合计":2280.94,"沪深300":785.69,"科创50":620.77}},{"date":"2026-05-29","groups":{"上证50":81.68,"中证1000":44.64,"中证500":67.46,"中证A500":658.16,"全宽基合计":2189.52,"沪深300":732.31,"科创50":605.27}},{"date":"2026-06-05","groups":{"上证50":80.15,"中证1000":42.08,"中证500":69.32,"中证A500":654.72,"全宽基合计":2172.0,"沪深300":729.88,"科创50":595.85}},{"date":"2026-06-12","groups":{"上证50":85.16,"中证1000":44.04,"中证500":68.92,"中证A500":658.32,"全宽基合计":2191.73,"沪深300":741.27,"科创50":594.02}},{"date":"2026-06-15","groups":{"上证50":86.4,"中证1000":44.38,"中证500":71.41,"中证A500":659.41,"全宽基合计":2176.53,"沪深300":726.6,"科创50":588.33}},{"date":"2026-06-16","groups":{"上证50":86.84,"中证1000":40.9,"中证500":70.04,"中证A500":654.91,"全宽基合计":2154.78,"沪深300":710.12,"科创50":591.97}},{"date":"2026-06-17","groups":{"上证50":81.14,"中证1000":42.34,"中证500":70.11,"中证A500":650.63,"全宽基合计":2112.15,"沪深300":687.5,"科创50":580.43}},{"date":"2026-06-18","groups":{"上证50":80.54,"中证1000":43.06,"中证500":70.21,"中证A500":645.0,"全宽基合计":2079.18,"沪深300":674.04,"科创50":566.33}},{"date":"2026-06-25","groups":{"上证50":68.08,"中证1000":42.62,"中证500":66.55,"中证A500":641.36,"全宽基合计":1906.1,"沪深300":523.15,"科创50":564.34}},{"date":"2026-06-26","groups":{"上证50":67.25,"中证1000":46.08,"中证500":65.59,"中证A500":636.56,"全宽基合计":1903.76,"沪深300":523.61,"科创50":564.67}},{"date":"2026-06-30","groups":{"上证50":67.43,"中证1000":54.98,"中证500":65.11,"中证A500":639.26,"全宽基合计":1845.03,"沪深300":469.45,"科创50":548.8}},{"date":"2026-07-03","groups":{"上证50":68.75,"中证1000":50.06,"中证500":67.15,"中证A500":646.36,"全宽基合计":1834.03,"沪深300":427.69,"科创50":574.02}},{"date":"2026-07-06","groups":{"上证50":67.42,"中证1000":54.68,"中证500":67.6,"中证A500":646.37,"全宽基合计":1839.35,"沪深300":424.51,"科创50":578.77}},{"date":"2026-07-08","groups":{"上证50":69.32,"中证1000":75.5,"中证500":70.59,"中证A500":658.83,"全宽基合计":1882.35,"沪深300":429.37,"科创50":578.74}},{"date":"2026-07-10","groups":{"上证50":67.41,"中证1000":68.8,"中证500":70.06,"中证A500":657.15,"全宽基合计":1889.3,"沪深300":429.29,"科创50":596.59}},{"date":"2026-07-13","groups":{"上证50":70.0,"中证1000":89.54,"中证500":78.6,"中证A500":673.11,"全宽基合计":1963.97,"沪深300":445.28,"科创50":607.44}},{"date":"2026-07-16","groups":{"上证50":84.88,"中证1000":105.68,"中证500":84.87,"中证A500":678.15,"全宽基合计":2061.09,"沪深300":470.34,"科创50":637.17}},{"date":"2026-07-17","groups":{"上证50":85.83,"中证1000":116.9,"中证500":87.63,"中证A500":724.78,"全宽基合计":2192.65,"沪深300":502.61,"科创50":674.9}},{"date":"2026-07-20","groups":{"上证50":86.78,"中证1000":125.84,"中证500":91.13,"中证A500":741.29,"全宽基合计":2339.86,"沪深300":536.16,"科创50":758.66}},{"date":"2026-07-23","groups":{"上证50":81.8,"中证1000":108.14,"中证500":85.81,"中证A500":749.59,"全宽基合计":2341.62,"沪深300":541.57,"科创50":774.71}},{"date":"2026-07-24","groups":{"上证50":77.9,"中证1000":105.7,"中证500":86.24,"中证A500":760.11,"全宽基合计":2347.0,"沪深300":547.75,"科创50":769.3}},{"date":"2026-07-27","groups":{"上证50":79.66,"中证1000":117.06,"中证500":90.86,"中证A500":768.32,"全宽基合计":2384.31,"沪深300":551.98,"科创50":776.43}},{"date":"2026-07-31","groups":{"上证50":75.54,"中证1000":139.82,"中证500":91.47,"中证A500":837.47,"全宽基合计":2569.56,"沪深300":576.14,"科创50":849.12}},{"date":"2026-08-04","groups":{"上证50":79.79,"中证1000":149.8,"中证500":92.45,"中证A500":846.58,"全宽基合计":2615.8,"沪深300":577.85,"科创50":869.33}},{"date":"2026-08-07","groups":{"上证50":72.32,"中证1000":111.94,"中证500":83.73,"中证A500":842.25,"全宽基合计":2491.7,"沪深300":560.88,"科创50":820.58}},{"date":"2026-08-10","groups":{"上证50":71.11,"中证1000":101.24,"中证500":81.34,"中证A500":840.62,"全宽基合计":2476.19,"沪深300":557.37,"科创50":824.51}},{"date":"2026-08-12","groups":{"上证50":73.34,"中证1000":91.4,"中证500":80.3,"中证A500":840.22,"全宽基合计":2444.99,"沪深300":544.84,"科创50":814.89}},{"date":"2026-08-14","groups":{"上证50":74.1,"中证1000":85.22,"中证500":78.06,"中证A500":834.39,"全宽基合计":2425.05,"沪深300":536.97,"科创50":816.31}},{"date":"2026-08-17","groups":{"上证50":72.5,"中证1000":85.38,"中证500":78.38,"中证A500":827.94,"全宽基合计":2389.17,"沪深300":531.04,"科创50":793.93}},{"date":"2026-08-20","groups":{"上证50":76.14,"中证1000":86.92,"中证500":77.53,"中证A500":832.71,"全宽基合计":2449.92,"沪深300":539.86,"科创50":836.76}},{"date":"2026-08-21","groups":{"上证50":76.48,"中证1000":84.42,"中证500":77.24,"中证A500":820.81,"全宽基合计":2431.31,"沪深300":535.35,"科创50":837.01}},{"date":"2026-08-28","groups":{"上证50":71.52,"中证1000":85.34,"中证500":80.68,"中证A500":824.65,"全宽基合计":2439.18,"沪深300":533.69,"科创50":843.3}},{"date":"2026-09-01","groups":{"上证50":68.59,"中证1000":80.68,"中证500":78.56,"中证A500":819.58,"全宽基合计":2431.64,"沪深300":529.03,"科创50":855.2}},{"date":"2026-09-03","groups":{"上证50":68.84,"中证1000":79.58,"中证500":76.59,"中证A500":815.91,"全宽基合计":2441.5,"沪深300":530.03,"科创50":870.55}},{"date":"2026-09-04","groups":{"上证50":71.36,"中证1000":84.32,"中证500":78.43,"中证A500":821.05,"全宽基合计":2482.83,"沪深300":533.81,"科创50":893.86}},{"date":"2026-09-11","groups":{"上证50":73.62,"中证1000":79.56,"中证500":78.78,"中证A500":810.85,"全宽基合计":2502.4,"沪深300":533.59,"科创50":926.0}},{"date":"2026-09-18","groups":{"上证50":82.9,"中证1000":82.84,"中证500":84.46,"中证A500":808.24,"全宽基合计":2501.45,"沪深300":535.18,"科创50":907.83}},{"date":"2026-09-21","groups":{"上证50":80.24,"中证1000":81.84,"中证500":83.15,"中证A500":803.22,"全宽基合计":2494.71,"沪深300":536.18,"科创50":910.08}},{"date":"2026-09-22","groups":{"上证50":78.12,"中证1000":84.76,"中证500":84.55,"中证A500":802.23,"全宽基合计":2495.05,"沪深300":546.5,"科创50":898.89}},{"date":"2026-09-23","groups":{"上证50":77.17,"中证1000":85.38,"中证500":85.29,"中证A500":803.97,"全宽基合计":2507.42,"沪深300":558.36,"科创50":897.25}},{"date":"2026-09-24","groups":{"上证50":74.95,"中证1000":85.3,"中证500":81.84,"中证A500":801.62,"全宽基合计":2506.85,"沪深300":556.15,"科创50":906.99}},{"date":"2026-09-28","groups":{"上证50":76.94,"中证1000":92.98,"中证500":82.18,"中证A500":807.52,"全宽基合计":2545.64,"沪深300":559.4,"科创50":926.62}},{"date":"2026-09-29","groups":{"上证50":75.82,"中证1000":92.34,"中证500":83.19,"中证A500":806.1,"全宽基合计":2547.69,"沪深300":558.95,"科创50":931.29}},{"date":"2026-09-30","groups":{"上证50":72.71,"中证1000":93.64,"中证500":83.15,"中证A500":808.05,"全宽基合计":2569.9,"沪深300":557.98,"科创50":954.37}},{"date":"2026-10-08","groups":{"上证50":72.66,"中证1000":96.6,"中证500":83.12,"中证A500":804.74,"全宽基合计":2598.39,"沪深300":557.2,"科创50":984.07}},{"date":"2026-10-09","groups":{"上证50":74.55,"中证1000":104.52,"中证500":85.29,"中证A500":810.48,"全宽基合计":2649.96,"沪深300":560.6,"科创50":1014.52}},{"date":"2026-10-14","groups":{"上证50":76.46,"中证1000":102.72,"中证500":83.32,"中证A500":820.78,"全宽基合计":2688.85,"沪深300":565.15,"科创50":1040.42}},{"date":"2026-10-16","groups":{"上证50":92.44,"中证1000":107.1,"中证500":85.12,"中证A500":821.56,"全宽基合计":2859.43,"沪深300":654.7,"科创50":1098.51}},{"date":"2026-10-23","groups":{"上证50":133.24,"中证1000":135.54,"中证500":101.58,"中证A500":838.05,"全宽基合计":3216.53,"沪深300":777.31,"科创50":1230.81}},{"date":"2026-10-28","groups":{"上证50":128.9,"中证1000":146.36,"中证500":99.51,"中证A500":904.87,"全宽基合计":3391.08,"沪深300":848.4,"科创50":1263.04}},{"date":"2026-10-29","groups":{"上证50":126.53,"中证1000":141.56,"中证500":95.92,"中证A500":908.32,"全宽基合计":3429.13,"沪深300":862.0,"科创50":1294.8}},{"date":"2026-10-30","groups":{"上证50":126.52,"中证1000":144.44,"中证500":97.12,"中证A500":921.96,"全宽基合计":3488.82,"沪深300":879.82,"科创50":1318.96}},{"date":"2026-11-06","groups":{"上证50":166.64,"中证1000":236.04,"中证500":129.46,"中证A500":1010.43,"全宽基合计":4087.36,"沪深300":1035.86,"科创50":1508.93}},{"date":"2026-11-13","groups":{"上证50":165.26,"中证1000":208.78,"中证500":118.81,"中证A500":976.06,"全宽基合计":3964.91,"沪深300":1026.03,"科创50":1469.97}},{"date":"2026-11-16","groups":{"上证50":168.54,"中证1000":206.38,"中证500":120.2,"中证A500":972.74,"全宽基合计":4012.56,"沪深300":1048.87,"科创50":1495.83}},{"date":"2026-11-19","groups":{"上证50":169.9,"中证1000":233.4,"中证500":135.75,"中证A500":949.19,"全宽基合计":4189.45,"沪深300":1143.19,"科创50":1558.02}},{"date":"2026-11-20","groups":{"上证50":244.65,"中证1000":266.28,"中证500":150.26,"中证A500":943.82,"全宽基合计":4394.49,"沪深300":1192.34,"科创50":1597.14}},{"date":"2026-11-23","groups":{"上证50":247.13,"中证1000":282.2,"中证500":154.48,"中证A500":950.86,"全宽基合计":4447.71,"沪深300":1197.51,"科创50":1615.53}}],"source":"上交所 ETF 份额披露（与 AKShare fund_etf_scale_sse 同源）","unit":"亿份"},"news":[{"text":"央行开展 3200 亿元 7 天期逆回购操作","time":"08:52","url":"http://www.pbc.gov.cn/"},{"text":"工信部：加快人形机器人创新体系建设","time":"08:30","url":"https://www.miit.gov.cn/"},{"text":"隔夜美股三大指数收涨，纳指涨 0.42%","time":"07:45","url":"https://finance.sina.com.cn/"},{"text":"证监会优化 ETF 快速注册机制","time":"昨 21:10","url":"http://www.csrc.gov.cn/"},{"text":"多家光模块龙头披露三季度订单","time":"昨 18:30","url":"https://kuaixun.eastmoney.com/"},{"text":"财政部：11 月国债发行计划公布","time":"昨 16:00","url":"http://www.mof.gov.cn/"}],"news_sentiment":{"label":"偏暖","negative":11,"neutral":31,"note":"央行 3200 亿逆回购是主要正面积分，人形机器人政策给了主题；负面 11% 落在权重股。分数偏暖只说明消息面没拖后腿，开盘仍看量能能不能接住。","positive":58,"score":62},"policy_heat":[{"chg":"+12","heat":88,"theme":"人形机器人","url":"https://kuaixun.eastmoney.com/"},{"chg":"+7","heat":81,"theme":"算力/光模块","url":"https://kuaixun.eastmoney.com/"},{"chg":"+5","heat":73,"theme":"固态电池","url":"https://kuaixun.eastmoney.com/"},{"chg":"-3","heat":54,"theme":"并购重组","url":"https://kuaixun.eastmoney.com/"},{"chg":"-8","heat":31,"theme":"房地产","url":"https://kuaixun.eastmoney.com/"}],"premium":{"avg_pct":0.0,"high_count":0,"items":[{"code":"510300","name":"沪深300ETF华泰柏瑞","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"},{"code":"510500","name":"中证500ETF南方","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"},{"code":"588000","name":"科创50ETF华夏","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"},{"code":"159915","name":"创业板ETF易方达","pct":0.0,"tag":"正常","url":"https://www.jisilu.cn/data/"}],"low_count":0},"regime":{"as_of":"2026-11-24","close":3963.82,"days_above_ma5":0,"fit_hi":40,"fit_lo":30,"gaps":[],"laggards":["光伏","白酒"],"leaders":["光模块","机器人","固态电池"],"ma10":3993.75,"ma120":4516.29,"ma20":4022.94,"ma30":4058.21,"ma5":3969.06,"ma60":4273.87,"ma_spread_pct":7.68,"observations":["基准收盘 3963.82 / MA20 4022.94 / MA60 4273.87","MA5 低于 MA20","20日年化波动 13.80% vs 60日 13.51%（未抬升）","近120日 高 5059.66 / 低 3954.57（现价距高点 -21.66%、距低点 0.23%）"],"position":{"down_room_pct":0.23,"high120":5059.66,"high_dist_pct":-21.66,"low120":3954.57,"low_dist_pct":0.23,"odds":118.37,"span_pct":27.94,"up_room_pct":27.65},"regime":"下行趋势","stage_note":"5/10/20 聚集缠绕，待 5 上穿 20 确认扭转","vol20":13.8,"vol60":13.51},"rotation":{"laggards":["光伏","白酒"],"leaders":["光模块","机器人","固态电池"],"note":"5/10/20 聚集缠绕，待 5 上穿 20 确认扭转","stage":"缩量横盘整理 · 反弹主线决胜期"},"sentiment":{"items":[{"k":"涨跌家数比","url":"https://www.10jqka.com.cn/","v":"1.16"},{"k":"涨停/跌停","url":"https://www.10jqka.com.cn/","v":"48 / 11"},{"k":"连板高度","url":"https://www.10jqka.com.cn/","v":"5 板"},{"k":"昨日涨停今日表现","url":"https://www.10jqka.com.cn/","v":"+2.1%"},{"k":"成交额环比","url":"https://www.10jqka.com.cn/","v":"-8.6%（缩量）"},{"k":"恐慌判定","url":"https://www.10jqka.com.cn/","v":"未触发"},{"k":"连续普跌天数","url":"https://www.10jqka.com.cn/","v":"0"},{"k":"情绪节点","url":"https://www.10jqka.com.cn/","v":"分歧转一致"},{"k":"赚钱效应延续","url":"https://www.10jqka.com.cn/","v":"有"},{"k":"首次分歧","url":"https://www.10jqka.com.cn/","v":"已过"},{"k":"预期差方向","url":"https://www.10jqka.com.cn/","v":"科技"},{"k":"大数定律偏向","url":"https://www.10jqka.com.cn/","v":"偏多"}],"label":"中性偏暖","panic":false,"score":58},"valuation":{"items":[{"k":"沪深300 PE","pos":"近5年 46% 分位","url":"https://www.csindex.com.cn/","v":"12.8"},{"k":"创业板指 PE","pos":"近5年 31% 分位","url":"https://www.csindex.com.cn/","v":"34.2"},{"k":"中证500 PE","pos":"近5年 52% 分位","url":"https://www.csindex.com.cn/","v":"22.1"},{"k":"科创50 PE","pos":"近5年 61% 分位","url":"https://www.csindex.com.cn/","v":"48.6"}]}},"meta":{"as_of":"2026-11-24 16:24:26","benchmark_date":"2026-11-24","dashboard_version":"4.0","data_date":"2026-11-24","mode":"live","run_date":"2026-11-24","run_id":"20261124T162426-4f53cda18c2baa0c","skipped":[],"snapshot_date":"2026-11-12","source":{"channels":{"daily":{},"daily_vendor":{},"index_daily":{"000300":"live"},"indices":"live","market":"snapshot","sector":"live","spot":"live","spot_vendor":"tencent"},"checked_at":"2026-11-24 16:24:44","daily_live":false,"degraded":true,"fallback":["实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"],"index_live":true,"live":false,"market_snapshot":true,"mode":"live","premium_missing_reason":"兜底行情源无 IOPV","premium_ok":false,"sector_snapshot":false,"spot_live":true,"synthetic":true},"status":"OK","tz":"Asia/Shanghai","version":"3.0"},"methodology":{"actions":{"ADD":"加仓","CLEAR":"清仓","HOLD":"持有","TRIM":"分批减仓","WATCH":"观察"},"actions_doc":{"ADD":"加仓","CLEAR":"清仓","HOLD":"持有","TRIM":"分批减仓","WATCH":"观察"},"brief":{"header_act":"今日动作：{acts}；先降风险敞口，再调结构","header_judge":"{regime_note}","header_phen":"市场状态「{regime}」，仓位区间 {lo}~{hi}%；当前总仓位 {pos}%，{pos_state}；今日待执行 {n} 笔","no_action":"今日无触发动作：全部规则求值为持有，下一交易日重新求值"},"levels":{"A":{"label":"可加仓","rank":2},"B":{"label":"等待确认","rank":1},"C":{"label":"减仓保利","rank":3},"D":{"label":"风险退出","rank":4}},"overrides":[{"demote":"ADD-\u003eHOLD","id":"O-1","name":"超配禁加仓","rationale":"超配时先降总仓，不新增敞口","src":"3657","text":"总仓位高于阶段区间上限，ADD 降级为 HOLD","when":"position_pct_gt_regime_hi"},{"demote":"ADD-\u003eHOLD","id":"O-2","name":"浮亏禁加仓","rationale":"成本价锚定不应驱动加仓；先核对风险预算再决定","src":"L4-08","text":"单腿浮亏超过 -8%，ADD 降级为 HOLD","when":"pnl_pct_lt_-8"},{"demote":"ADD-\u003eHOLD","id":"O-3","name":"大浮盈不加仓","rationale":"大额浮盈时不追高，先检查集中度","src":"L4-09","text":"单腿浮盈超过 +30%，ADD 降级为 HOLD","when":"pnl_pct_gt_30"},{"demote":"any-\u003eABSTAIN","id":"O-4","name":"数据不足不出单","rationale":"数据不足不等于持有；状态必须为 ABSTAIN","src":"P0","text":"关键数据缺失 / 陈旧 / 冲突，禁止输出交易动作","when":"data_status_not_ok"}],"pipeline":[{"name":"市场定仓","output":["regime","fit_lo","fit_hi","position_pct","position_action"],"step":"S1"},{"name":"结构核对","output":["category","current_pct_of_invested","target_pct_of_invested","deviation_pct"],"step":"S2"},{"name":"逐只评级","output":["code","name","level","action","hits"],"step":"S3"},{"name":"动作生成","output":["code","action","entry","stop","tp","rule_ids","target_weight_pct"],"step":"S4"},{"name":"组合输出","output":["orders","target_shares","portfolio_after","risk_flags"],"step":"S5"}],"predicates":{"always":"恒真（仅允许用于最低优先级的兜底规则）","below_ma10_days_gte":"连续收盘低于 MA10 的日数 \u003e= N","expand_down_break_ma20":"放量、当日跌幅 \u003c -2%、收盘低于 MA20","false_breakout":"放量下跌且收盘低于 MA20（可观测事件）","is_20d_low":"收盘为 20 日新低","not_stand_back_expand":"未站上 MA5 且放量","not_stand_back_premium_gt":"未站上 MA5 且折溢价 % \u003e N（IOPV 缺失时不命中）","stand_back_days_gte":"收盘站上 MA5 且连续日数 \u003e= N","true_breakout":"突破四条全部满足","upper_shadow_gt":"倒数第三根 K 线上影线 % \u003e N（生产/回测同一根）"},"pricing":{"ADD":{"entry":"pullback_ma5","side":"buy","stop":"support_below","tp":"reference_resistance"},"CLEAR":{"entry":"bounce_up","side":"sell","stop":null,"target_shares":0,"tp":null},"HOLD":{"entry":"pullback_ma5","side":"buy","stop":"support_below","tp":"reference_resistance"},"TRIM":{"entry":"bounce_up","side":"sell","stop":"support_below","tp":"reference_resistance"},"WATCH":{"entry":"pullback_ma5","side":"buy","stop":"support_below","tp":"reference_resistance"}},"regime_fit":{"上行趋势":{"hi":90,"lo":80},"上行趋势 · 波动抬升":{"hi":70,"lo":60},"下行趋势":{"hi":40,"lo":30},"下行趋势 · 波动抬升":{"hi":30,"lo":20},"未知":{"hi":null,"lo":null},"震荡区间":{"hi":70,"lo":60}},"rules":[{"action":"CLEAR","exec":"次日以限价分笔卖出；低开且流动性不足时按可成交价格优先，不追加摊薄。","id":"R-D1","level":"D","name":"收盘跌破MA10","priority":100,"rationale":{"act":"目标份额降至 0；执行价格为下一可交易时段的限价保护，不保证成交价。","judge":"规则只陈述「收盘低于 MA10」这一可观测事实；它不推断任何主体的意图。历史检验需按时间外样本验证该定义是否优于简单基准。","phen":"收盘价连续低于 MA10。"},"src":"3657","text":"收盘连续低于 MA10 达 2 日（可观测：收盘价与 MA10 的比较）","when":{"below_ma10_days_gte":2}},{"action":"CLEAR","exec":"确认当日收盘后生成卖出政策，次日执行。","id":"R-D2","level":"D","name":"放量下跌破MA20","priority":99,"rationale":{"act":"目标份额降至 0。","judge":"这是三个可观测条件的组合，不是对资金意图的判断；是否有效需时间外验证。","phen":"当日量比放大、收盘下跌且收盘低于 MA20。"},"src":"3657","text":"放量 + 收盘下跌 + 收盘低于 MA20（可观测组合）","when":{"false_breakout":true}},{"action":"CLEAR","exec":"次日限价卖出；未成交部分保留到下一可交易日。","id":"R-D3","level":"D","name":"放量破位","priority":98,"rationale":{"act":"目标份额降至 0。","judge":"放量下跌叠加均线破位属高波动事件，规则在此选择退出而不是预测反弹。","phen":"放量、当日跌幅超过 2%、收盘低于 MA20。"},"src":"3657","text":"放量且跌幅超 2% 且收盘低于 MA20","when":{"expand_down_break_ma20":true}},{"action":"CLEAR","exec":"次日执行；若次日跳空低开，限价保护可能无法成交，按未成交政策处理。","id":"R-D4","level":"D","name":"20日新低","priority":97,"rationale":{"act":"目标份额降至 0。","judge":"这是趋势与位置的客观描述（新低 + 均线下方），不含对交易对手意图的推断。","phen":"收盘价等于或低于近 20 日最低收盘，且低于 MA10。"},"src":"3657","text":"收盘创 20 日新低且低于 MA10","when":{"below_ma10_days_gte":1,"is_20d_low":true}},{"action":"TRIM","exec":"次日限价减仓一半；剩余仓位按下一交易日重新求值。","id":"R-C1","level":"C","name":"未站上MA5且放量","priority":80,"rationale":{"act":"目标权重减半（TRIM），保留剩余仓位。","judge":"该组合描述「价格未回到短期均线上方、成交放大」，属于风险提示而非因果断言。","phen":"收盘价低于 MA5，且当日量比高于放量阈值。"},"src":"7477/7570","text":"收盘未站上 MA5 且量比放大","when":{"not_stand_back_expand":true}},{"action":"TRIM","exec":"次日执行；若当日已触发 D 级规则，D 级优先。","id":"R-C2","level":"C","name":"上影线超阈值","priority":79,"rationale":{"act":"目标权重减半。","judge":"上影线长度是价格拒绝的几何描述，不推断买卖方身份。","phen":"指定 K 线的上影线占收盘价比例超过 2%。"},"src":"7477","text":"倒数第三根 K 线上影线超过 2%","when":{"upper_shadow_gt":2}},{"action":"TRIM","exec":"等溢价回落到 0.5% 以内再考虑加仓。","id":"R-C3","level":"C","name":"折溢价偏高","priority":78,"rationale":{"act":"目标权重减半；IOPV 缺失时该规则不参与判定（缺失不等于满足）。","judge":"溢价表示价格高于实时估值，买入成本更高；这是可观测的定价偏差。","phen":"未站上 MA5 且 IOPV 折溢价高于 1%。"},"src":"7477","text":"收盘未站上 MA5 且折溢价高于 1%（IOPV 缺失时不命中）","when":{"not_stand_back_premium_gt":1.0}},{"action":"ADD","exec":"分批进场，回踩 MA5 附近先半仓；止损条件在开仓前确定。","id":"R-A1","level":"A","name":"站上MA5且突破四条","priority":60,"rationale":{"act":"在组合约束允许时加仓；超配 / 浮亏超阈值时由覆盖规则降级为持有。","judge":"规则把「站上均线 + 四条结构条件」作为候选加仓条件；其有效性必须由时间外回测证明，不能默认成立。","phen":"连续 3 日收盘高于 MA5；突破四条（不破关键位、明显缩量、慢跌快涨、有承接）全部满足。"},"src":"3657/7879","text":"收盘站上 MA5 满 3 日且突破四条全中","when":{"stand_back_days_gte":3,"true_breakout":true}},{"action":"HOLD","exec":"跌破 MA10 当日重新求值并降级。","id":"R-A2","level":"A","name":"站上MA5确认","priority":50,"rationale":{"act":"持有，不加仓。","judge":"仅表示短期价格回到 MA5 上方，尚不满足加仓条件。","phen":"连续 2 日收盘高于 MA5。"},"src":"7879","text":"收盘站上 MA5 满 2 日（未满 3 日不加仓）","when":{"stand_back_days_gte":2}},{"action":"HOLD","exec":"不加仓、不减仓。","id":"R-B1","level":"B","name":"缺确认等待","priority":20,"rationale":{"act":"持有，等待下一交易日重新求值。","judge":"兜底规则只表示「没有可执行信号」，不代表趋势判断。","phen":"未满足任何具有明确阈值的规则。"},"src":"8231","text":"未命中任何明确条件（兜底：持有等待）","when":{"always":true}}],"sentiment_cycle":["亢奋","分歧","退潮","冰点","回暖","再亢奋"],"version":"2.0"},"orders":[],"packet":{"config_hash":"7dc121bf9c53564c","data_quality":{"blockers":[],"checked_at":"2026-11-24 16:24:44","conflicts":["实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"],"coverage_pct":0.0,"market_snapshot":true,"premium_ok":false,"sector_snapshot":false,"stale_fields":[],"status":"OK","synthetic_fields":[]},"extras":null,"generated_at":"2026-11-24 16:24:26","input_hash":"4f53cda18c2baa0c","run_id":"20261124T162426-4f53cda18c2baa0c","schema_version":"2.0","status":"OK","validation":{"accounting_ok":true,"decision_consistency_ok":true,"errors":[],"ok":true,"post_trade_ok":true,"schema_ok":true,"warnings":[]}},"plan":null,"research":{"meta":{"as_of":"2026-11-24 16:24:26","trade_date":"2026-11-24","data_date":"2026-11-24","status":"APPROVED","provider":"代理模型（本机操作者）","snapshot_hash":"sha256:710b737c68b75df43479d121fc6078f698c8ae4d2f331916050b1634398afa4c","executable":true,"contains_positions":true,"note":"订单为草案，第一阶段不连接券商","run_id":"162444_6a6db7c3","run_dir":"D:\\缓存\\其他\\L-mx\\repo\\data\\runs\\2026-11-24\\162444_6a6db7c3","published":true},"core":{"core_thesis":"这不是一次普通的震荡：基准距 120 日高点 -21.66%、距低点只有 0.23%，同时波动率没有抬升（13.8% vs 13.5%），说明是「无量阴跌」而不是恐慌出清。组合 67% 全押在行业 ETF 上、五只全部浮亏，第一件事不是抄底，而是把最差的仓位换成现金。","market_regime":"下行趋势（未加速：波动率未抬升）","regime_confidence":60.0,"key_changes":["基准跌破 MA20 与 MA60，距 120 日低点只剩 0.23%","组合行业暴露 67.04%，超过风控 60% 上限","158041 相对基准的 20 日超额从正转负并扩大到 -15.99%","政策面偏暖（逆回购 3200 亿、ETF 快速注册、机器人创新体系），但没有传导到价格"],"portfolio_risks":["五只全是行业 ETF，行业暴露 67.04%，类别上限 60%，同一风险因子重复下注","权重最大的 158041（23.37%）恰好是趋势最差的一只，回撤由它主导","现金 32.96% 全部停在活期，没有任何货币类持仓，等待期收益为 0","没有真正的对冲：黄金股与权益同向，跨境/债券类仓位为零"],"alternative_explanations":["588170 的强势可能只是小盘科技反弹的高 beta，不是主线切换；若指数再下一台阶，它会补跌","158041 的下跌可能是算力资本开支预期下修的开始，而不是情绪；这种情况下任何反弹都不该接","指数在 120 日低点附近，历史上多次出现「最后一次下跌」的假摔；但假摔与真跌在事前无法区分，只能用小仓位试"],"data_limitations":["只有收盘价与 30 根日线，没有 IOPV/折溢价、申赎与资金流数据","持仓成本为手工录入，无法核对真实成交时间","没有盘口深度，执行只能给条件式规则，不能假设成交价","政策事件（逆回购、ETF 注册、机器人）只作为背景，未量化到盈利预测"],"scenarios":[{"name":"下行延续：跌破 3954 前低","probability":55.0,"trigger":"基准收盘跌破 3954.57 且成交不放大","portfolio_implication":"现有 约 30% 仓位继续承压，158041/512630 可能再跌 8-10%","response":"只执行已批准的两笔清仓，其余现金不动，不在下跌中接刀"},{"name":"区间修复：重回 MA20 上方","probability":30.0,"trigger":"基准收复 4022.94（MA20）且成交连续 3 日放大","portfolio_implication":"科技主线（588170）先受益，158041 的反弹更弱","response":"用现金把 588170 加回 16-18%，158041 只在站上 MA20 后才考虑，不加新主题"},{"name":"急跌后 V 反","probability":15.0,"trigger":"单日跌超 3% 后 3 个交易日内收复失地","portfolio_implication":"超跌反弹以高 beta 为主，588170/158041 弹性最大","response":"只做再平衡（回到目标权重），不新增仓位、不改方向"}]},"proposal":{"portfolio_thesis":"先处理不可逆风险：清掉趋势最差的 创业板算力ETF华夏（158041） 与失效对冲的 黄金股ETF平安（159322），把 科创半导体ETF华夏（588170） 压到 12%，保留 券商ETF华宝（512000）/卫星ETF广发（512630），现金约 70% 等待趋势修复。","cash_target_weight":70.24,"trades":[{"code":"158041","name":"创业板算力ETF华夏","action":"EXIT","action_cn":"清仓","current_weight":23.37,"target_weight":0.0,"priority":1,"horizon_days":20,"confidence":60.0,"rationale":"趋势与相对强弱都是组合内最差，权重却最大；先把它换成现金，降低行业暴露","trigger":"首个交易日开盘跌幅小于 2% 时执行第一批","invalidation":"若 3 个交易日内站回 MA20 且 20 日超额转正，暂停清仓并复核","execution_rule":"先卖出差额的一半（约 11.7 个百分点），若收盘仍未收回 MA20，再清掉剩余部分；两次之间至少隔一个交易日","evidence":["feature:158041:rs20:2026-11-24","feature:158041:ma20_gap:2026-11-24"]},{"code":"159322","name":"黄金股ETF平安","action":"EXIT","action_cn":"清仓","current_weight":7.82,"target_weight":0.0,"priority":2,"horizon_days":20,"confidence":55.0,"rationale":"对冲功能失效：黄金股与权益同向下跌，留着的理由已经不存在","trigger":"当日内完成清仓，分两笔挂限价","invalidation":"金价创新高而该 ETF 重新站上 MA20，则改为观察","execution_rule":"分两笔限价卖出，间隔不短于 30 分钟","evidence":["feature:159322:return_5d:2026-11-24","feature:159322:ma20_gap:2026-11-24"]},{"code":"588170","name":"科创半导体ETF华夏","action":"REDUCE","action_cn":"减仓","current_weight":18.09,"target_weight":12.0,"priority":3,"horizon_days":10,"confidence":50.0,"rationale":"组合内唯一正超额，但 96% 波动对 7.6k 的组合太重；降到 12% 保留暴露不赌方向","trigger":"跌破 MA20 或单日跌超 5% 时一次性减到 12%","invalidation":"若 20 日超额转负或单日跌超 5%，直接降到 0","execution_rule":"优先在反弹日减，避免在急跌中成交","evidence":["feature:588170:vol20:2026-11-24","feature:588170:rs20:2026-11-24"]},{"code":"512000","name":"券商ETF华宝","action":"HOLD","action_cn":"持有","current_weight":12.23,"target_weight":12.23,"priority":4,"horizon_days":20,"confidence":45.0,"rationale":"波动最低、跌幅小于中证500，保留作为市场贝塔的观察仓","trigger":"成交连续放大时重新评估，其余时间不动","invalidation":"跌破 0.45 且成交萎缩则退出","execution_rule":"不交易","evidence":["feature:512000:vol20:2026-11-24","feature:512000:return_20d:2026-11-24"]},{"code":"512630","name":"卫星ETF广发","action":"HOLD","action_cn":"持有","current_weight":5.53,"target_weight":5.53,"priority":5,"horizon_days":20,"confidence":40.0,"rationale":"仓位太小，交易摩擦不划算；等它自己给信号","trigger":"收盘跌破 0.80 或放量站回 MA20，最晚 2026-12-05 复核","invalidation":"跌破 0.80 视为主题失效，下一交易日退出","execution_rule":"不交易","evidence":["position:512630:weight:2026-11-24","feature:512630:rs20:2026-11-24"]}],"why_not_alternatives":["不采用「全部清仓」：券商ETF华宝（512000） 波动 21.5%、科创半导体ETF华夏（588170） 仍有 +7.5% 超额，全清会把可逆回撤变成不可逆的踏空；","不采用「向下摊平」：行业暴露 67% 已超上限，摊平只会放大同一风险因子，且当前没有反转证据；","不采用「换成货币 ETF」：本轮研究范围只含持仓，新增标的需要先把 research.scope 放宽。"],"expected_benefit":"行业暴露从 67.04% 降到 29.76%，单只最大权重从 23.37% 降到 12.23%，组合波动与回撤的主来源（158041）被移除","expected_cost_and_risk":"两笔清仓在低点附近执行，若随即反弹会有 8-12% 的踏空成本；换手 18.6 个百分点，按万 0.5 佣金与 5 元最低收费估算费用约 15-20 元","review_triggers":["基准是否收复 MA20 4022.94","588170 是否仍保持 20 日正超额","158041 清仓后 3 日内是否站回 MA20","成交量是否连续 3 日放大"]},"original":{"cash_target_weight":70.24,"trades":[{"code":"158041","name":"创业板算力ETF华夏","action":"EXIT","action_cn":"清仓","current_weight":23.37,"target_weight":0.0,"priority":1,"horizon_days":20,"confidence":60.0,"rationale":"趋势与相对强弱都是组合内最差，权重却最大；先把它换成现金，降低行业暴露","trigger":"执行条件：下一交易日若开盘跌幅小于 2% 直接减半，剩余部分等收盘确认","invalidation":"若 3 个交易日内站回 MA20 且超额转正，暂停清仓并复核","execution_rule":"下一交易日若开盘跌幅小于 2%，先卖出差额的一半（约 11.7 个百分点）；收盘确认未收回 MA20 再清剩余","evidence":["feature:158041:rs20:2026-11-24","feature:158041:ma20_gap:2026-11-24"]},{"code":"159322","name":"黄金股ETF平安","action":"EXIT","action_cn":"清仓","current_weight":7.82,"target_weight":0.0,"priority":2,"horizon_days":20,"confidence":55.0,"rationale":"对冲功能失效：黄金股与权益同向下跌，留着的理由已经不存在","trigger":"当日内完成清仓，分两笔挂限价","invalidation":"金价创新高而该 ETF 重新站上 MA20，则改为观察","execution_rule":"分两笔限价卖出，间隔不短于 30 分钟","evidence":["feature:159322:return_5d:2026-11-24","feature:159322:ma20_gap:2026-11-24"]},{"code":"588170","name":"科创半导体ETF华夏","action":"REDUCE","action_cn":"减仓","current_weight":18.09,"target_weight":12.0,"priority":3,"horizon_days":10,"confidence":50.0,"rationale":"组合内唯一正超额，但 96% 波动对 7.6k 的组合太重；降到 12% 保留暴露不赌方向","trigger":"跌破 MA20 或单日跌超 5% 时一次性减到 12%","invalidation":"若 20 日超额转负，直接降到 0","execution_rule":"优先在反弹日减，避免在急跌中成交","evidence":["feature:588170:vol20:2026-11-24","feature:588170:rs20:2026-11-24"]}],"why_not_alternatives":["不采用「全部清仓」：券商ETF华宝（512000） 波动 21.5%、科创半导体ETF华夏（588170） 仍有 +7.5% 超额，全清会把可逆回撤变成不可逆的踏空；","不采用「向下摊平」：行业暴露 67% 已超上限，摊平只会放大同一风险因子，且当前没有反转证据；","不采用「换成货币 ETF」：本轮研究范围只含持仓，新增标的需要先把 research.scope 放宽。"]},"redteam":{"verdict":"REVISE","issues":[{"severity":"HIGH","target":"158041","issue":"跌破 MA20 8.9% 之后才清仓，属于追跌卖出，可能正好卖在阶段低点","required_change":"给出分批与价格条件，不要一次市价出清；并写明若反弹收回 MA20 如何暂停","evidence":["feature:158041:return_5d:2026-11-24"]},{"severity":"MEDIUM","target":"588170","issue":"96% 年化波动下仍保留 18% 仓位，单只风险预算与组合规模不匹配","required_change":"把目标权重压到 12% 以内，并给出触发降至 0 的条件","evidence":["feature:588170:vol20:2026-11-24"]},{"severity":"MEDIUM","target":"组合","issue":"现金 70% 没有货币 ETF，等待期收益为零，机会成本没有量化","required_change":"要么说明为何不能配置货币类（研究范围限制），要么把它列入下一轮候选","evidence":["market:quality:2026-11-24"]},{"severity":"LOW","target":"512630","issue":"只写「等它给信号」，没有可执行的触发价与时间窗口","required_change":"写明价位（0.80 / MA20）与最晚复核日期","evidence":["feature:512630:rs20:2026-11-24"]}],"missing_analysis":["缺少对成交量与两融数据的引用（当前数据源没有）","缺少同类资产（宽基/债券）与持仓的机会成本比较"],"best_alternative":"保留 512000 与 588170（各 12%），其余全部转现金，并在一周内不新增任何主题仓"},"revision":{"accepted":["HIGH 158041 追跌：接受，改为分两批、带价格条件执行","MEDIUM 588170 波动过大：接受，目标从 14% 压到 12%，并给出降到 0 的触发","LOW 512630 缺触发价：接受，写明 0.80 与 MA20 以及最晚复核日"],"rejected":["MEDIUM 现金机会成本：驳回。本轮 research.scope=holdings，货币 ETF 不在可交易范围；把现金换成货币类需要先放宽研究范围，不能在这一轮偷偷建仓。"],"summary":"按反方意见调整了执行方式与 588170 的目标权重，方向未变"},"final":{"status":"APPROVED","risk_status":"APPROVED","violations":[],"changes":[{"code":"158041","name":"创业板算力ETF华夏","action":"EXIT","action_cn":"清仓","from_weight":23.37,"to_weight":0.0},{"code":"159322","name":"黄金股ETF平安","action":"EXIT","action_cn":"清仓","from_weight":7.82,"to_weight":0.0},{"code":"588170","name":"科创半导体ETF华夏","action":"REDUCE","action_cn":"减仓","from_weight":18.09,"to_weight":12.0}],"orders":[{"code":"158041","side":"SELL","status":"DRAFT","target_weight":0.0,"note":""},{"code":"159322","side":"SELL","status":"DRAFT","target_weight":0.0,"note":""},{"code":"588170","side":"SELL","status":"DRAFT","target_weight":12.0,"note":""}],"adjustments":[],"notes":[]},"tracking":{"focus_questions":["关键状态没有明显变化：继续持有的机会成本是什么，哪些新证据才足以交易？","当前最可行的一个替代组合是什么，为什么不采用它？"],"theses":[{"thesis_id":"510300:54dbb0:2026-11-24","symbol":"510300","stance":"NEUTRAL","thesis":"测试观点","status":"ACTIVE","created_at":"2026-11-24","last_reviewed_at":"2026-11-24","invalidation":["跌破 MA20"]},{"thesis_id":"512000:bc3bcf:2026-11-24","symbol":"512000","stance":"NEUTRAL","thesis":"券商是市场情绪的杠杆，但它现在的下跌幅度（20 日 -3.1%）明显小于中证500（-6.3%），说明杀跌已经集中在更投机的方向；保留 12% 不是为了赚券商的钱，而是不在 120 日低点附近把流动性最好的筹码交出去。","status":"ACTIVE","created_at":"2026-11-24","last_reviewed_at":"2026-11-24","invalidation":["跌破 0.45 且成交继续萎缩（无量阴跌）","成交连续 5 日放大而券商不涨（贝塔逻辑失效）"]},{"thesis_id":"588170:4c45c6:2026-11-24","symbol":"588170","stance":"NEUTRAL","thesis":"20 日跑赢基准 7.5%、站上 MA20 1.1%，是五只里唯一价格在 MA20 上方的；但 96% 的年化波动意味着一次回撤就能吞掉全部相对收益，所以只保留 12%，不加仓。","status":"ACTIVE","created_at":"2026-11-24","last_reviewed_at":"2026-11-24","invalidation":["跌破 MA20 且 20 日超额转负","单日跌超 5% 且放量（波动反噬）"]},{"thesis_id":"158041:29657d:2026-11-24","symbol":"158041","stance":"BEARISH","thesis":"20 日跑输基准 16%、跌破 MA20 8.9%、波动 77%，是五只里趋势最弱的，权重却是最大的 23.37%。继续持有等于把组合押在已经走坏的板块上，先清掉。","status":"ACTIVE","created_at":"2026-11-24","last_reviewed_at":"2026-11-24","invalidation":["反弹站回 MA20 且 20 日超额转正（说明只是超跌）","放量涨超 3% 后连续三日不回落（资金回补）"]},{"thesis_id":"159322:b3b9d1:2026-11-24","symbol":"159322","stance":"BEARISH","thesis":"5 日跌 8.4%、20 日跌 11.8%、跌破 MA20 9.4%。黄金股是权益资产而不是黄金本身，风险偏好收缩时它跟着股票跌，留着的唯一理由已经消失。","status":"ACTIVE","created_at":"2026-11-24","last_reviewed_at":"2026-11-24","invalidation":["金价创新高而黄金股不涨（权益属性主导，维持退出）","重新站上 MA20 且超额回正（对冲功能恢复）"]},{"thesis_id":"512630:4d7df5:2026-11-24","symbol":"512630","stance":"BEARISH","thesis":"趋势与相对强弱都偏弱（20 日 -8.9%、超额 -6.8%），但只有 5.53%，为它下单的摩擦成本不划算。等它自己给信号：要么修复 MA20，要么跌破 0.80。","status":"ACTIVE","created_at":"2026-11-24","last_reviewed_at":"2026-11-24","invalidation":["跌破 0.80（主题失效）","放量站上 MA20（重新评估）"]}]}},"sector_weights":{"as_of":"2026-11-20","errors":[],"etf_index":{"159915":"399006","510300":"000300","510500":"000905","588000":"000688"},"generated_at":"2026-11-20T15:17:11","indices":{"000300":{"交通运输":3.35,"传媒":0.94,"公用事业":3.52,"农林牧渔":1.2,"医药生物":4.86,"商贸零售":0.37,"国防军工":1.99,"基础化工":2.03,"家用电器":3.55,"建筑材料":0.48,"建筑装饰":1.43,"房地产":0.37,"有色金属":5.02,"机械设备":2.53,"汽车":3.19,"煤炭":1.33,"电力设备":6.63,"电子":15.49,"石油石化":1.82,"美容护理":0.06,"计算机":3.1,"通信":5.56,"钢铁":0.49,"银行":14.36,"非银金融":9.36,"食品饮料":7.01},"000688":{"医药生物":4.45,"国防军工":3.98,"家用电器":1.24,"机械设备":2.58,"汽车":0.89,"电力设备":2.24,"电子":80.42,"计算机":3.42,"通信":0.8},"000905":{"交通运输":2.32,"传媒":2.27,"公用事业":3.03,"农林牧渔":0.83,"医药生物":9.3,"商贸零售":0.17,"国防军工":4.9,"基础化工":4.85,"家用电器":1.5,"建筑材料":1.28,"建筑装饰":0.64,"房地产":0.67,"有色金属":4.57,"机械设备":5.33,"汽车":3.94,"煤炭":1.8,"环保":0.75,"电力设备":8.44,"电子":20.96,"石油石化":1.31,"社会服务":0.56,"纺织服饰":0.45,"综合":0.15,"美容护理":0.41,"计算机":4.58,"轻工制造":0.84,"通信":3.98,"钢铁":1.43,"银行":1.78,"非银金融":5.46,"食品饮料":1.61},"399006":{"传媒":2.47,"农林牧渔":2.77,"医药生物":8.19,"国防军工":1.66,"基础化工":0.3,"建筑材料":0.39,"有色金属":0.4,"机械设备":5.25,"汽车":0.3,"电力设备":26.33,"电子":17.75,"社会服务":0.6,"纺织服饰":0.71,"美容护理":0.59,"计算机":5.37,"通信":20.65,"非银金融":5.89,"食品饮料":0.4}},"method":{"000300":{"method":"official","official_sum":100.04},"000688":{"method":"official","official_sum":100.02},"000905":{"method":"official","official_sum":100.11},"399006":{"method":"official+ff","official_sum":50.1}},"source":{"000300":"东方财富数据中心 指数成分权重","000688":"东方财富数据中心 指数成分权重","000905":"东方财富数据中心 指数成分权重","399006":"国证指数官网 样本详情导出"},"stale":false,"unit":"%","unmapped":{},"weights_date":{"000300":"2026-11-20","000688":"2026-11-20","000905":"2026-11-20","399006":"2026-11-19"}},"targets":{"债券":15,"宽基":50,"海外":5,"行业":25,"黄金":5},"trading":{"base_currency":"CNY","benchmarks":{"000300":"沪深300","000688":"科创50","000905":"中证500","399006":"创业板指","AU9999":"黄金现货","CBA00301":"中债总财富","NDX":"纳斯达克100"},"etfs":[{"benchmark":"000300","category":"宽基","code":"510300","name":"沪深300ETF","settle":"T+1","track":"沪深300","watchlist":true},{"benchmark":"000905","category":"宽基","code":"510500","name":"中证500ETF","settle":"T+1","track":"中证500","watchlist":true},{"benchmark":"000688","category":"宽基","code":"588000","name":"科创50ETF","settle":"T+1","track":"上证科创板50","watchlist":true},{"benchmark":"399006","category":"宽基","code":"159915","name":"创业板ETF","settle":"T+1","track":"创业板指","watchlist":true}],"lot_size":100,"market":"CN-ETF","quote_precision":0.001,"stamp_duty_exempt":true}};</script>
 <script>
 /* 规则卡求值 · 浏览器端唯一实现（与 Python methodology.py / pricing.py 同构）
  *
@@ -1116,6 +1166,7 @@ a.inl:hover{color:var(--blue);border-bottom-style:solid}
   };
 })(typeof window !== 'undefined' ? window : this);
 
+
 /* 中国 ETF 量化观察台 · 前端渲染（公开版：不含任何持仓 / 成本 / 资金数据） */
 'use strict';
 var D = null;
@@ -1124,7 +1175,7 @@ var D = null;
 var PASS = '';                    /* 解锁口令，只存在内存 / 当前标签页会话 */
 var HOLD = {rows: [], cash: 0};   /* 已保存的持仓 */
 var EDIT = null, CASH_EDIT = 0;   /* 持仓设置页的草稿 */
-var PQ = {};                      /* 持仓里不在观察池的 ETF 实时价缓存 {last,prev,chg} */
+var PQ = {};                      /* 持仓 ETF 的实时价缓存 {last,prev,chg} */
 var QNAME = {};                   /* 行情源返回的基金名称缓存 {code: name}，用于补名与自动分类 */
 var PERF = null, PERF_BUSY = false;
 var ENC = null, ENC_LOADING = null;   /* 云端密文包 */
@@ -1252,7 +1303,7 @@ function tSym(code){ return (code[0]==='5'||code[0]==='6'||code[0]==='9'?'sh':'s
 function applyQuote(code,last,prev,name){
   var chg=(isFinite(prev)&&prev>0)?Math.round((last/prev-1)*10000)/100:null;
   code=String(code);
-  PQ[code]={last:last,prev:prev,chg:chg};   /* 持仓里可能有观察池之外的标的 */
+  PQ[code]={last:last,prev:prev,chg:chg};   /* 持仓标的可能不在 legs 里 */
   if(name&&name!==code) QNAME[code]=String(name).trim();
   (D.legs||[]).forEach(function(l){
     if(String(l.code)===code){
@@ -1355,6 +1406,13 @@ function legOf(code){
 function priceOf(code){
   var q=PQ[String(code)];
   if(q) return q;
+  var dp=(D.demo_positions&&D.demo_positions.prices)||{};
+  if(dp[String(code)]!=null){
+    var pv=((D.demo_positions&&D.demo_positions.prevs)||{})[String(code)];
+    var lv=n(dp[String(code)]);
+    return {last:lv,prev:(pv!=null?n(pv):null),
+            chg:(pv!=null&&n(pv)>0)?(lv/n(pv)-1)*100:null};
+  }
   var l=legOf(code);
   if(l&&n(l.last)>0) return {last:n(l.last),prev:null,chg:l.change};
   return null;
@@ -1388,7 +1446,8 @@ function calcPort(){
     rows.push({code:String(r.code),name:nameOfRow(r),category:catOfRow(r),
       shares:shares,cost:cost,last:last,prev:prev,mv:mv,pnl:pnl,
       pnl_pct:(last!=null&&cost>0)?(last/cost-1)*100:null,
-      day:day,priced:last!=null,settle:r.settle||'T+1',leg:legOf(r.code)});
+      day:day,priced:last!=null,settle:r.settle||'T+1',leg:legOf(r.code),
+      up5:(r.up5!=null?r.up5:null),up20:(r.up20!=null?r.up20:null)});
   });
   var complete=missing.length===0;
   var totalAsset=complete?totalPos+n(HOLD.cash):null;
@@ -1902,7 +1961,8 @@ function candidateTable(cands){
 /* 零持仓首屏：全现金组合；只给研究候选，绝不生成订单 */
 function portfolioNav(){
   return '<nav class="portfolio-nav" aria-label="持仓分析分区">'+[
-    ['overview','组合概览'],['holdings','逐仓分析'],['drivers','市场与外部驱动'],['structure','结构与回溯']
+    ['research','模型结论'],['overview','组合概览'],['holdings','逐仓分析'],
+    ['drivers','市场与外部驱动'],['structure','结构与回溯']
   ].map(function(x){return '<button type="button" onclick="scrollPortfolioSection(\''+x[0]+'\')">'+x[1]+'</button>';}).join('')+'</nav>';
 }
 function activatePortfolioNav(id){
@@ -1978,6 +2038,9 @@ function _barsFromTencent(arr){
           vols:arr.map(function(x){ return parseFloat(x[5]); })};
 }
 function fetchBars(code,cb){
+  var db=(D.demo_positions&&D.demo_positions.bars)||{};
+  var row=db[String(code)];
+  if(row&&row.closes&&row.closes.length>=20){ cb(row); return; }   /* demo：本地日线 */
   fetchBarsTencent(code,function(b){
     if(b&&b.closes&&b.closes.length>=20){ cb(b); return; }
     fetchBarsEm(code,function(b2){ cb(b2||b||null); });
@@ -2350,7 +2413,7 @@ function quickAdd(){
   refreshDerived();
   if(!l) autoName(c);
 }
-/* 观察池外的代码：用腾讯行情补名称，失败就留代码 */
+/* 未知代码：用腾讯行情补名称，失败就留代码 */
 function autoName(code){
   loadScript('https://qt.gtimg.cn/q='+tSym(code),'gbk',function(){
     var raw=window['v_'+tSym(code)];
@@ -2683,7 +2746,7 @@ function nationalTeamSection(){
   var ta=val(last,TOTAL), tp=val(prev,TOTAL), tc=win?val(win.base,TOTAL):null;
   var d1=(ta!=null&&tp)?(ta/tp-1)*100:null;
   var d4=(ta!=null&&tc)?(ta/tc-1)*100:null;
-  /* 六类宽基最新份额拼成一段，不再逐行加「仅展示」 */
+  /* 六类宽基最新份额拼成一段，只列最新一期 */
   var keys=(nt.order||[]).filter(function(k){ return k!==TOTAL; });
   var parts=keys.map(function(k){
     var a=val(last,k);
@@ -3136,10 +3199,10 @@ function changePass(){
   saveCloud();
 }
 
-/* ================= 新版持仓研究页（三部分） ================= */
+/* ================= 持仓研究页（三部分） ================= */
 var RS_PORT=null, RS_S1=null, RS_ADV=null, RS_SELECTED=null;
 var RS_WEEK={}, RS_TRIED={}, RS_WTRIED={}, RS_IDEA_TRIED={};
-var RS_IDEAS=[];   /* 由观察池动态生成，见 buildIdeas() */
+var RS_IDEAS=[];   /* 由研究范围动态生成，见 buildIdeas() */
 /* 行业归属：先看后端注入的指数权重（精确），没有就按名称关键词自动识别，
    再按类别兜底。目的是让持仓里池外/行业主题 ETF 也能进板块结构，而不是一律「未覆盖」。 */
 var RS_SECTOR_CACHE={};
@@ -3274,13 +3337,43 @@ function rsAvgShare(){
   fl.forEach(function(x){ if(x.share!=null){ s+=n(x.share); c++; } });
   return c?s/c:null;
 }
+/* 行业名与政策主题不同名，先按别名找（不猜没有的主题） */
 function rsPolicyScore(name){
+  var ALIAS={
+    '电子':['半导体','芯片','光模块','消费电子'],'计算机':['算力','人工智能','AI','软件'],
+    '通信':['光模块','算力','5G'],'非银金融':['券商','证券'],'有色金属':['黄金','铜','稀土'],
+    '国防军工':['军工','卫星','航天'],'电力设备':['光伏','储能','电池'],
+    '食品饮料':['白酒'],'医药生物':['创新药','医疗'],'汽车':['智能驾驶','汽车']
+  };
   var ph=(D.market&&D.market.policy_heat)||[];
+  var keys=[String(name)].concat(ALIAS[name]||[]);
   for(var i=0;i<ph.length;i++){
     var t=String(ph[i].theme||'');
-    if(t===name||(t&&(t.indexOf(name)>=0||name.indexOf(t)>=0))) return rsClamp(n(ph[i].heat),0,100);
+    for(var j=0;j<keys.length;j++){
+      var k=keys[j];
+      if(t===k||(t&&k&&(t.indexOf(k)>=0||k.indexOf(t)>=0))) return rsClamp(n(ph[i].heat),0,100);
+    }
   }
   return null;
+}
+/* 技术项：用该板块持仓 ETF 的周线排列与位置打分（没有行业指数周线时的代理口径） */
+function sectorTechScore(name){
+  var rows=(RS_PORT&&RS_PORT.rows)||[], code=null;
+  rows.forEach(function(r){
+    if(code) return;
+    try{ if(rsSectorMap(r.code,r.name,r.category)[0][0]===name) code=String(r.code); }catch(e){}
+  });
+  if(!code) return null;
+  var lb=LBARS[code]; if(!lb) return null;
+  var wk=RS_WEEK[code]||rsWeeklyFromDaily(lb); if(!wk||!wk.closes||wk.closes.length<20) return null;
+  var c=wk.closes, ma5=maOf(c,5), ma10=maOf(c,10), ma20=maOf(c,20), ma60=maOf(c,60);
+  if(ma20==null) return null;
+  var sc=50;
+  if(ma5!=null&&ma10!=null&&ma5>ma10) sc+=12;
+  if(ma10>ma20) sc+=12;
+  if(c[c.length-1]>ma20) sc+=12;
+  if(ma60!=null&&ma20>ma60) sc+=14;
+  return rsClamp(sc,0,100);
 }
 function sectorScore(name){
   var f=rsFindFlow(name), avg=rsAvgShare();
@@ -3289,7 +3382,9 @@ function sectorScore(name){
   var fund=(share==null||!avg)?null:rsClamp(50+(share/avg-1)*20,0,100);
   var sent=(chg==null)?null:rsClamp(50+chg*8,0,100);
   var pol=rsPolicyScore(name);
+  var tech=(typeof sectorTechScore==='function')?sectorTechScore(name):null;
   var items=[];
+  if(tech!=null) items.push([tech,40]);
   if(fund!=null) items.push([fund,25]);
   if(pol!=null) items.push([pol,20]);
   if(sent!=null) items.push([sent,15]);
@@ -3297,8 +3392,14 @@ function sectorScore(name){
   var wsum=items.reduce(function(a,x){ return a+x[1]; },0);
   var score=items.reduce(function(a,x){ return a+x[0]*x[1]/wsum; },0);
   var grade=score>=85?'S':(score>=75?'A':(score>=60?'B':(score>=50?'C':'D')));
+  var missNames=[];
+  if(tech==null) missNames.push('技术');
+  if(fund==null) missNames.push('资金');
+  if(pol==null) missNames.push('政策');
+  if(sent==null) missNames.push('情绪');
   return {score:Math.round(score),grade:grade,cap:{S:25,A:20,B:10,C:5,D:0}[grade],
-          missing:4-items.length,fund:fund,pol:pol,sent:sent,share:share,chg:chg};
+          missing:missNames.length,missNames:missNames,
+          fund:fund,pol:pol,sent:sent,tech:tech,share:share,chg:chg};
 }
 /* 板块上限；D 级返回 null（只限制新增，不强制清仓，已持有按个股规则处理） */
 function sectorCapOf(name){
@@ -3348,7 +3449,8 @@ function rsSectorHealth(exp){
     var f=rsFindFlow(x.sector);
     var chg=(f&&f.chg!=null)?n(f.chg):null, share=(f&&f.share!=null)?n(f.share):null;
     return {sector:x.sector,pct:x.pct,chg:chg,share:share,
-      health:s?s.score:null,grade:s?s.grade:null,cap:s?s.cap:null,missing:s?s.missing:null,
+      health:s?s.score:null,grade:s?s.grade:null,cap:s?s.cap:null,
+      missing:s?s.missing:null,missNames:(s&&s.missNames)||[],
       relation:x.pct>=25?'超配':(x.pct<=5?'低配':'中性'),
       state:(s&&s.grade)?({S:'强',A:'强',B:'中',C:'弱',D:'弱'}[s.grade]):'—'};
   });
@@ -3364,6 +3466,23 @@ function rsRsi(vals,n){
   var ag=g/n, al=l/n;
   if(al<=1e-12) return ag>0?100:50;
   return 100-100/(1+ag/al);
+}
+
+
+/* 估值分位：只有能对上宽基指数的标的才有，行业 ETF 写未覆盖，不硬套 */
+function rsValuationOf(code){
+  var nm=String((typeof nameOfRow==='function'?nameOfRow({code:code}):'')||(window.QNAME||{})[String(code)]||'');
+  var key=nm.indexOf('科创')>=0?'科创50':(nm.indexOf('创业板')>=0?'创业板指':
+          (nm.indexOf('沪深300')>=0?'沪深300':(nm.indexOf('中证500')>=0?'中证500':null)));
+  if(!key) return null;
+  var nm2=key;
+  var items=((D.market&&D.market.valuation&&D.market.valuation.items)||[]);
+  for(var i=0;i<items.length;i++){
+    if(String(items[i].k||'').indexOf(nm2)>=0){
+      return items[i].v+(items[i].pos?('（'+items[i].pos+'）'):'');
+    }
+  }
+  return null;
 }
 
 /* 月线/周线/双评分卡：全部从已取到的日线与周线算，缺项标「未接入」 */
@@ -3702,8 +3821,19 @@ function rsRenderBrief(p,s1){
 var adv5RowsCache=null;
 
 /* ---------------- 唯一出口：目标仓位表 → 差额 → 动作 → 订单 ----------------
-   页面上所有动作（明细表、个股卡、点评、洞察）只读这里，不再各自推一套。 */
+   页面上所有动作（明细表、个股卡、点评、洞察）只读这里。 */
 function f3(v){ var x=Number(v); return (v==null||!isFinite(x))?'—':x.toFixed(3); }
+/* 研究层给了最终计划时，页面直接用它：目标权重、动作、执行条件都以研究结论为准，
+   不再用浏览器本地评分补算出一套不同的目标。 */
+function planFromResearch(R){
+  var pr=R.proposal||{};
+  var items=(pr.trades||[]).map(function(t){
+    return {code:String(t.code),name:t.name,target_weight:t.target_weight,
+            grade:null,cap:null,tier:t.execution_rule||'',research:true,trade:t};
+  });
+  var sum=0; items.forEach(function(x){ sum+=n(x.target_weight); });
+  return {total_target:Math.round(sum*100)/100,items:items,gap_threshold:1,source:'research'};
+}
 function planItemOf(code){
   var pl=D.plan;
   if(!pl||!pl.items) return null;
@@ -3712,7 +3842,7 @@ function planItemOf(code){
   }
   return null;
 }
-/* 差额 → 动作：完全按指南 7.5，只有这一处 */
+/* 差额 → 动作：阈值 3pct 的判定只在这一处 */
 function planActionOf(gap,wkUp,confirm,belowMa10){
   var thr=3;
   if(gap==null) return {action:'WAIT',text:'目标缺失',pace:null};
@@ -3765,11 +3895,10 @@ function orderTicket(r,targetW,total,opt){
   out.note=out.note||'';
   return out;
 }
-/* ---------------- 持仓在观察池外时的目标仓位 ----------------
-   后端 plan_v3 只知道观察池里的代码，而持仓里常有池外标的（行业主题、债券、海外）。
-   这些标的原来没有目标，页面一片「不设目标/目标缺失」。这里按与 plan_v3 同一口径
-   在浏览器补算（日线已在本地），并对完全没有日线的持仓退到「类别结构目标」：
-   只给参考目标与「等待确认」，不生成买卖动作。 */
+/* ---------------- 持仓的目标仓位补算 ----------------
+   后端只给 legs 里的代码，而持仓常有不在这批里的标的（行业主题、债券、海外）。
+   这些标的按与 plan_v3 同一口径在浏览器补算（日线已在本地），完全没有日线的持仓
+   退到「类别结构目标」：只给参考目标与「等待确认」，不生成买卖动作。 */
 var PLAN_CAP={S:25,A:20,B:10,C:5,D:3};
 var PLAN_MAX_SINGLE=25, PLAN_TARGET_VOL=15, PLAN_TOP_N=6;
 function gradeOfScore(s){
@@ -3946,6 +4075,18 @@ function applyRowDecision(x,total){
   var below10=n(x.r.leg&&x.r.leg.below_ma10);
   var a=planActionOf(x.gap,!!it.wk_up,n(it.confirm),below10>=2);
   x.action=a.action; x.text=a.text; x.pace=a.pace;
+  if(it.research&&it.trade){                    /* 研究结论是唯一出口 */
+    var t=it.trade, ap=(t.action==='EXIT'||t.action==='SELL')?'TRIM'
+      :(t.action==='REDUCE')?'TRIM':(t.action==='BUY'||t.action==='ADD')?'ADD':'HOLD';
+    if(t.action==='EXIT'){ ap='CLEAR'; }
+    x.action=ap;
+    x.text=(t.action_cn||t.action)+' '+Math.abs(n(x.gap)).toFixed(2)+'pct';
+    x.pace='';
+  }
+  if(x.action==='HOLD'||x.action==='WAIT'){      /* 不动就不算订单，避免取整出 100 份假差额 */
+    x.order={note:'不交易'};
+    return;
+  }
   if(x.target==null){
     var cat=String(x.r.category||'未分类');
     x.action='WAIT';
@@ -3976,7 +4117,9 @@ function rsPlanRows(p){
   });
   synthesizePlanTargets(rows);
   rows.forEach(function(x){ applyRowDecision(x,total); });
-  var capOf=(typeof sectorCapOf==='function')?sectorCapOf:null;
+  /* 研究层给的目标已经过确定性风控（含类别上限），这里不再用板块上限二次压缩 */
+  var fromResearch=!!(D.plan&&D.plan.source==='research');
+  var capOf=(!fromResearch&&typeof sectorCapOf==='function')?sectorCapOf:null;
   if(capOf){                                   /* 板块上限：合计超限按比例压，不突破单只上限 */
     var bySec={};
     rows.forEach(function(x){
@@ -4006,11 +4149,66 @@ function rsSortPlanRows(rows){
     return bv-av;
   });
 }
+
+/* 近 N 个交易日里上涨的天数占比（真实口径，不是历史相似样本） */
+function rsUpDays(code,k){
+  var b=LBARS[String(code)];
+  if(!b||!b.closes||b.closes.length<k+1) return '—';
+  var c=b.closes, up=0;
+  for(var i=c.length-k;i<c.length;i++){ if(n(c[i])>n(c[i-1])) up++; }
+  return Math.round(up/k*100)+'%';
+}
+
+/* 5/20 日上涨占比：日线在内存里就直接算，没有就写「—」（样本 <30 用「样本不足」） */
+function rsFcText(code, key){
+  var b=LBARS[String(code)];
+  if(!b) return '—';
+  var f=rsForecast(b);
+  if(!f||!f[key]) return '样本不足';
+  return f2(f[key].p)+'%';
+}
+
+
+/* 卡片墙自适应：按实测高度贪心分两列，整体等高、不拉长单卡 */
+function rsBalanceWalls(){
+  var groups={};
+  [].forEach.call(document.querySelectorAll('.rs-wall[data-wall]'), function(w){
+    var k=w.getAttribute('data-wall');
+    (groups[k]=groups[k]||[]).push(w);
+  });
+  Object.keys(groups).forEach(function(k){
+    var walls=groups[k];
+    if(!walls.length) return;
+    var host=walls[0], cards=[];
+    walls.forEach(function(w){
+      [].forEach.call(w.children, function(c){ cards.push(c); });
+    });
+    var colA=document.createElement('div'), colB=document.createElement('div');
+    colA.className='rs-col'; colB.className='rs-col';
+    walls.forEach(function(w){ if(w!==host && w.parentNode) w.parentNode.removeChild(w); });
+    host.innerHTML='';
+    host.appendChild(colA); host.appendChild(colB);
+    /* 先全部放进 A 列量高度（此时已是列宽） */
+    cards.forEach(function(c){ colA.appendChild(c); });
+    var hs=cards.map(function(c){ return c.offsetHeight||0; });
+    var ha=0, hb=0;
+    cards.forEach(function(c,i){
+      var gap=12;
+      if(ha<=hb){ colA.appendChild(c); ha+=hs[i]+gap; }
+      else{ colB.appendChild(c); hb+=hs[i]+gap; }
+    });
+  });
+}
+
 function rsPlanRowHTML(x){
   var r=x.r, o=x.order||{};
   var kind=x.action==='ADD'?'buy':(x.action==='TRIM'?'sell':'hold');
   var sharesTxt=(r.shares==null?'—':Math.round(n(r.shares)).toLocaleString())+
     (o.shares==null?'':' → '+o.shares.toLocaleString());
+  if(o.shares==null&&x.target!=null&&n(r.last)>0&&RS_PORT&&RS_PORT.totalAsset){
+    var tq=Math.floor(n(RS_PORT.totalAsset)*n(x.target)/100/n(r.last)/100)*100;
+    if(tq>0&&Math.round(n(r.shares))!==tq){ sharesTxt+=' <span class="muted">（目标 '+tq.toLocaleString()+'）</span>'; }
+  }
   var opTxt='—';
   if(o.delta!=null){
     opTxt=(o.delta>0?'+':'')+o.delta.toLocaleString()+
@@ -4018,7 +4216,7 @@ function rsPlanRowHTML(x){
   }
   var priceTxt=o.limit!=null?f3(o.limit):('不挂单'+(o.note?'（'+esc(o.note)+'）':''));
   var srcTag=(x.item&&x.item.client)
-    ?'<br><span class="muted">池外补算 · '+(x.item.score!=null?x.item.score+' 分 ':'')+(x.grade||'—')+' 级</span>'
+    ?'<br><span class="muted">本地补算 · '+(x.item.score!=null?x.item.score+' 分 ':'')+(x.grade||'—')+' 级</span>'
     :(x.structTarget?'<br><span class="muted">结构参考目标</span>':'');
   return '<tr><td>'+esc(r.name||r.code)+'<br><span class="muted">'+esc(r.code)+'</span></td>'+
     '<td>'+esc(rsSectorLabel(r.code,r.name,r.category))+'</td>'+
@@ -4027,15 +4225,35 @@ function rsPlanRowHTML(x){
     '<td class="r">'+opTxt+'</td>'+
     '<td class="r">'+priceTxt+'</td>'+
     '<td class="r">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</td>'+
+    '<td class="r">'+(r.up5!=null?r.up5+'%':rsUpDays(r.code,5))+' / '+
+      (r.up20!=null?r.up20+'%':rsUpDays(r.code,20))+'</td>'+
     '<td class="r">'+f3(r.cost)+' → '+f3(r.last)+'</td>'+
     '<td class="r">'+(r.pnl_pct==null?'—':col(r.pnl_pct))+'<br><span class="muted">'+fy(r.pnl)+'</span></td>'+
-    '<td class="r"><span id="rsFc5_'+esc(r.code)+'">—</span> / <span id="rsFc20_'+esc(r.code)+'">—</span></td>'+
     '<td>'+marketPosText(r)+'</td>'+
     '<td><span class="tag '+kind+'">'+esc(x.text)+'</span>'+
       (x.pace?'<br><span class="muted">'+esc(x.pace)+'</span>':'')+'</td></tr>';
 }
 function rsPlanRowsHTML(rows){
-  return (rows||[]).map(rsPlanRowHTML).join('');
+  /* 研究给的理由/触发/失效/执行，直接并进明细表：一行结论 + 一行依据 */
+  var trades={};
+  try{
+    ((D.research&&D.research.proposal&&D.research.proposal.trades)||[]).forEach(function(t){
+      trades[String(t.code)]=t;
+    });
+  }catch(e){}
+  return (rows||[]).map(function(x){
+    var main=rsPlanRowHTML(x);
+    var t=trades[String(x.r.code)];
+    if(!t) return main;
+    var why=[];
+    if(t.rationale) why.push('<b>理由</b> '+esc(t.rationale));
+    if(t.trigger) why.push('<b>触发</b> '+esc(t.trigger));
+    if(t.invalidation) why.push('<b>失效</b> '+esc(t.invalidation));
+    if(t.execution_rule) why.push('<b>执行</b> '+esc(t.execution_rule));
+    return main+'<tr class="rs-why"><td colspan="12" '+
+      'style="font-size:11.5px;line-height:1.8;color:#475569;background:#fbfcfd">'+
+      why.join('　')+'</td></tr>';
+  }).join('');
 }
 /* 日线在页面渲染后异步到达：重算计划并刷新表格、点评、个股卡 */
 function rsRefreshPlanTable(){
@@ -4067,21 +4285,20 @@ function rsPageHTML(p,s1,adv){
 
   var planRows=rsPlanRows(p);
   var orderRows=rsSortPlanRows(planRows);
+  /* 默认选中「本次操作金额最大」的那只，个股卡的结构图才有东西可看 */
+  if(!RS_SELECTED && orderRows.length){ RS_SELECTED=String(orderRows[0].r.code); }
   h+='<div class="box tight rs-scroll" style="margin-top:11px"><table class="tbl"><thead><tr>'+
      '<th>名称 / 代码</th><th>板块</th><th class="r">仓位（现→目标）</th>'+
      '<th class="r">数量（现→建议）</th><th class="r">本次操作</th><th class="r">挂单价</th>'+
      '<th class="r">费用</th><th class="r">成本 → 现价</th><th class="r">盈亏</th>'+
-     '<th class="r">5/20日上涨占比</th><th>全市场位置</th><th>动作</th>'+
+     '<th class="r" title="近 5 / 20 个交易日里上涨的天数占比">5/20 日上涨</th>'+
+     '<th>全市场位置</th><th>动作</th>'+
      '</tr></thead><tbody id="rsPlanBody">'+rsPlanRowsHTML(orderRows)+'</tbody></table>'+
-     '<div class="rs-note">排序按本次操作金额降序；挂单价为限价保护（买 ×1.0001 进位、卖 ×0.9999 截断到 0.001），不保证成交；'+
-     '目标权重来自目标仓位表，动作与订单由它派生；规则卡只决定最早减仓时点，不另给方向。'+
-     (orderRows.some(function(x){ return x.item&&x.item.client; })
-       ?'标「池外补算」的行：观察池里没有这只，目标按同一口径用浏览器取到的日线现算。':'')+
-     '</div></div>';
+     '</div>';
 
   h+='<div class="rs-sec"><span class="bar"></span>二、持仓分析</div>';
 
-  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息（国家队已移出持仓分析） */
+  /* (1) 市场环境：大盘七项 / 热度情绪 / 资金 / 隔夜消息（国家队只作背景，不进持仓分析） */
   h+='<div class="rs-sub">1. 市场环境</div>';
   var rg0=(D.market&&D.market.regime)||{}, br=(D.market&&D.market.breadth)||{};
   var maR=maRegime(rg0);
@@ -4109,21 +4326,14 @@ function rsPageHTML(p,s1,adv){
      tr(['波动',(rg0.vol20==null?'—':f2(rg0.vol20)+'% / '+f2(rg0.vol60)+'%'),
        (rg0.vol20!=null&&rg0.vol60!=null&&n(rg0.vol20)>n(rg0.vol60)*1.25)?'波动抬升，总上限再降 10 个百分点':'波动未抬升'])+
      '</tbody></table>'+
-     '<div class="rs-note">状态 '+esc(rg0.regime||'未知')+'，总仓位上限 '+
-       (D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':(rg0.fit_lo==null?'—':rg0.fit_lo+'~'+rg0.fit_hi+'%'))+
-       '；判据只看「收盘与 60 日线」「5 日线与 20 日线」两条。</div>'+
-     '<details class="sec-details"><summary class="sec"><span class="bar"></span>均线各自管什么 <span class="info">i</span></summary>'+
-     '<div class="sec-detail"><table class="tbl"><thead><tr><th>均线</th><th>作用</th><th>用法</th></tr></thead><tbody>'+
-     [['5 日线','短线多空分界','上方短线持有；跌破短线走弱'],
-      ['10 日线','短期趋势线 + 交易仓成本线','连续 2 日跌破，交易仓出局'],
-      ['20 日线','中期生命线','跌破且 2 日不收回，减半'],
-      ['30 日线','中期牛熊线','跌破且 2 日不收回，清差额'],
-      ['60 日线','长期趋势线','上方回调是正常调整；跌破趋势可能逆转'],
-      ['120 日线','多空转折点','站上才算主力进场；站不上多头结论降一档'],
-      ['20 月线','牛熊分界线','站上可重仓；之下一切上涨视为反弹']]
-       .map(function(x){ return tr([esc(x[0]),esc(x[1]),esc(x[2])]); }).join('')+
-     '</tbody></table></div></details></div>';
+     '<div class="rs-note">均线各自管什么：5 日看短线多空；10 日是交易仓成本线，连续 2 日跌破出局；'
+     '20 日跌破且 2 日不收回减半；30 日跌破且 2 日不收回清差额；60 日看长期趋势；'
+     '120 日站上才算主力进场；20 月线是牛熊分界。</div></div>';
 
+  /* 广度数据可能比行情旧（抓取失败时保留旧值），这里标明它的数据日期 */
+  var bbAsOf=(D.market&&D.market.breadth_as_of)||null;
+  var dd=(D.meta&&D.meta.data_date)||'';
+  var bbNote=(bbAsOf&&dd&&bbAsOf!==dd)?('广度数据截至 '+esc(bbAsOf)+'（非今日，抓取失败时保留上次结果）；'):'';
   h+='<div class="rs-grid2" style="margin-top:10px">'+
     '<div class="box"><div class="bt">热度与情绪</div>'+
       '<div class="kv">'+
@@ -4135,7 +4345,7 @@ function rsPageHTML(p,s1,adv){
         '<span class="k">恐慌形态</span><span class="v">'+esc(sentItem('恐慌判定')||'未接入')+'</span>'+
         '<span class="k">连续普跌</span><span class="v">'+esc(sentItem('连续普跌天数')||'—')+' 天</span>'+
         '<span class="k">情绪温度</span><span class="v">'+n((D.market.sentiment||{}).score)+' / 100</span>'+
-      '</div><div class="rs-note">只有放量急杀才算恐慌，缩量阴跌不算；连续 2 日普涨次日易分歧，连续 3 日普跌只做试错仓。</div></div>'+
+      '</div><div class="rs-note">'+bbNote+'只有放量急杀才算恐慌，缩量阴跌不算；连续 2 日普涨次日易分歧，连续 3 日普跌只做试错仓。</div></div>'+
     '<div class="box"><div class="bt">资金动向</div>'+
       '<div class="kv">'+
         (((D.market.liquidity&&D.market.liquidity.items)||[]).map(function(x){
@@ -4148,13 +4358,6 @@ function rsPageHTML(p,s1,adv){
           return esc(x.sector)+' '+f2(x.share)+'%'; }).join('、'))||'暂无')+'。</div></div>'+
     '</div>';
 
-  h+='<div class="box" style="margin-top:10px"><div class="bt">隔夜与消息</div>'+
-     '<div class="rs-note" style="margin-top:0">隔夜：'+
-       (((D.market.glob&&D.market.glob.items)||[]).map(function(x){ return esc(x.k)+' '+esc(x.v); }).join('；')||'未取到')+
-     '。只算开盘扰动，不改自身周期。</div>'+
-     '<div class="rs-note">消息：'+
-       (((D.market.news||[]).slice(0,3).map(function(x){ return '['+esc(x.time)+'] '+esc(x.text); }).join('；'))||'未取到')+
-     '</div></div>';
 
   h+='<div class="rs-sub">2. 组合情况</div>';
   h+='<div class="rs-grid2">'+
@@ -4163,30 +4366,23 @@ function rsPageHTML(p,s1,adv){
     '</div>';
   h+='<div class="box" style="margin-top:10px"><div class="bt">组合与市场是否一致</div>'+
      '<div id="rsPortfolioRead" class="rs-note">加载中…</div>'+
-     '<details class="sec-details"><summary class="sec"><span class="bar"></span>这条判断怎么算 <span class="info">i</span></summary>'+
-     '<div class="sec-detail">输入：`plan.items[].target_weight`、`sector_weights`、`market.regime.leaders`、`market.flow[].share_pct`。'+
-     '最大暴露 = 各 ETF 权重 × 指数行业权重，按行业加总；超配线 25%、低配线 5%；'+
-     '走弱 = 板块四维评分 <60（C/D）且仍有暴露 ≥10%；主线按名称匹配，匹配不上写「不属于」，不猜。'+
-     '缺 `sector_weights` 的 ETF 计为「未覆盖」，不进暴露表。结论只收紧下一层：走弱板块对应的个股不加仓。</div></details></div>';
+     '</div>';
 
-  h+='<div class="rs-sec"><span class="bar"></span>申万板块健康度</div>';
+  h+='<div class="rs-sub">2.3 板块健康度</div>';
   h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr>'+
      '<th>板块</th><th class="r">评分</th><th>评级</th><th class="r">板块上限</th>'+
      '<th class="r">当日涨跌</th><th class="r">成交占比</th><th class="r">组合暴露</th><th>关系</th><th>状态</th>'+
      '</tr></thead><tbody id="rsSectorTable"></tbody></table>'+
-     '<div class="rs-note">评分 = 技术 40% + 资金 25% + 政策 20% + 情绪 15%；没有行业周线时技术项按缺失处理，其余按权重折算，标「缺 N 项」。</div>'+
-     '<details class="sec-details"><summary class="sec"><span class="bar"></span>板块健康度怎么算 <span class="info">i</span></summary>'+
-     '<div class="sec-detail">资金项 = 50 + (该行业成交占比 ÷ 31 行业均值 − 1) × 20，clamp 到 0–100；'+
-     '情绪项 = 50 + 当日涨跌幅 × 8；政策项取 `market.policy_heat` 里同名或互相包含的主题热度，匹配不到记缺失；'+
-     '技术项需要行业代表 ETF 的周线，本页未接入，记缺失。缺项不补 0 分，按剩余权重折算（例：缺技术与政策 → 资金 62.5%、情绪 37.5%）。'+
-     '评级与个股同一套分档，板块上限 S25/A20/B10/C5/D0；D 级只限制新增，已持有按个股规则处理。</div></details></div>';
+     '<div class="rs-note">技术项用该板块持仓 ETF 的周线排列代理，资金项按成交占比、情绪项按当日涨跌、'
+     '政策项按政策热度（含同义主题）折算；缺项按剩余权重折算，不补 0 分。</div></div>';
 
   h+='<div class="rs-sub">3. 个股分析</div>';
   h+='<div class="rs-stockpick" id="rsStockPick">';
   p.rows.forEach(function(r,i){
-    h+='<button type="button" class="'+(i===0?'on':'')+'" data-code="'+esc(r.code)+'" onclick="rsSelect(\''+esc(r.code)+'\')">'+esc(r.code)+' '+esc(r.name)+'</button>';
+    h+='<button type="button" class="'+(i===0?'on':'')+'" data-code="'+esc(r.code)+'" onclick="rsSelect(\''+esc(r.code)+'\')">'+esc(nameOfRow(r)||r.name||r.code)+'（'+esc(r.code)+'）</button>';
   });
   h+='</div><div id="rsDetail"></div>';
+
 
   h+='<div class="rs-sec"><span class="bar"></span>三、市场洞察及方向</div>';
   h+='<div class="rs-sub">1. 今日定性（按时段）</div>';
@@ -4198,18 +4394,30 @@ function rsPageHTML(p,s1,adv){
     '</div>';
 
   h+='<div class="rs-sub">4. 情景与触发</div>';
-  h+='<div class="box"><div id="rsDir" class="rs-dir">加载中…</div></div>';
+  /* 情景是 4 列表格，不能再套 .rs-dir 的 3 列 grid（会把表格挤成 1/3 宽） */
+  h+='<div class="box rs-scroll"><div id="rsDir">加载中…</div></div>';
 
   h+='<div class="rs-sub">5. 复盘对照（上次计划 vs 今天）</div>';
   h+='<div class="box"><div id="rsReview" class="rs-note">加载中…</div></div>';
 
   h+='<div class="rs-sub">6. 新方向候选（受环境额度约束）</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自观察池（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只，不含不碰名单）；环境额度不足时只写「观察」。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自研究范围（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只）；当前 scope=holdings 时不生成候选。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
   return h;
 }
 function rsAfterBars(){
   if(!RS_PORT) return;
   rsRefreshPlanTable();
+  rsRenderForecastCells();          /* 日线到位后再算一次，避免明细表停在「样本不足」 */
+  /* 明细表的 5/20 占比需要每只持仓的日线：一次补齐，之后只重算单元格 */
+  (HOLD.rows||[]).forEach(function(r,idx){
+    var c=String(r.code);
+    if(LBARS[c]) return;
+    setTimeout(function(){
+      fetchBars(c,function(b){
+        if(b&&b.closes&&b.closes.length>=20){ LBARS[c]=b; rsRefreshPlanTable(); rsRenderSector(); }
+      });
+    }, 120*idx);
+  });
   rsRenderBrief(RS_PORT,RS_S1);
   rsRenderSector();
   rsRenderMarket();
@@ -4261,6 +4469,16 @@ function rsSelect(code){
   rsRenderDetail();
 }
 
+
+/* 持仓行本身不带 weight（weight 在 calcPort 的结果里），这里按计划行/份额兜底 */
+function curWeightOf(pr,row){
+  if(pr&&pr.r&&pr.r.weight!=null) return pr.r.weight;
+  if(row&&row.weight!=null) return row.weight;
+  if(row&&row.shares&&row.last&&RS_PORT&&RS_PORT.totalAsset)
+    return n(row.shares)*n(row.last)/n(RS_PORT.totalAsset)*100;
+  return null;
+}
+
 function rsPlanRow(code){
   for(var i=0;i<(RS_PLAN||[]).length;i++){
     if(String(RS_PLAN[i].r.code)===String(code)) return RS_PLAN[i];
@@ -4271,12 +4489,16 @@ function tick(txt,ok){
   return '<span class="tag '+(ok===null?'hold':(ok?'buy':'sell'))+'">'+
     (ok===null?'—':(ok?'✓':'✗'))+'</span> '+esc(txt);
 }
-/* 行情缺失时的降级卡：不再用一句「暂不展示」把整块吞掉。
-   目标与动作仍来自同一张目标仓位表（RS_PLAN），这里只说明为什么没有技术块，并给重取入口。 */
+/* 行情缺失时的降级卡：目标与动作仍来自同一张目标仓位表（RS_PLAN），
+   这里只说明为什么没有技术块，并给重取入口。 */
 function rsDetailFallback(code,row){
   var pr=rsPlanRow(code)||{}, o=pr.order||{};
   var px=priceOf(code), nm=nameOfRow(row)||code;
-  var w=(row&&row.weight!=null)?f2(row.weight)+'%':'—';
+  var curW=(pr.r&&pr.r.weight!=null)?pr.r.weight:(row&&row.weight!=null?row.weight:null);
+  if(curW==null&&row&&row.shares&&row.last&&RS_PORT&&RS_PORT.totalAsset){
+    curW=n(row.shares)*n(row.last)/n(RS_PORT.totalAsset)*100;   /* 兜底：按份额与现价现算 */
+  }
+  var w=(curW!=null)?f2(curW)+'%':'—';
   var tgt=(pr.target!=null)?f2(pr.target)+'%':(pr.structTarget?'结构目标待定':'—');
   var opTxt=o.delta!=null?((o.delta>0?'买 ':'卖 ')+Math.abs(o.delta).toLocaleString()+' 份'+
       (o.limit!=null?'，挂 '+f3(o.limit):'')):(pr.text||o.note||'等待确认');
@@ -4287,16 +4509,17 @@ function rsDetailFallback(code,row){
     '<span class="rs-pill">'+(pr.grade?esc(pr.grade)+' 级':'未评级')+'</span>'+
     '<span class="rs-pill">现价 '+(px&&px.last!=null?f3(px.last):'—')+'</span></div>'+
     '<div class="kpis">'+
-      kpi('仓位', w, '目标 '+tgt)+
+      kpi('仓位', w, '目标 '+tgt+(pr.gap!=null&&Math.abs(n(pr.gap))>=0.005?('，差 '+(pr.gap>0?'+':'')+f2(pr.gap)+'pct'):''))+
       kpi('评级 / 上限', (pr.grade||'—')+' / '+(pr.cap==null?'—':pr.cap+'%'), '与目标仓位表同源')+
       kpi('本次操作', opTxt, pr.pace||'')+
       kpi('数据状态', state, '腾讯 / 东财两路都没给出可用 K 线', true)+
     '</div></div>'+
     '<div class="box" style="margin-top:10px"><div class="bt">为什么这块没有结构图和均线</div>'+
-    '<div class="rs-note" style="margin-top:0">'+esc(nm)+' 不在公开观察池里，日线由浏览器向腾讯、东财公开接口现取；'+
+    '<div class="rs-note" style="margin-top:0">'+esc(nm)+' 的日线按持仓代码单独取'+
+    '（腾讯、东财公开接口；demo 用本地缓存）；'+
     '这次没有拿到 30 根以上有效 K 线（网络拦截、源站未覆盖、停牌或长假都可能）。'+
     '在行情到位之前，不臆造均线、结构图和概率；目标与动作仍按目标仓位表给出。</div>'+
-    '<div class="rs-note">目标 '+tgt+' 来自类别结构目标或观察池评分口径，只作参考；'+
+    '<div class="rs-note">目标 '+tgt+' 来自目标仓位表与结构目标，只作参考；'+
     '行情恢复后这张卡会自动补出八块（三周期、双评分卡、结构图、概率）。</div>'+
     '<div class="rs-note"><button type="button" class="rs-pill" onclick="rsRetryBars(\''+
       esc(code)+'\')">重新取行情</button></div></div>';
@@ -4319,6 +4542,21 @@ function rsRetryBars(code){
   fetchBars(code,function(o){ if(o) LBARS[code]=o; done(); });
   rsFetchWeekly(code,function(o){ if(o) RS_WEEK[code]=o; done(); });
 }
+
+/* 个股卡选项卡：概览 / 结构与图 / 评分与概率 */
+function rsTab(btn){
+  var wrap=btn.closest('.rs-tabwrap');
+  if(!wrap) return;
+  var name=btn.getAttribute('data-t');
+  [].forEach.call(wrap.querySelectorAll('.rs-tabs button'), function(x){
+    x.classList.toggle('on', x===btn);
+  });
+  [].forEach.call(wrap.querySelectorAll('.rs-pane'), function(p){
+    p.classList.toggle('on', p.getAttribute('data-p')===name);
+  });
+  if(name==='struct'){ setTimeout(function(){ if(RS_SELECTED) rsDrawChart(RS_SELECTED); }, 30); }
+}
+
 function rsRenderDetail(){
   var el=document.getElementById('rsDetail');
   if(!el) return;
@@ -4337,21 +4575,33 @@ function rsRenderDetail(){
   var low20=dl.length?Math.min.apply(null,dl):null;
   var cap=(D.plan&&D.plan.total_target!=null)?n(D.plan.total_target):null;
   var kind=pr.action==='ADD'?'buy':(pr.action==='TRIM'?'sell':'');
+  var nm=nameOfRow(row)||code;      /* 标题要写「名称（代码）」 */
 
   /* 1 结论 */
   var h='<div class="rs-verdict" style="border-top-color:'+
     (kind==='sell'?'var(--down)':(kind==='buy'?'var(--up)':'var(--blue-d)'))+'">'+
     '<div class="vh"><span class="rs-pill '+kind+'">结论：'+esc(pr.text||'目标缺失')+'</span>'+
-    '<span class="rs-pill">'+esc(code)+' · '+(pr.grade||'—')+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%')+'</span>'+
+    '<span class="rs-pill">'+esc(nm)+'（'+esc(code)+'）</span>'+
+    (function(){
+      var g=pr.grade, cp=pr.cap;
+      if(g==null||cp==null){
+        try{
+          var sec=rsSectorMap(code)[0][0], ss=sectorScore(sec)||{};
+          if(g==null) g=ss.grade||null;
+          if(cp==null) cp=(ss.cap==null?null:ss.cap);
+        }catch(e){}
+      }
+      return '<span class="rs-pill">'+(g||'—')+' 级 · 上限 '+(cp==null?'—':cp+'%')+'</span>';
+    })()+
     '<span class="rs-pill">现价 '+f3(l.last)+' · '+esc((D.meta&&D.meta.data_date)||'—')+'</span></div>'+
     '<div class="kpis">'+
-      '<div class="kpi"><div class="k">仓位</div><div class="v">'+f2(row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</div><div class="d">差额 '+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</div></div>'+
+      '<div class="kpi"><div class="k">仓位</div><div class="v">'+f2(curWeightOf(pr,row))+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</div><div class="d">差额 '+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</div></div>'+
       '<div class="kpi"><div class="k">挂单价</div><div class="v">'+(o.limit!=null?f3(o.limit):'—')+'</div><div class="d">'+(o.note||'限价保护')+'</div></div>'+
       '<div class="kpi"><div class="k">本次操作</div><div class="v">'+(o.delta==null?'—':((o.delta>0?'+':'')+o.delta.toLocaleString()))+'</div><div class="d">'+(o.first?('首批 '+o.first.toLocaleString()+' 份'):'—')+'</div></div>'+
       '<div class="kpi"><div class="k">费用</div><div class="v">'+(o.fee==null?'—':'¥'+o.fee.toFixed(2))+'</div><div class="d">佣金+滑点</div></div>'+
     '</div></div>';
 
-  /* 2 进场检查 */
+  /* 概览 / 结构 / 评分：每个选项卡里按「一块一件事」竖向平铺；只有成对的卡才并两栏 */
   var maOk=(l.ma5!=null&&l.ma10!=null&&l.ma20!=null)?(n(l.ma5)>n(l.ma10)&&n(l.ma10)>n(l.ma20)):null;
   var bodyOk=null;
   if(b.opens&&b.highs&&b.lows&&b.closes&&b.closes.length){
@@ -4364,12 +4614,57 @@ function rsRenderDetail(){
   var stand=l.stand_back==null?null:!!l.stand_back;
   var shrink=l.shrink==null?null:!!l.shrink;
   var fake=l.false_breakout==null?null:!!l.false_breakout;
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
+  var conf=[];
+  if(l.ma10!=null&&n(l.last)>n(l.ma10)) conf.push('站上 10 日线');
+  if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
+  if(n(l.vol_ratio)>1.2) conf.push('量能放大');
+
+  var paneOvw=''+
+    '<div class="box"><div class="bt">进场检查（选股三步）</div><div class="rs-note" style="margin-top:0">'+
     '环境：总仓位上限 '+(cap==null?'缺失':f2(cap)+'%')+'，上限不足时只做试错仓。<br>'+
     '第 1 步 底部震荡：'+tick(notNewLow===null?'数据不足':(notNewLow?'近 20 日未创新低':'仍在创新低'),notNewLow)+'<br>'+
     '第 2 步 放量突破：'+tick('均线多头（5>10>20）',maOk)+' '+tick('实体阳线、无长上影',bodyOk)+' '+tick('站上 120 日线',above120)+'<br>'+
     '第 3 步 回踩确认：'+tick('回踩不破关键位',stand)+' '+tick('缩量',shrink)+' '+(fake?'<span class="tag sell">✗ 假突破（放量下跌）</span>':'')+
     '<br><span class="muted">突破当天只标关注，回踩才是确认；三条缺一条写「突破不成立」。</span></div></div>'+
+    '<div class="box"><div class="bt">执行与改判</div>'+
+      '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2((pr.r&&pr.r.weight!=null)?pr.r.weight:row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
+      '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(Math.abs(n(pr.gap))<0.005?'0.00':(pr.gap>0?'+':'')+f2(pr.gap))+'pct')+'</span>'+
+      (pr.item&&pr.item.research&&pr.item.trade
+        ? '<span class="k">触发条件</span><span class="v">'+esc(pr.item.trade.trigger||'—')+'</span>'+
+          '<span class="k">执行条件</span><span class="v">'+esc(pr.item.trade.execution_rule||'—')+'</span>'
+        : '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
+          '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span>')+
+      '</div>'+
+      '<div class="rs-note" style="margin-top:8px">'+
+      '转好：站上 20 日线且周线转多 → 评级重估，目标回到 '+(pr.target==null?'—':f2(pr.target)+'%')+'。<br>'+
+      '恶化：收盘连续两日跌破 30 日线'+(l.ma30!=null?('（'+f3(l.ma30)+'）'):'')+' → 卖出该只全部剩余差额。<br>'+
+      '<span class="muted">止损两套：交易仓（C/B）破 10 日线 2 日出局；核心仓（A/S）破 20 日线 2 日减半、破 30 日线 2 日清差额、破 60 日线立即。</span></div></div>';
+
+  var ch=rsChanText(code,l,pr,row);
+  var chanKv='';
+  if(ch){
+    chanKv='<div class="rs-kv2">'+
+      '<div><b>中枢</b> '+esc(ch.pivotTxt)+'</div>'+
+      '<div><b>现价位置</b> '+esc(ch.posTxt)+'</div>'+
+      '<div><b>最近一笔</b> '+esc(ch.strokeTxt)+'</div>'+
+      '<div><b>结构信号</b> '+esc(ch.sigTxt)+'</div>'+
+      '<div><b>中枢类型</b> '+esc(ch.pivotTypeTxt)+'</div>'+
+      '<div><b>三类买卖点</b> '+esc(ch.pointsTxt)+'</div>'+
+      '<div><b>量价状态</b> '+esc(ch.volTxt)+'</div>'+
+      '<div><b>K 线形态</b> '+esc(ch.candleTxt)+'</div>'+
+      '<div><b>多维共振</b> '+esc(ch.confTxt)+'</div>'+
+      '<div><b>与目标的关系</b> '+esc(ch.rel)+'</div>'+
+      '<div><b>持仓上下文</b> '+ch.ctx+'</div>'+
+      '</div>'+
+      '<div class="rs-note">'+esc(ch.conflict)+'</div>';
+  }
+  var paneStruct=
+    '<div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
+    '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span>'+
+    '<span><i style="background:#94a3b8"></i>中枢</span><span><i style="background:#475569"></i>笔</span>'+
+    '<span><i style="background:#148f5b"></i>▲ 买点</span><span><i style="background:#c0392b"></i>▼ 卖点</span></div></div>'+
+    '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
+    '<div class="rs-note" id="rsChartNote" style="margin-top:6px"></div></div>'+
     '<div class="box"><div class="bt">三周期</div><table class="tbl"><thead><tr><th>周期</th><th>位置</th><th>结论</th></tr></thead><tbody>'+
     tr(['月线',(sc.month?('收 '+f3(sc.month.last)+' / 20 月线 '+(sc.month.ma20==null?'—':f3(sc.month.ma20))):'月线数据不足'),
       (sc.month&&sc.month.ma20!=null)?(n(sc.month.last)>n(sc.month.ma20)?'20 月线上方，可重仓区':'20 月线下方，上涨当反弹'):'—'])+
@@ -4377,72 +4672,45 @@ function rsRenderDetail(){
       (sc.items.week==null)?'—':(sc.items.week>=15?'多头排列':(sc.items.week>=10?'金叉初期':(sc.items.week>=5?'粘合':'空头')))])+
     tr(['日线','MA5 '+f3(l.ma5)+' / MA10 '+f3(l.ma10)+' / MA20 '+f3(l.ma20)+' / MA60 '+f3(l.ma60)+' / MA120 '+f3(l.ma120),
       (l.vol_ratio!=null?'量比 '+f2(l.vol_ratio):'量比缺失')+'；'+(l.ma_state||'—')])+
-    '</tbody></table><div class="rs-note">日线服从周线：周线向上，日线回踩是买点；周线向下，日线反弹是卖点。</div></div></div>';
+    '</tbody></table><div class="rs-note">日线服从周线：周线向上，日线回踩是买点；周线向下，日线反弹是卖点。</div></div>'+
+    (ch? '<div class="box"><div class="bt">缠论结构（展示层 · 不改动作）</div>'+chanKv+'</div>' : '');
 
-  /* 2.5 缠论结构（展示层）：只解释动作，不改目标与订单 */
-  var ch=rsChanText(code,l,pr,row);
-  if(ch){
-    h+='<div class="box" style="margin-top:10px"><div class="bt">缠论结构（展示层 · 不改动作）</div>'+
-      '<div class="kv">'+
-        '<span class="k">中枢</span><span class="v">'+esc(ch.pivotTxt)+'</span>'+
-        '<span class="k">现价位置</span><span class="v">'+esc(ch.posTxt)+'</span>'+
-        '<span class="k">最近一笔</span><span class="v">'+esc(ch.strokeTxt)+'</span>'+
-        '<span class="k">结构信号</span><span class="v">'+esc(ch.sigTxt)+'</span>'+
-        '<span class="k">与目标的关系</span><span class="v">'+esc(ch.rel)+'</span>'+
-        '<span class="k">持仓上下文</span><span class="v">'+ch.ctx+'</span>'+
-      '</div>'+
-      '<div class="rs-note">'+esc(ch.conflict)+'</div>'+
-      '<div class="rs-note">简化实现：分型→笔→中枢→背驰/买卖点，不含线段与多级别递归。'+
-      '缠论只解释买卖点位置，目标与订单以目标仓位表为准；'+
-      '要把它变成加仓过滤器，须先按 docs/缠论融合回测方案.md 跑 A/B 并通过门槛。</div></div>';
-  }
-
-  /* 3 双评分卡（只解释强弱，不改目标；评级与上限以顶部唯一出口为准） */
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">底部评分</div>'+
-    '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
-    '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
-    '<span class="k">未接入</span><span class="v">'+sc.missBottom+' 项（估值/领先股/景气/资金）</span></div>'+
-    '<div class="rs-note">月线底背离 '+(sc.items.div==null?'—':sc.items.div)+'/25；月线倍量站上 20 月线 '+
-      (sc.items.ma20m==null?'—':sc.items.ma20m)+'/20；周线排列 '+(sc.items.week==null?'—':sc.items.week)+'/15。</div></div>'+
-    '<div class="box"><div class="bt">顶部风险</div>'+
-    '<div class="kv"><span class="k">总分</span><span class="v">'+(sc.top==null?'—':sc.top)+' / 100</span>'+
-    '<span class="k">风险提示</span><span class="v">'+(sc.top==null?'—':(sc.top>=80?'高位风险高':(sc.top>=60?'高位风险偏高':(sc.top>=40?'有警惕信号':'正常'))))+'</span>'+
-    '<span class="k">未接入</span><span class="v">'+sc.missTop+' 项（估值/龙头）</span></div>'+
-    '<div class="rs-note">月线顶背离 '+(sc.items.topDiv==null?'—':sc.items.topDiv)+'/30；跌破 10 月线 '+
-      (sc.items.break10m==null?'—':(sc.items.break10m?'是':'否'))+'；周线死叉 '+(sc.items.weekDeath==null?'—':sc.items.weekDeath)+'/15。'+
-      '<br>两张卡只解释强弱，不改目标；评级、上限、数量以顶部结论与明细表为准。</div></div></div>';
-
-  /* 4 结构图 */
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
-    '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
-    '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
-    '<div class="rs-note" id="rsChanNote">分型 → 笔 → 中枢 → 背驰 → 买卖点；不含线段与多级别递归。</div></div>'+
+  var paneScore='<div class="rs-two">'+
+    '<div class="box"><div class="bt">底部评分</div><div class="kv">'+
+      '<span class="k">总分</span><span class="v">'+(sc.bottom==null?'—':sc.bottom)+' / 100</span>'+
+      '<span class="k">评分卡参考</span><span class="v">'+(sc.bottom==null?'—':(sc.bottom>=60?'底部成立':'不构成底部'))+'</span>'+
+      '<span class="k">估值分位</span><span class="v">'+(rsValuationOf(code)||'未覆盖（行业 ETF 无指数估值）')+'</span>'+
+      '<span class="k">未接入</span><span class="v">'+sc.missBottom+' 项（估值/领先股/景气/资金）</span></div>'+
+      '<div class="rs-note">月线底背离 '+(sc.items.div==null?'—':sc.items.div)+'/25；月线倍量站上 20 月线 '+
+        (sc.items.ma20m==null?'—':sc.items.ma20m)+'/20；周线排列 '+(sc.items.week==null?'—':sc.items.week)+'/15。</div></div>'+
+    '<div class="box"><div class="bt">顶部风险</div><div class="kv">'+
+      '<span class="k">总分</span><span class="v">'+(sc.top==null?'—':sc.top)+' / 100</span>'+
+      '<span class="k">风险提示</span><span class="v">'+(sc.top==null?'—':(sc.top>=80?'高位风险高':(sc.top>=60?'高位风险偏高':(sc.top>=40?'有警惕信号':'正常'))))+'</span>'+
+      '<span class="k">未接入</span><span class="v">'+sc.missTop+' 项（估值/龙头）</span></div>'+
+      '<div class="rs-note">月线顶背离 '+(sc.items.topDiv==null?'—':sc.items.topDiv)+'/30；跌破 10 月线 '+
+        (sc.items.break10m==null?'—':(sc.items.break10m?'是':'否'))+'；周线死叉 '+(sc.items.weekDeath==null?'—':sc.items.weekDeath)+'/15。</div></div>'+
+    '</div>'+
     '<div class="box"><div class="bt">概率（历史相似条件）</div><div class="kpis">'+
       ['d5','d20','d60'].map(function(k){
         var it=f&&f[k];
         return '<div class="kpi"><div class="k">'+k.slice(1)+' 日上涨占比</div><div class="v">'+
           (it?f2(it.p)+'%':'—')+'</div><div class="d">'+(it?('样本 '+it.n):'样本不足')+'</div></div>';
       }).join('')+
-    '</div><div class="rs-note">'+(f&&f.d20?('20 日中位涨幅 '+f2(f.d20.med)+'%，样本区间 '+(f.d20.span||'—')):'样本不足 30 个，整列不显示')+
-    '；概率只作参考，不改评级、不改动作。</div></div></div>';
+    '</div><div class="rs-note">样本不足 30 时不显示；概率只作参考，不改评级与动作。</div></div>';
 
-  /* 5 怎么做 */
-  var conf=[];
-  if(l.ma10!=null&&n(l.last)>n(l.ma10)) conf.push('站上 10 日线');
-  if(l.ma20!=null&&n(l.ma5)>n(l.ma20)) conf.push('MACD/均线多头');
-  if(n(l.vol_ratio)>1.2) conf.push('量能放大');
-  h+='<div class="rs-grid2" style="margin-top:10px"><div class="box"><div class="bt">怎么做</div>'+
-    '<div class="kv"><span class="k">现 → 目标</span><span class="v">'+f2(row.weight)+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</span>'+
-    '<span class="k">差额</span><span class="v">'+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</span>'+
-    '<span class="k">确认条件</span><span class="v">'+esc(conf.join('、')||'不足 2 条')+'（需 ≥2 条）</span>'+
-    '<span class="k">分批</span><span class="v">'+esc(pr.pace||'—')+'</span></div>'+
-    '<div class="rs-note">挂单价 = 买 现价×1.0001（进位）/ 卖 现价×0.9999（截断），到 0.001；数量向下取整到 100 份；价格是执行价，不保证成交。</div></div>'+
-    '<div class="box"><div class="bt">改判</div><div class="rs-note" style="margin-top:0">'+
-    '转好：站上 20 日线且周线转多 → 评级重估，目标回到 '+(pr.target==null?'—':f2(pr.target)+'%')+'。<br>'+
-    '恶化：收盘连续两日跌破 30 日线'+(l.ma30!=null?('（'+f3(l.ma30)+'）'):'')+' → 卖出该只全部剩余差额。<br>'+
-    '<span class="muted">止损分两套：交易仓（C/B）破 10 日线 2 日出局；核心仓（A/S）破 20 日线 2 日减半、破 30 日线 2 日清差额、破 60 日线立即。</span></div></div></div>';
+  h+='<div class="rs-tabwrap">'+
+    '<div class="rs-tabs">'+
+      '<button type="button" class="on" data-t="ovw" onclick="rsTab(this)">概览</button>'+
+      '<button type="button" data-t="struct" onclick="rsTab(this)">结构与图</button>'+
+      '<button type="button" data-t="score" onclick="rsTab(this)">评分与概率</button>'+
+    '</div>'+
+    '<div class="rs-pane on" data-p="ovw">'+paneOvw+'</div>'+
+    '<div class="rs-pane" data-p="struct">'+paneStruct+'</div>'+
+    '<div class="rs-pane" data-p="score">'+paneScore+'</div>'+
+    '</div>';
 
   el.innerHTML=h;
+  setTimeout(rsBalanceWalls,0);
   rsDrawChart(code);
   setTimeout(function(){ if(RS_SELECTED) rsDrawChart(RS_SELECTED); },60);
 }
@@ -4509,7 +4777,11 @@ function rsDrawChart(code){
     chan.strokes.forEach(function(p,i){ if(i===0) ctx.moveTo(x(p.i),y(p.px)); else ctx.lineTo(x(p.i),y(p.px)); });
     ctx.stroke();
   }
-  function marker(i,label,up){ if(i>=n) return; var px=x(i),py=up?y(lows[i])+11:y(highs[i])-11;
+  var _mkLast=[];
+  function marker(i,label,up){ if(i>=n) return;
+    var px=Math.min(x(i),padL+plotW-18), py=up?y(lows[i])+11:y(highs[i])-11;
+    _mkLast.forEach(function(m){ if(Math.abs(m.px-px)<26&&m.up===up) py=m.py+(up?16:-16); });
+    _mkLast.push({px:px,py:py,up:up});
     ctx.fillStyle=up?'#148f5b':'#c0392b'; ctx.beginPath();
     if(up){ ctx.moveTo(px,py-7); ctx.lineTo(px-5,py); ctx.lineTo(px+5,py); }
     else { ctx.moveTo(px,py+7); ctx.lineTo(px-5,py); ctx.lineTo(px+5,py); }
@@ -4517,15 +4789,35 @@ function rsDrawChart(code){
     ctx.font='bold 9px ui-monospace,Menlo,monospace'; ctx.textAlign='center';
     ctx.fillText(label,px,up?py+11:py-3); ctx.textAlign='left'; }
   if(chan.signal) marker(chan.signal.i,chan.signal.label,chan.signal.up);
+  try{
+    var pts=rsChanPoints(chan,bars);
+    (pts.list||[]).forEach(function(p){ marker(p.i,p.label,p.up); });
+    var bd=rsBackdiv(chan,closes);
+    if(bd) marker(bd.i,bd.label,bd.up);
+  }catch(e){}
   var vmax=Math.max.apply(null,vols)||1, vBase=H-padB+12;
   bars.forEach(function(b,i){ var hh=b.v/vmax*volH; ctx.fillStyle=b.c>=b.o?'rgba(192,57,43,.5)':'rgba(20,143,91,.5)'; ctx.fillRect(x(i)-Math.max(1,step*0.35),vBase+volH-hh,Math.max(1,step*0.7),hh); });
   ctx.fillStyle='#94a3b8'; ctx.fillText('VOL',padL,vBase+9);
-  var note=document.getElementById('rsChanNote');
-  if(note){
-    var dTxt=chan.pivot?('中枢 '+chan.pivot.zd.toFixed(2)+' ~ '+chan.pivot.zg.toFixed(2)):'暂无有效中枢';
-    var sTxt=chan.signal?('当前信号：'+chan.signal.label):'当前无买卖点';
-    note.textContent='笔 '+chan.strokes.length+' 段 · '+dTxt+' · '+sTxt+
-      '；按日线分型→笔→中枢简化计算，不含线段与多级别递归。';
+  /* 图例说明：图上每个标记都能在上方「结构与图」的表格里找到对应一行 */
+  var cap=document.getElementById('rsChartNote');
+  if(cap){
+    var rows=bars;
+    var pt=null, vp=null, cd=null;
+    try{ pt=rsChanPoints(chan,rows); }catch(e){}
+    try{ vp=rsVolumePrice(rows); }catch(e){}
+    try{ cd=rsCandlePattern(rows); }catch(e){}
+    var bd=null;
+    try{ bd=rsBackdiv(chan,closes); }catch(e){}
+    var marks=[];
+    if(pt&&pt.list&&pt.list.length) marks=pt.list.map(function(m){ return m.label; });
+    var parts=[];
+    parts.push('图例：<b>灰折线</b>=笔 '+chan.strokes.length+' 段');
+    parts.push(chan.pivot?('<b>虚线框</b>=中枢 ZG '+f3(chan.pivot.zg)+' / ZD '+f3(chan.pivot.zd)):'<b>虚线框</b>=中枢（当前未形成）');
+    parts.push('<b>▲</b>=买点 <b>▼</b>=卖点'+(marks.length?('（'+marks.join('、')+'）'):'（当前无）'));
+    if(bd) parts.push('<b>三角</b>旁的「'+bd.label+'」= 面积背驰');
+    if(vp) parts.push('量价：'+esc(vp.text));
+    if(cd) parts.push('K 线形态：'+esc(cd.text));
+    cap.innerHTML=parts.join('｜')+'<br>以上标识与上方「三周期 / 缠论结构」表格同源；只解释结构，不改目标与订单。';
   }
   rsDrawMacd(closes);
 }
@@ -4594,6 +4886,145 @@ function rsChanOf(highs,lows,closes){
   return out;
 }
 
+/* ---------------- 借鉴 chanlun / 基本面 skill 的结构化判断 ---------------- */
+function _sym(v){ return v>0?'+':(v<0?'-':'0'); }
+
+/* 中枢类型：方向（与上一个中枢比）+ 形态（扩张/收窄） */
+function rsPivotType(chan){
+  var st=chan.strokes||[], cur=chan.pivot;
+  if(!cur) return {text:'尚未形成中枢',score:0};
+  var prev=null;
+  if(st.length>=8){
+    var p4=st.slice(-8,-4), hi3=[], lo3=[];
+    for(var t=0;t<3;t++){ var a=p4[t], b=p4[t+1];
+      hi3.push(Math.max(a.px,b.px)); lo3.push(Math.min(a.px,b.px)); }
+    var zg=Math.min.apply(null,hi3), zd=Math.max.apply(null,lo3);
+    if(zg>zd) prev={zg:zg,zd:zd};
+  }
+  var dir='横向中枢', score=0;
+  if(prev){
+    var c0=(prev.zg+prev.zd)/2, c1=(cur.zg+cur.zd)/2;
+    if(c1>c0*1.005){ dir='上涨中枢'; score=1; }
+    else if(c1<c0*0.995){ dir='下跌中枢'; score=-1; }
+  }
+  var shape='';
+  if(prev){
+    var w0=prev.zg-prev.zd, w1=cur.zg-cur.zd;
+    if(w1>w0*1.2) shape=' · 扩张（震荡加剧）';
+    else if(w1<w0*0.8) shape=' · 收窄（奔走，变盘前兆）';
+  }
+  return {text:dir+' '+f3(cur.zd)+'~'+f3(cur.zg)+shape, score:score};
+}
+
+/* 三类买卖点（简化）：一买=下跌背驰后新低；二买=回踩不破 ZD；三买=突破 ZG 后回踩不破 */
+function rsChanPoints(chan, rows){
+  var st=chan.strokes||[], pv=chan.pivot, sig=chan.signal;
+  var lows=rows.map(function(x){ return x.l; }), highs=rows.map(function(x){ return x.h; });
+  var last=rows[rows.length-1].c, out=[], marks=[], buy=false, sell=false;
+  function mark(i,label,up){ if(i>=0&&i<rows.length) marks.push({i:i,label:label,up:up}); }
+  var L=st.filter(function(p){ return p.kind==='L'; }), H=st.filter(function(p){ return p.kind==='H'; });
+  var belowZd=!!(pv&&last<pv.zd);
+  if(!belowZd&&sig&&sig.label==='底背驰'&&L.length>=2&&L[L.length-1].px<=L[L.length-2].px){
+    out.push('一买（下跌背驰后创新低，力度衰竭）'); buy=true;
+    mark(sig.i,'1买',true);
+  }
+  if(pv&&!belowZd){
+    var recentLow=lows.length?Math.min.apply(null,lows.slice(-5)):null;
+    if(recentLow!=null&&recentLow>=pv.zd*0.98&&recentLow<=pv.zd*1.02&&last>pv.zd){
+      out.push('二买（回踩不破 ZD '+f3(pv.zd)+'）'); buy=true;
+      mark(rows.length-1,'2买',true);
+    }
+    if(last>pv.zg&&recentLow!=null&&recentLow>=pv.zg*0.99){
+      out.push('三买（站上 ZG '+f3(pv.zg)+' 后回踩不破）'); buy=true;
+      mark(rows.length-1,'3买',true);
+    }
+  }
+  if(pv&&last<pv.zd){ out.push('三卖（跌破 ZD 后未能收回）'); sell=true;
+    mark(rows.length-1,'3卖',false); }
+  if(sig&&sig.label==='顶背驰'&&H.length>=2&&H[H.length-1].px>=H[H.length-2].px){
+    out.push('一卖（上涨背驰后创新高）'); sell=true;
+    mark(sig.i,'1卖',false);
+  }
+  return {text:out.length?out.join('；'):'无（既非背驰，也非三类买卖点）',
+          buy:buy, sell:sell, list:marks};
+}
+
+/* 量价状态：放量滞涨 / 放量下跌 / 缩量回踩 / 量价背离 */
+function rsVolumePrice(rows){
+  var n=rows.length;
+  if(n<21) return {text:'样本不足',score:0};
+  var v=rows.map(function(x){ return x.v; }), c=rows.map(function(x){ return x.c; });
+  var lastV=v[n-1], avg5=v.slice(-6,-1).reduce(function(a,b){ return a+b; },0)/5;
+  var vr=avg5>0?lastV/avg5:null;
+  var ret3=(c[n-1]/c[n-4]-1)*100;
+  var h20=Math.max.apply(null,c.slice(-20));
+  var ma20=c.slice(-20).reduce(function(a,b){ return a+b; },0)/20;
+  if(vr>=1.3&&ret3<=0.5) return {text:'放量滞涨（量比 '+f2(vr)+'，3 日 '+f2(ret3)+'%）',score:-1};
+  if(vr>=1.3&&ret3<-2) return {text:'放量下跌（量比 '+f2(vr)+'）',score:-1};
+  if(vr<=0.8&&ret3>-3&&c[n-1]>ma20) return {text:'缩量回踩（量比 '+f2(vr)+'，仍在 MA20 上）',score:1};
+  var hiVol=0, hiIdx=-1;
+  for(var i=n-20;i<n-1;i++){ if(c[i]>=h20*0.999){ hiVol=v[i]; hiIdx=i; break; } }
+  var atHigh=c[n-1]>=h20*0.999;                 /* 今天自己就是 20 日高点 */
+  if(atHigh&&hiVol>0&&lastV<hiVol*0.8)
+    return {text:'量价背离（价创新高，量只有前次 '+Math.round(lastV/hiVol*100)+'%）',score:-1};
+  if(!atHigh&&hiVol>0&&lastV<hiVol*0.8)
+    return {text:'缩量下行（未创新高，量能低于前次高点当日）',score:-1};
+  return {text:'量价正常（量比 '+f2(vr)+'）',score:0};
+}
+
+/* 最近三根 K 线形态（简化：不含缺口与量的确认） */
+function rsCandlePattern(rows){
+  var n=rows.length;
+  if(n<3) return {text:'样本不足',score:0};
+  var a=rows[n-3], b=rows[n-2], d=rows[n-1];
+  function body(x){ return x.c-x.o; }
+  var b1=body(a)/a.o*100, b2=body(b)/b.o*100, b3=body(d)/d.o*100;
+  if(b1<-1.2&&Math.abs(b2)<0.7&&b3>1.2&&d.c>(a.o+a.c)/2) return {text:'早晨之星（看涨）',score:1};
+  if(b1>1.2&&Math.abs(b2)<0.7&&b3<-1.2&&d.c<(a.o+a.c)/2) return {text:'黄昏之星（看跌）',score:-1};
+  if(body(a)<0&&body(d)>0&&d.o<=a.c&&d.c>=a.o) return {text:'看涨吞没',score:1};
+  if(body(a)>0&&body(d)<0&&d.o>=a.c&&d.c<=a.o) return {text:'看跌吞没',score:-1};
+  var lower=(Math.min(d.o,d.c)-d.l)/d.c, upper=(d.h-Math.max(d.o,d.c))/d.c;
+  if(lower>Math.abs(body(d))/d.c*2&&upper<0.3*lower) return {text:'锤子线（下影长，看涨）',score:1};
+  if(upper>Math.abs(body(d))/d.c*2&&lower<0.3*upper) return {text:'射击之星（上影长，看跌）',score:-1};
+  if(Math.abs(body(d))/d.c<0.0015) return {text:'十字星（多空平衡）',score:0};
+  return {text:'最近三根无典型形态',score:0};
+}
+
+/* 多维共振：结构 / 量价 / 形态 / 趋势 四个方向投票 */
+function rsConfluence(d){
+  var vals=[d.structure,d.volume,d.candle,d.trend];
+  var pos=vals.filter(function(v){ return v>0; }).length;
+  var neg=vals.filter(function(v){ return v<0; }).length;
+  var label=(pos>=3)?'四维偏多':(neg>=3)?'四维偏空':((pos&&neg)?'多维冲突':'中性');
+  return {text:label+'（结构 '+_sym(d.structure)+' · 量价 '+_sym(d.volume)+
+                ' · 形态 '+_sym(d.candle)+' · 趋势 '+_sym(d.trend)+'）',
+          score:pos-neg};
+}
+
+
+/* 面积背驰：最后两个同向笔之间，价格创新极值但 MACD 柱面积缩小 → 背驰 */
+function rsBackdiv(chan, closes){
+  if(!chan||!chan.strokes||chan.strokes.length<4) return null;
+  var macd=rsMacd(closes);
+  if(!macd||!macd.hist) return null;
+  var st=chan.strokes;
+  function area(a,b){
+    var s=0;
+    for(var i=Math.max(1,a);i<=Math.min(b,macd.hist.length-1);i++) s+=Math.abs(macd.hist[i]);
+    return s;
+  }
+  var last=st[st.length-1], prev=st[st.length-3];
+  if(!prev) return null;
+  var a0=area(prev.i, st[st.length-2] ? st[st.length-2].i : last.i);
+  var a1=area(st[st.length-2] ? st[st.length-2].i : last.i, last.i);
+  if(!(a0>0&&a1>0)) return null;
+  if(last.kind==='L'&&last.px<=prev.px&&a1<a0*0.8)
+    return {i:last.i,label:'底背驰',up:true};
+  if(last.kind==='H'&&last.px>=prev.px&&a1<a0*0.8)
+    return {i:last.i,label:'顶背驰',up:false};
+  return null;
+}
+
 /* 缠论展示层：把结构翻译成人话，并和持仓上下文（目标、评级、板块、大盘）对照。
    只解释动作，不改目标与订单——回测通过前不进入执行链。 */
 function rsChanText(code,l,pr,row){
@@ -4621,6 +5052,16 @@ function rsChanText(code,l,pr,row){
   }
   var sigTxt=sig?sig.label:'无（既非背驰也无买卖点）';
   var sigKind=sig?sig.label:null;
+
+  /* 借鉴两个 skill 的补充维度 */
+  var ma20=closes.slice(-20).reduce(function(a,b){ return a+b; },0)/Math.min(20,closes.length);
+  var ptype=rsPivotType(chan);
+  var pts=rsChanPoints(chan, rows);
+  var vp=rsVolumePrice(rows);
+  var cd=rsCandlePattern(rows);
+  var cf=rsConfluence({structure:(sigKind==='底背驰'||pts.buy)?1:(sigKind==='顶背驰'||pts.sell)?-1:0,
+                       volume:vp.score, candle:cd.score,
+                       trend:(last>ma20?1:(last<ma20?-1:0))});
 
   var act=pr.action, gap=pr.gap;
   var rel;
@@ -4650,7 +5091,7 @@ function rsChanText(code,l,pr,row){
   var sec=rsSectorMap(code)[0][0], f=rsFindFlow(sec);
   var rg=(D.market&&D.market.regime)||{};
   var ctx=(pr.grade?esc(pr.grade)+' 级 · 上限 '+(pr.cap==null?'—':pr.cap+'%'):'未评级')+
-    ' · 现仓 '+((row&&row.weight!=null)?f2(row.weight)+'%':'—')+
+    ' · 现仓 '+((pr&&pr.r&&pr.r.weight!=null)?f2(pr.r.weight)+'%':((row&&row.weight!=null)?f2(row.weight)+'%':'—'))+
     ' → 目标 '+(pr.target==null?'—':f2(pr.target)+'%')+
     ' · 板块 '+(sec==='未覆盖'?'未覆盖':esc(sec)+(f?'（成交占比 '+f2(f.share)+'%）':''))+
     ' · 大盘 '+esc(rg.regime||'未知');
@@ -4666,7 +5107,8 @@ function rsChanText(code,l,pr,row){
     conflict='缠论与目标同向或无冲突，按目标执行即可。';
 
   return {pivotTxt:pivotTxt,posTxt:posTxt,strokeTxt:strokeTxt,sigTxt:sigTxt,
-          rel:rel,ctx:ctx,conflict:conflict};
+          pivotTypeTxt:ptype.text,pointsTxt:pts.text,volTxt:vp.text,candleTxt:cd.text,
+          confTxt:cf.text,rel:rel,ctx:ctx,conflict:conflict};
 }
 
 function rsDrawMacd(closes){
@@ -4731,7 +5173,7 @@ function rsRenderSector(){
       '<span class="k">持有 / 有效只数</span><span class="v">'+RS_PORT.rows.length+' / '+(eff==null?'—':f2(eff))+'</span>'+
       '<span class="k">现金比例</span><span class="v">'+f2(RS_PORT.cashPct)+'%'+(n(RS_PORT.cashPct)<5?'（低于 5%）':'')+'</span>'+
       '<span class="k">TMT 合并（电子+计算机+通信）</span><span class="v">'+f2(tech)+'%'+(tech>35?'（超 35%）':'')+'</span>'+
-      '</div><div class="rs-note">暴露按**占持仓市值**计，现金单列；有效只数 = 1 ÷ HHI；TMT 合并按同主题口径看，半导体、科创与存储都在其中。</div>';
+      '</div>';
   }
   var readEl=document.getElementById('rsPortfolioRead');
   if(readEl){
@@ -4785,7 +5227,7 @@ function rsRenderSector(){
       var cls=x.chg==null?'':(x.chg>0?'up':(x.chg<0?'down':''));
       var gtag=x.grade
         ? ('<span class="tag '+(x.grade==='S'||x.grade==='A'?'buy':(x.grade==='D'?'sell':'hold'))+'">'+x.grade+'</span>'+
-           (x.missing?'<span class="muted"> 缺'+x.missing+'项</span>':''))
+           (x.missing?('<span class="muted"> 缺'+((x.missNames&&x.missNames.length)?x.missNames.join('/'):x.missing+'项')+'</span>'):''))
         : '—';
       return '<tr><td>'+esc(x.sector)+'</td>'+
         '<td class="r">'+(x.health==null?'—':x.health)+'</td>'+
@@ -4896,7 +5338,8 @@ function marketOutlook(){
     var oddsTxt=pos.odds==null?'—':f2(pos.odds,1)+' : 1';
     posTxt='近120日 高 '+f2(pos.high120)+' / 低 '+f2(pos.low120)+
       '；现价距高点 '+f2(pos.high_dist_pct)+'%、距低点 '+f2(pos.low_dist_pct)+'%；'+
-      '向上空间 '+f2(pos.up_room_pct)+'%、向下空间 '+f2(pos.down_room_pct)+'%，赔率 '+oddsTxt+'。';
+      '向上空间 '+f2(pos.up_room_pct)+'%、向下空间 '+f2(pos.down_room_pct)+'%，赔率 '+oddsTxt+
+      ((pos.odds!=null&&n(pos.odds)>10)?'（贴近前低，赔率失真，只说明位置便宜）':'')+'。';
   }
 
   /* 情景：触发值来自真实均线与区间，不用写死系数 */
@@ -4942,6 +5385,9 @@ function rsRenderMarket(){
       '<div class="kv">'+
       '<span class="k">MA5 / MA20 / MA60</span><span class="v">'+f2(v.ma5)+' / '+f2(v.ma20)+' / '+f2(v.ma60)+'</span>'+
       '<span class="k">仓位锚</span><span class="v">'+(D.plan&&D.plan.total_target!=null?f2(D.plan.total_target)+'%':((D.market.regime||{}).fit_lo==null?'—':(D.market.regime||{}).fit_lo+'~'+(D.market.regime||{}).fit_hi+'%'))+'</span>'+
+      (((D.market&&D.market.valuation&&D.market.valuation.items)||[]).map(function(x){
+        return '<span class="k">'+esc(x.k)+'</span><span class="v">'+esc(x.v)+(x.pos?'（'+esc(x.pos)+'）':'')+'</span>';
+      }).join(''))+
       '</div><div class="rs-note">'+esc(oddsNote)+'</div>';
   }
   var m=document.getElementById('rsMood');
@@ -5020,7 +5466,7 @@ function rsRenderReview(){
     '；目标变化 '+changed+' 只。快照只存在本机浏览器，对照的是计划，不是成交回报。</div>';
 }
 
-/* 新方向候选：从观察池动态生成，排除已持仓、同类别只留一只；
+/* 新方向候选：由研究范围生成，排除已持仓、同类别只留一只；
    额度不足时一律“观察”，不给买入建议，避免与组合层结论冲突。 */
 function buildIdeas(){
   var held={}; (HOLD.rows||[]).forEach(function(r){ held[String(r.code)]=1; });
@@ -5056,7 +5502,7 @@ function rsRenderIdeas(){
   if(!body) return;
   if(!RS_IDEAS.length) RS_IDEAS=buildIdeas();
   if(!RS_IDEAS.length){
-    body.innerHTML='<tr><td colspan="9" class="muted">观察池中没有满足条件的候选（板块 B 级以上、非持仓、近 5 日不弱于大盘、不含不碰名单）。</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="muted">当前研究范围（scope=holdings）不生成新方向候选。</td></tr>';
   }else{
   body.innerHTML=RS_IDEAS.map(function(x){
     var f=rsForecast(LBARS[x.code]);
@@ -5105,17 +5551,28 @@ function boot(){
     document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return;
   }
   D=window.DASHBOARD;
+  if(D.research&&D.research.proposal&&!D.plan){ D.plan=planFromResearch(D.research); }
   HOLD={rows:[],cash:0};
+  if(D.demo_positions){                       /* demo：明文持仓，不需要解锁 */
+    HOLD={rows:D.demo_positions.rows||[],cash:n(D.demo_positions.cash)};
+    var lk=document.getElementById('lock'); if(lk) lk.classList.remove('on');
+    document.querySelectorAll('.lock-only').forEach(function(e){e.classList.remove('hide');});
+  }
   draftReset();
   render();
-  /* 先画公开行情，再弹口令锁；解锁后才加载持仓并补实时价 */
-  autoUnlock();
+  /* 先画公开行情，再弹口令锁；解锁后才加载持仓并补实时价。
+     demo 模式持仓已在内存里，不再弹锁。 */
+  if(!D.demo_positions) autoUnlock();
   var saved=null;
   try{ saved=localStorage.getItem('sideCollapsed'); }catch(e){}
   /* 窄屏首次打开默认收起，避免导航挤占正文；用户手动切换后记住选择 */
   if(saved==null ? window.innerWidth<720 : saved==='1') setSide(true, false);
 }
-window.addEventListener('resize', function(){ layoutHeatmap(); });
+window.addEventListener('resize', function(){ layoutHeatmap();
+  clearTimeout(window.__balT); window.__balT=setTimeout(rsBalanceWalls,150);
+  clearTimeout(window.__chartT); window.__chartT=setTimeout(function(){
+    if(RS_SELECTED && document.getElementById('rsKline')) rsDrawChart(RS_SELECTED);
+  },180); });
 boot();
 
 </script>

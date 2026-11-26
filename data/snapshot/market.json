@@ -208,18 +208,8 @@
   "global": {
     "items": [
       {
-        "k": "纳斯达克",
-        "v": "+369939.29%",
-        "url": "https://finance.sina.com.cn/"
-      },
-      {
-        "k": "标普500",
-        "v": "+152905.71%",
-        "url": "https://finance.sina.com.cn/"
-      },
-      {
         "k": "道琼斯",
-        "v": "+1647584.67%",
+        "v": "+5884452.85%",
         "url": "https://finance.sina.com.cn/"
       }
     ]
@@ -398,5 +388,6 @@
       "chg": "-8",
       "url": "https://kuaixun.eastmoney.com/"
     }
-  ]
+  ],
+  "breadth_as_of": null
 }
