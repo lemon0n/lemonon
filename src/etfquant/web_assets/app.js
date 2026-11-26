@@ -278,7 +278,8 @@ function calcPort(){
       shares:shares,cost:cost,last:last,prev:prev,mv:mv,pnl:pnl,
       pnl_pct:(last!=null&&cost>0)?(last/cost-1)*100:null,
       day:day,priced:last!=null,settle:r.settle||'T+1',leg:legOf(r.code),
-      up5:(r.up5!=null?r.up5:null),up20:(r.up20!=null?r.up20:null)});
+      up5:(r.up5!=null?r.up5:null),up20:(r.up20!=null?r.up20:null),
+      quote_date:(legOf(r.code)||{}).data_date||(legOf(r.code)||{}).signal_date||r.quote_date||null});
   });
   var complete=missing.length===0;
   var totalAsset=complete?totalPos+n(HOLD.cash):null;
@@ -847,7 +848,7 @@ function page5CashOnly(h,p,s1,adv){
 }
 
 function page5(){
-  var h='<div class="pg-h"><h1>持仓分析</h1></div>';
+  var h='<div class="pg-h"><h1>持仓分析</h1></div>'+staleNotice();
   var p=calcPort(),s1=s1Position(p),adv=rows5adv(p,s1);
   PDEC=buildPdec(p,s1,adv);
   RS_PORT=p; RS_S1=s1; RS_ADV=adv; adv5RowsCache=adv.rows;
@@ -1011,7 +1012,7 @@ function calcBars(b){
   var falseOut=!!expand&&last<prev&&ma20!=null&&last<ma20;
   var pos20=(h20>l20)?(last-l20)/(h20-l20):null;
   var isLow=l20!=null&&last<=l20;
-  return {last:last,change:chg,
+  return {last:last,change:chg,signal_date:(b.dates&&b.dates.length?b.dates[b.dates.length-1]:null),
     ma5:ma5,ma10:ma10,ma20:ma20,ma60:ma60,ma120:ma120,
     days_above_ma5:days,below_ma10:below10,
     stand_back:ma5!=null&&last>ma5,
@@ -1038,7 +1039,9 @@ function localLeg(code,row){
   row=row||(HOLD.rows||[]).filter(function(x){ return String(x.code)===String(code); })[0]||{};
   return {code:String(code),name:nameOfRow(row),category:catOfRow(row),
     level:null,local:true,data_status:'DEGRADED',status:'DEGRADED',
-    last:k.last,change:k.change,five:k.five,ma_state:k.ma_state,
+    last:k.last,change:k.change,signal_date:k.signal_date,data_date:k.signal_date,
+    quote_fresh:(k.signal_date?k.signal_date>=(D.meta.expected_data_date||''):false),
+    five:k.five,ma_state:k.ma_state,
     ma5:k.ma5,ma10:k.ma10,ma20:k.ma20,ma60:k.ma60,ma120:k.ma120,
     vol:k.vol,vol_ratio:k.vol_ratio,expand:k.expand,shrink:k.shrink,
     days_above_ma5:k.days_above_ma5,below_ma10:k.below_ma10,stand_back:k.stand_back,
@@ -1656,10 +1659,28 @@ function planSection(compact){
   return h;
 }
 
+
+function staleNotice(){
+  var m=D.meta||{}, rq=(D.research&&D.research.meta&&D.research.meta.data_quality)||{};
+  if(!m.data_stale&&!rq.data_stale) return '';
+  var dates=Object.keys(rq.quote_dates||m.quote_dates||{}).map(function(k){
+    return (rq.quote_dates||m.quote_dates||{})[k];
+  }).filter(Boolean).sort();
+  var oldest=dates[0]||m.data_date||'未知';
+  var expected=rq.expected_session||m.expected_data_date||'未知';
+  var assets=(rq.stale_assets||[]).map(function(x){
+    return (x.symbol||'')+'（行情 '+(x.quote_date||'未知')+'，来源 '+(x.source||'未知')+'）';
+  }).join('、');
+  return '<div class="notice err"><b>行情不是当前交易日数据</b>：最早行情截至 '+esc(oldest)+
+    '，预期交易日 '+esc(expected)+'。页面保留这些历史数据供核对，'+
+    '但不会把它们标成实时，也不会据此生成可执行交易动作。'+
+    (assets?'<br>过期标的：'+esc(assets):'')+'</div>';
+}
+
 function page1(){
   var m=D.market, rg=m.regime, b=m.breadth, s=m.sentiment;
   var h='<div class="pg-h"><h1>市场概况</h1>'+
-    '</div>';
+    '</div>'+staleNotice();
   var snap=(D.meta&&D.meta.snapshot_date)||'';
   if(snap&&snap!==((D.meta&&D.meta.data_date)||'')){
     h+='<div class="notice">市场广度、情绪、快讯与政策热度来自离线快照 '+esc(snap)+
@@ -3049,7 +3070,8 @@ function rsPlanRowHTML(x){
   var srcTag=(x.item&&x.item.client)
     ?'<br><span class="muted">本地补算 · '+(x.item.score!=null?x.item.score+' 分 ':'')+(x.grade||'—')+' 级</span>'
     :(x.structTarget?'<br><span class="muted">结构参考目标</span>':'');
-  return '<tr><td>'+esc(r.name||r.code)+'<br><span class="muted">'+esc(r.code)+'</span></td>'+
+  return '<tr><td>'+esc(r.name||r.code)+'<br><span class="muted">'+esc(r.code)+
+    (r.quote_date?' · 行情 '+esc(r.quote_date):'')+'</span></td>'+
     '<td>'+esc(rsSectorLabel(r.code,r.name,r.category))+'</td>'+
     '<td class="r">'+f2(r.weight)+'% → '+(x.target==null?'—':f2(x.target)+'%')+srcTag+'</td>'+
     '<td class="r">'+sharesTxt+'</td>'+
@@ -3424,7 +3446,7 @@ function rsRenderDetail(){
       }
       return '<span class="rs-pill">'+(g||'—')+' 级 · 上限 '+(cp==null?'—':cp+'%')+'</span>';
     })()+
-    '<span class="rs-pill">现价 '+f3(l.last)+' · '+esc((D.meta&&D.meta.data_date)||'—')+'</span></div>'+
+    '<span class="rs-pill">现价 '+f3(l.last)+' · 行情 '+esc(l.signal_date||l.data_date||(D.meta&&D.meta.data_date)||'—')+'</span></div>'+
     '<div class="kpis">'+
       '<div class="kpi"><div class="k">仓位</div><div class="v">'+f2(curWeightOf(pr,row))+'% → '+(pr.target==null?'—':f2(pr.target)+'%')+'</div><div class="d">差额 '+(pr.gap==null?'—':(pr.gap>0?'+':'')+f2(pr.gap)+'pct')+'</div></div>'+
       '<div class="kpi"><div class="k">挂单价</div><div class="v">'+(o.limit!=null?f3(o.limit):'—')+'</div><div class="d">'+(o.note||'限价保护')+'</div></div>'+
@@ -4348,16 +4370,20 @@ function rsRenderIdeas(){
 function render(){
   if(!D){ document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return; }
   var src=D.meta.source||{};
-  var upd='最新更新 '+(D.meta.quote_at||D.meta.as_of)+(D.meta.quote_at?'（行情源时间）':'');
+  var stale=!!(D.meta.data_stale||(D.research&&D.research.meta&&D.research.meta.data_stale));
+  var live=!!(src.live&&!stale);
+  var upd=stale?('行情截至 '+(D.meta.data_date||'未知')+' · 非实时')
+               :(D.meta.quote_at?('行情源时间 '+D.meta.quote_at):('数据日 '+(D.meta.data_date||D.meta.as_of)));
   document.getElementById('updateTime').textContent=upd;
   document.getElementById('sideUpdate').textContent=(D.meta.data_date||D.meta.as_of);
   var b=document.getElementById('srcBadge');
   if(b){
-    b.textContent=src.live?'实时':'降级';
-    b.className='badge '+(src.live?'live':'degraded');
-    b.title=src.live?'日线、实时行情与基准指数均为真实数据'
-      :(src.synthetic?'关键通道回退离线合成快照（仅演示，不给可执行交易动作）'
-                     :'部分通道回退离线快照');
+    b.textContent=live?'实时':'降级';
+    b.className='badge '+(live?'live':'degraded');
+    b.title=live?'日线、实时行情与基准指数均为真实且当日数据'
+      :(stale?'行情日期早于预期交易日，或行情时间缺失；不得视为实时'
+             :(src.synthetic?'关键通道回退离线合成快照（仅演示，不给可执行交易动作）'
+                            :'部分通道回退离线快照'));
   }
   var sb=document.getElementById('statusBadge');
   if(sb){

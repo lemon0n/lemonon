@@ -91,20 +91,23 @@ def build_catalog(context: dict) -> dict[str, dict]:
         if not code:
             continue
         latest = asset.get('latest') or {}
+        asset_date = str(asset.get('as_of') or asset.get('quote_date') or date)[:10]
+        asset_source = asset.get('quote_source') or 'market_data'
         if latest.get('close') is not None:
-            catalog['price:%s:close:%s' % (code, date)] = entry(
-                'price', latest.get('close'), as_of=date, symbol=code, source='market_data',
-                text='%s 收盘价 %.3f（数据日 %s）' % (code, float(latest['close']), date))
+            catalog['price:%s:close:%s' % (code, asset_date)] = entry(
+                'price', latest.get('close'), as_of=asset_date, symbol=code, source=asset_source,
+                text='%s 收盘价 %.3f（行情日期 %s，来源 %s）'
+                     % (code, float(latest['close']), asset_date, asset_source))
         for name, val in (asset.get('features') or {}).items():
             if val is None:
                 continue
-            catalog['feature:%s:%s:%s' % (code, name, date)] = entry(
-                'feature', val, as_of=date, symbol=code, source='features',
+            catalog['feature:%s:%s:%s' % (code, name, asset_date)] = entry(
+                'feature', val, as_of=asset_date, symbol=code, source='features',
                 text='%s %s = %s' % (code, name, val))
         base = asset.get('quant_baseline') or {}
         if base.get('rule_action'):
-            catalog['baseline:%s:%s:%s' % (code, base.get('rule_action'), date)] = entry(
-                'baseline', base.get('rule_action'), as_of=date, symbol=code,
+            catalog['baseline:%s:%s:%s' % (code, base.get('rule_action'), asset_date)] = entry(
+                'baseline', base.get('rule_action'), as_of=asset_date, symbol=code,
                 source='quant_baseline',
                 text='%s 规则基线动作 %s（评分 %s）'
                      % (code, base.get('rule_action'), base.get('rule_score')))
@@ -120,8 +123,9 @@ def build_catalog(context: dict) -> dict[str, dict]:
         code = str(pos.get('symbol') or '')
         if not code or pos.get('weight') is None:
             continue
-        catalog['position:%s:weight:%s' % (code, date)] = entry(
-            'position', pos.get('weight'), as_of=date, symbol=code, source='portfolio',
+        pos_date = str(pos.get('quote_date') or date)[:10]
+        catalog['position:%s:weight:%s' % (code, pos_date)] = entry(
+            'position', pos.get('weight'), as_of=pos_date, symbol=code, source='portfolio',
             text='%s 当前权重 %.2f%%' % (code, float(pos['weight']) * 100))
 
     for thesis in context.get('previous_research') or []:

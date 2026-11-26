@@ -62,7 +62,8 @@ def complete_proposal(proposal: ProposalOutput, context: dict
         if code in by_symbol or weight is None:
             continue
         weight = float(weight)
-        ev_id = 'position:%s:weight:%s' % (code, date)
+        pos_date = str(pos.get('quote_date') or date)[:10]
+        ev_id = 'position:%s:weight:%s' % (code, pos_date)
         try:
             trade = TradeAdvice(
                 symbol=code, action=Action.HOLD,

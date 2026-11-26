@@ -82,6 +82,21 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
             loader.note_fallback('基准 %s 日线缺失' % bench_code)
         raw.append((r, bars, bench_code, b_bars))
     src = loader.source_report()
+    # 来源是 live 也可能返回旧日期（源站/代理缓存）：必须与运行日单独比对。
+    bench_fresh = quality.quote_freshness(
+        bench['date'].iloc[-1] if bench is not None and len(bench) else None,
+        now.isoformat())
+    spot_fresh = quality.check_quote_rows(spot_df, now.isoformat())
+    src['freshness'] = dict(benchmark=bench_fresh, spot=spot_fresh,
+                            expected_session=bench_fresh.get('expected_date'))
+    if use_live and (not bench_fresh.get('fresh') or not spot_fresh.get('fresh')):
+        src['degraded'] = True
+        src['live'] = False
+        loader.note_fallback(
+            '行情日期过期或缺失：基准 %s（预期 %s）、报价 %s（预期 %s），按降级处理'
+            % (bench_fresh.get('last_date') or '缺失', bench_fresh.get('expected_date'),
+               spot_fresh.get('last_date') or '缺失', spot_fresh.get('expected_date')))
+        src['fallback'] = list(loader.source_report().get('fallback') or [])
 
     # ---- 逐腿：数据质量 → 特征 → 相对强弱 → 唯一决策 ----
     legs, leg_payloads = [], []
@@ -89,8 +104,8 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
     for r, bars, bench_code, b_bars in raw:
         code = r['code']
         is_syn = (src.get('channels', {}).get('daily') or {}).get(code) != 'live'
-        q = quality.check_bars(bars, code, as_of=now.strftime('%Y-%m-%d'),
-                               is_synthetic=is_syn)
+        q = quality.check_quote_bars(bars, code, as_of=now.isoformat(),
+                                     is_synthetic=is_syn)
         try:
             f = analyze(bars, spot.loc[code], cfg)
         except Exception as e:
@@ -132,7 +147,9 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
     elif src.get('synthetic') and legs:
         # 有观察池时，任何一条腿用了合成快照就不能当作实时
         status = 'DEMO'
-    elif status == 'OK' and not src.get('index_live', False):
+    elif status == 'OK' and (not src.get('index_live', False)
+                             or not bench_fresh.get('fresh')
+                             or not spot_fresh.get('fresh')):
         status = 'DEGRADED'
 
     # ---- 元信息 ----
@@ -149,6 +166,14 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
         source=src, skipped=skipped,
         version='3.0', tz=cfg['schedule']['timezone'],
         status=status,
+        degraded=bool(src.get('degraded') or status in ('DEGRADED', 'ABSTAIN', 'ERROR')),
+        synthetic=bool(src.get('synthetic')),
+        data_stale=bool(not bench_fresh.get('fresh') or not spot_fresh.get('fresh')
+                        or any(not l['quality'].get('freshness', {}).get('fresh')
+                               for l in legs)),
+        expected_data_date=bench_fresh.get('expected_date'),
+        quote_dates=dict(src.get('channels', {}).get('daily_dates') or {}),
+        quote_at=max((src.get('channels', {}).get('spot_dates') or {}).values(), default=None),
         run_id=now.strftime('%Y%m%dT%H%M%S') + '-' + packet.input_hash(leg_payloads),
         benchmark_date=(bench['date'].iloc[-1].strftime('%Y-%m-%d')
                         if bench is not None and len(bench) else None),
@@ -161,7 +186,14 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
                            / max(1, len(legs)), 1),
         synthetic_fields=[c for c, v in (src.get('channels', {}).get('daily') or {}).items()
                           if v == 'snapshot'],
-        stale_fields=[l['code'] for l in legs if any('距' in b for b in l['quality']['blocking'])],
+        stale_fields=([l['code'] for l in legs
+                       if (l['quality'].get('freshness') or {}).get('status') != 'FRESH']
+                      + ([] if bench_fresh.get('fresh') else ['benchmark:000300'])
+                      + ([] if spot_fresh.get('fresh') else ['spot'])),
+        freshness=src.get('freshness'),
+        expected_data_date=bench_fresh.get('expected_date'),
+        quote_dates=dict(src.get('channels', {}).get('daily_dates') or {}),
+        quote_at=max((src.get('channels', {}).get('spot_dates') or {}).values(), default=None),
         conflicts=list(src.get('fallback') or []),
         blockers=[b for l in legs for b in l['quality']['blocking']],
         premium_ok=bool(src.get('premium_ok')),
@@ -245,7 +277,15 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
         # 发布产物与页面必须来自同一次运行，供 run_update --verify 比对
         packet.write(pkt, path=os.path.join(config.WEB, 'analysis_packet.json'))
 
-    return dict(date=meta['run_date'], data_date=meta['data_date'],
+    return dict(date=meta['run_date'], run_date=meta['run_date'], data_date=meta['data_date'],
+                expected_data_date=meta.get('expected_data_date'),
+                data_stale=bool(meta.get('data_stale')),
+                quote_dates=dict(meta.get('quote_dates') or {}),
+                stale_assets=[dict(symbol=l['code'], quote_date=l['quality'].get('last_date'),
+                                   expected_date=(l['quality'].get('freshness') or {}).get('expected_date'),
+                                   source=(src.get('channels', {}).get('daily_vendor') or {}).get(l['code']))
+                              for l in legs
+                              if not (l['quality'].get('freshness') or {}).get('fresh')],
                 status=status, run_id=meta['run_id'], mode=meta['mode'],
                 input_hash=pkt.get('input_hash'), config_hash=pkt.get('config_hash'),
                 levels=len(legs),
@@ -254,7 +294,8 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
                 action_count={a: sum(1 for l in legs if l['decision']['action'] == a)
                               for a in ('CLEAR', 'TRIM', 'ADD', 'HOLD', 'ABSTAIN')},
                 orders=sum(1 for l in legs if l['decision']['action'] in ('CLEAR', 'TRIM', 'ADD')),
-                source=src, degraded=src['degraded'], synthetic=src.get('synthetic', False),
+                source=src, degraded=bool(src.get('degraded') or status == 'DEGRADED'),
+                synthetic=src.get('synthetic', False),
                 skipped=skipped, validation=chk,
                 html=(out or {}).get('path'), html_bytes=(out or {}).get('bytes', 0),
                 legs=(out or {}).get('legs', len(legs)),

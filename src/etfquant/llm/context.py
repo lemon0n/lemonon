@@ -101,6 +101,11 @@ def asset_from_leg(leg: dict, *, date: str, recent_bars: int,
         benchmark=leg.get('benchmark'),
         as_of=q.get('last_date') or date,
         quality_status=q.get('status'),
+        quote_date=q.get('last_date') or date,
+        quote_source=q.get('source') or leg.get('quote_source'),
+        quote_fresh=bool((q.get('freshness') or {}).get('fresh')),
+        quote_expected_date=(q.get('freshness') or {}).get('expected_date'),
+        quality_warnings=list(q.get('warnings') or []),
         latest=dict(close=last, amount=_num(f.get('amount'), 0),
                     premium_rate=_pct(f.get('premium_pct'))),
         features=dict(
@@ -173,7 +178,10 @@ def portfolio_block(snapshot, statements=None) -> dict:
             cost=_num(row.get('cost'), 4),
             last=_num(row.get('last'), 4),
             pnl_pct=_pct(row.get('pnl_pct')),
-            day_pct=_pct(row.get('day_pct'))))
+            day_pct=_pct(row.get('day_pct')),
+            quote_date=row.get('quote_date'),
+            quote_source=row.get('quote_source'),
+            quote_fresh=row.get('quote_fresh')))
     total_asset = _num(snap.get('total_asset'), 2)
     cash = _num(snap.get('cash'), 2)
     return dict(
@@ -191,6 +199,8 @@ def portfolio_block(snapshot, statements=None) -> dict:
         current_drawdown=_num(snap.get('drawdown'), 4),
         recent_turnover=_num(snap.get('recent_turnover'), 4),
         statements=list(statements or []),
+        as_of=snap.get('as_of'),
+        price_dates=dict(snap.get('price_dates') or {}),
         note=('公开观察模式：未提供持仓，组合段为空' if not positions else ''),
     )
 
@@ -230,6 +240,9 @@ def build(*, as_of: str, trade_date: str, data_date: str, mode: str,
                   generated_at=datetime.now().isoformat(timespec='seconds')),
         quality=dict(status=(quality or {}).get('status'),
                      issues=list((quality or {}).get('issues') or []),
+                     stale_assets=list((quality or {}).get('stale_assets') or []),
+                     quote_dates=dict((quality or {}).get('quote_dates') or {}),
+                     expected_session=(quality or {}).get('expected_session'),
                      source_timestamps=dict((quality or {}).get('source_timestamps') or {})),
         portfolio=portfolio or dict(complete=False, nav=None, cash=None,
                                     positions=[], note='未提供持仓'),

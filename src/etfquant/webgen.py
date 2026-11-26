@@ -114,11 +114,10 @@ def _brief(data_date):
         return None
     return dict(data_date=d.get('data_date'), conclusion=conclusion.strip(), blocks=blocks)
 
-def _research(data_date):
-    """读取 LLM 研究层最近一次发布的载荷（llm/storage.publish_latest 写的）。
+def _research(data_date, run_id=None):
+    """只读取**本次运行**发布的载荷；旧日期或旧 run_id 一律不展示。
 
-    日期不一致时仍然显示，但标记 stale：执行书 0.4 要求「保留上一份建议并醒目标注
-    历史建议，非本次研究结果」，不允许把它当成今天的研究。
+    用户只要最新分析，不保留上一交易日研究，避免历史建议被误认为本次结论。
     """
     path = os.path.join(config.ROOT, 'data', 'research_latest.json')
     try:
@@ -131,8 +130,11 @@ def _research(data_date):
         return None
     payload = dict(payload)
     meta = dict(payload.get('meta') or {})
-    meta['stale'] = bool(data_date and meta.get('data_date')
-                         and str(meta.get('data_date')) != str(data_date))
+    if data_date and str(meta.get('data_date')) != str(data_date):
+        return None
+    if run_id and str(meta.get('run_id') or '') != str(run_id):
+        return None
+    meta['stale'] = False
     meta['latest_file'] = True
     payload['meta'] = meta
     return payload
@@ -261,6 +263,9 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
             code=l['code'], name=l['name'], category=l['category'],
             track=l.get('track', ''), benchmark=l.get('benchmark'),
             status=dec['status'], data_status=q['status'], data_date=q['last_date'],
+            quote_source=q.get('source') or l.get('quote_source'),
+            quote_fresh=bool((q.get('freshness') or {}).get('fresh')),
+            quote_expected_date=(q.get('freshness') or {}).get('expected_date'),
             level=dec['level'], action=dec['action'],
             action_text=M.load()['actions'].get(dec['action'], dec['action']),
             rule_ids=dec['rule_ids'], hits=dec['hits'], blocked_by=dec['blocked_by'],
@@ -323,6 +328,12 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         meta=dict(as_of=meta['as_of'], data_date=meta.get('data_date', ''),
                   run_date=meta.get('run_date', ''), mode=meta.get('mode', 'live'),
                   status=meta.get('status', 'OK'), run_id=meta.get('run_id'),
+                  degraded=bool(meta.get('degraded') or meta.get('status') != 'OK'),
+                  synthetic=bool(meta.get('synthetic')),
+                  data_stale=bool(meta.get('data_stale')),
+                  expected_data_date=meta.get('expected_data_date'),
+                  quote_dates=dict(meta.get('quote_dates') or {}),
+                  quote_at=meta.get('quote_at'),
                   source=meta['source'], skipped=meta.get('skipped', []),
                   version=meta.get('version', '3.0'),
                   dashboard_version='4.0',
@@ -377,7 +388,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
             correlation=(cfg.get('risk') or {}).get('correlation') or {},
         ),
         decision=decision,
-        research=_research(meta.get('data_date')),
+        research=_research(meta.get('data_date'), meta.get('run_id')),
     )
 
 

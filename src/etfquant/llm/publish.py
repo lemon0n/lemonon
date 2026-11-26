@@ -136,13 +136,33 @@ def page_payload(final: FinalPlan, *, research=None, redteam=None, revised=None,
                      invalidation=list(t.get('invalidation') or []))
                 for t in (context.get('previous_research') or [])])
 
+    cmeta = context.get('meta') or {}
+    quality = context.get('quality') or {}
+    source = cmeta.get('source') or {}
+    stale_assets = [dict(symbol=x.get('symbol'), quote_date=x.get('quote_date'),
+                         expected_date=x.get('expected_date'), source=x.get('source'))
+                    for x in quality.get('stale_assets') or []]
+    data_quality = dict(
+        status=quality.get('status'), stale_assets=stale_assets,
+        quote_dates=dict(quality.get('quote_dates') or {}),
+        expected_session=quality.get('expected_session'),
+        degraded=bool(cmeta.get('degraded') or quality.get('status') != 'OK'),
+        synthetic=bool(cmeta.get('synthetic')),
+        data_stale=bool(cmeta.get('data_stale') or stale_assets),
+        source_live=bool(source.get('live')),
+        fallback=list(source.get('fallback') or []))
     return dict(
         meta=dict(as_of=final.as_of, trade_date=final.trade_date,
-                  data_date=(context.get('meta') or {}).get('data_date'),
+                  data_date=cmeta.get('data_date'),
+                  run_date=cmeta.get('run_date'),
+                  expected_data_date=cmeta.get('expected_data_date'),
                   status=final.status, provider=provider_label,
-                  snapshot_hash=(context.get('meta') or {}).get('snapshot_hash'),
+                  snapshot_hash=cmeta.get('snapshot_hash'),
                   executable=final.status == 'APPROVED',
                   contains_positions=bool((context.get('portfolio') or {}).get('positions')),
+                  data_quality=data_quality,
+                  degraded=data_quality['degraded'], synthetic=data_quality['synthetic'],
+                  data_stale=data_quality['data_stale'],
                   note=('订单为草案，第一阶段不连接券商' if final.status == 'APPROVED'
                         else '本次无可执行建议')),
         core=core,

@@ -28,6 +28,9 @@ STATE = {
     'index_daily': {},    # code -> 'live' | 'snapshot'
     'fallback': [],
     'daily_vendor': {},
+    'daily_dates': {},
+    'index_daily_dates': {},
+    'spot_dates': {},
     'spot_vendor': None,
 }
 
@@ -48,7 +51,10 @@ def reset(live_mode=True):
     MODE['live'] = bool(live_mode)
     STATE['daily'].clear()
     STATE['daily_vendor'].clear()
+    STATE['daily_dates'].clear()
     STATE['index_daily'].clear()
+    STATE['index_daily_dates'].clear()
+    STATE['spot_dates'].clear()
     STATE['spot_vendor'] = None
     STATE['fallback'] = []
     for k in ('spot', 'sector', 'market', 'indices'):
@@ -62,6 +68,31 @@ def note_fallback(msg):
     if msg not in STATE['fallback']:
         STATE['fallback'].append(msg)
 
+
+
+def _last_date(df) -> str | None:
+    if df is None or 'date' not in getattr(df, 'columns', []) or not len(df):
+        return None
+    try:
+        value = df['date'].max()
+        return str(value)[:10] if value is not None else None
+    except Exception:
+        return None
+
+
+def _spot_dates(df) -> dict:
+    out = {}
+    if df is None or 'as_of' not in getattr(df, 'columns', []):
+        return out
+    for _, row in df.iterrows():
+        code = str(row.get('code') or '')
+        stamp = str(row.get('as_of') or '').strip()[:19]
+        if len(stamp) == 14 and stamp.isdigit():
+            stamp = '%s-%s-%s %s:%s:%s' % (stamp[:4], stamp[4:6], stamp[6:8],
+                                           stamp[8:10], stamp[10:12], stamp[12:14])
+        if code and stamp:
+            out[code] = stamp
+    return out
 
 def daily(code, live_=None):
     """日线：真实源（东财→腾讯→新浪）优先，失败降级离线快照。"""
@@ -79,6 +110,7 @@ def daily(code, live_=None):
                 df.to_csv(os.path.join(config.CACHE, 'daily_%s.csv' % code), index=False)
                 STATE['daily'][code] = 'live'
                 STATE['daily_vendor'][code] = live.LAST_DAILY_SOURCE or 'akshare'
+                STATE['daily_dates'][code] = _last_date(df)
                 _CACHE['daily'][code] = df
                 return df.copy()
             except Exception as e:
@@ -87,6 +119,7 @@ def daily(code, live_=None):
     STATE['daily_vendor'][code] = 'snapshot'
     note_fallback('%s 日线降级离线合成快照' % code)
     df = snapshot.daily(code)
+    STATE['daily_dates'][code] = _last_date(df)
     _CACHE['daily'][code] = df
     return df.copy()
 
@@ -106,6 +139,7 @@ def index_daily(code, live_=None):
             try:
                 df = validate_bars(df, 'index:%s' % code)
                 STATE['index_daily'][code] = 'live'
+                STATE['index_daily_dates'][code] = _last_date(df)
                 _CACHE['index_daily'][code] = df
                 return df.copy()
             except Exception as e:
@@ -113,6 +147,7 @@ def index_daily(code, live_=None):
     STATE['index_daily'][code] = 'snapshot'
     note_fallback('基准 %s 日线降级离线快照' % code)
     df = snapshot.index_daily(code)
+    STATE['index_daily_dates'][code] = _last_date(df)
     _CACHE['index_daily'][code] = df
     return df.copy()
 
@@ -133,6 +168,7 @@ def spot(codes=None, live_=None):
             df['code'] = df['code'].astype(str).str.zfill(6)
             STATE['spot'] = 'live'
             STATE['spot_vendor'] = live.LAST_SPOT_SOURCE or 'akshare'
+            STATE['spot_dates'] = _spot_dates(df)
             _CACHE['spot'] = df
             return df.copy()
         note_fallback('实时行情（东财/腾讯/新浪）均失败')
@@ -140,6 +176,7 @@ def spot(codes=None, live_=None):
     STATE['spot_vendor'] = 'snapshot'
     note_fallback('实时行情降级离线合成快照')
     df = snapshot.spot()
+    STATE['spot_dates'] = _spot_dates(df)
     _CACHE['spot'] = df
     return df.copy()
 
@@ -190,14 +227,17 @@ def source_report():
     channels = {
         'daily': dict(STATE['daily']),
         'daily_vendor': dict(STATE['daily_vendor']),
+        'daily_dates': dict(STATE['daily_dates']),
         'spot': STATE['spot'],
         'spot_vendor': STATE['spot_vendor'],
+        'spot_dates': dict(STATE['spot_dates']),
         'index_daily': dict(STATE['index_daily']),
+        'index_daily_dates': dict(STATE['index_daily_dates']),
         'sector': STATE['sector'],
         'indices': STATE['indices'],
         'market': STATE['market'],
     }
-    daily_live = bool(STATE['daily']) and all(v == 'live' for v in STATE['daily'].values())
+    daily_live = all(v == 'live' for v in STATE['daily'].values())
     index_live = bool(STATE['index_daily']) and all(v == 'live' for v in STATE['index_daily'].values())
     spot_live = STATE['spot'] == 'live'
     synthetic = (not daily_live) or (not spot_live) or (not index_live)

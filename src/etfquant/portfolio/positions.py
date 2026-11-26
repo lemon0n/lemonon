@@ -297,6 +297,9 @@ def market_value(port, last_of, names=None):
             shares=shares, cost=cost, last=last, mv=mv, pnl=pnl,
             pnl_pct=(last / cost - 1) * 100 if (last is not None and cost > 0) else None,
             day_pct=(float(q.get('change_pct')) if q and q.get('change_pct') is not None else None),
+            quote_date=(q.get('quote_date') if q else None),
+            quote_source=(q.get('quote_source') if q else None),
+            quote_fresh=(q.get('quote_fresh') if q else None),
             settle=r.get('settle', 'T+1'), priced=last is not None))
 
     cash = float(port.get('cash') or 0)
@@ -332,5 +335,6 @@ def market_value(port, last_of, names=None):
         if (complete and total_asset > 0) else None,
         pnl=sum(pnl_vals) if pnl_vals else None, pnl_pct=pnl_pct,
         unclassified=[x['code'] for x in rows if x['category'] == UNCLASSIFIED],
-        as_of=None,
+        price_dates={x['code']: x.get('quote_date') for x in rows if x.get('quote_date')},
+        as_of=min([x['quote_date'] for x in rows if x.get('quote_date')], default=None),
     )

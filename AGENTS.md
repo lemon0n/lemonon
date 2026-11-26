@@ -65,6 +65,8 @@ bash scripts/daily.sh
 4. 风控退回就改建议，**不要**放宽 `config/risk_policy.yaml` 来让它通过。
 5. 不要手改 `data/runs/*/06_final_plan.json`、`data/research_latest.json`（改了无法重放）。
 6. 模型/代理不可用时状态就是 `LLM_FAILED`，页面不会用规则模板冒充研究结论。
+7. **行情日期必须与运行日比对**：来源即使是 live，日期早于预期交易日也按降级处理；
+   页面、报告、`last_run.json` 与提交说明必须写真实行情日期，不得标「实时」。
 
 > **研究范围**由 `config/llm.yaml → research.scope` 决定，默认 `holdings`：只看你自己的持仓，
 > `config/universe.yaml` 的公开观察池不参与研究，也不能据此新建仓。
@@ -88,13 +90,14 @@ echo '你的口令' > positions/.passphrase          # 方式二：本地文件�
 
 ## 收工前验收（30 秒）
 
-1. `python -m pytest -q` → 全绿（当前 262 项）。
+1. `python -m pytest -q` → 全绿（当前 273 项）。
 2. 打开 `web/index.html`：
    - 三个标签在：市场概况 / 持仓分析 / 持仓设置；
    - 持仓分析是「一、持仓概况 → 二、持仓分析 → 三、市场洞察」；
    - 个股卡三个选项卡能切换，「结构与图」里有 K 线与图例。
 3. 对账：总资产 = 持仓市值 + 现金；目标合计 + 现金 = 100%；页面现价 = 明细表现价。
-4. 数据日：`data/last_run.json` 的 `data_date` 与页面一致；广度不是当天时页面会标「广度数据截至 X」。
+4. 数据日：`data/last_run.json` 的 `data_date` 是**实际行情日期**，`run_date` 是运行日；
+   `data_stale=true` 时页面必须标「行情截至 X · 非实时」，`degraded=true`、`source.live=false`。
 
 完整清单与排查方法见 [系统手册 §7.4–§9](docs/系统手册.md)。
 

@@ -42,7 +42,7 @@ def collect(port: dict, cfg: dict, as_of: str = '') -> dict:
             continue
         name = str(row.get('name') or code)
         is_syn = (loader.source_report().get('channels', {}).get('daily') or {}).get(code) != 'live'
-        q = quality_mod.check_bars(df, code, as_of=as_of, is_synthetic=is_syn)
+        q = quality_mod.check_quote_bars(df, code, as_of=as_of, is_synthetic=is_syn)
         spot = dict(code=code, name=name, last=float(df['close'].iloc[-1]),
                     change_pct=0.0, premium_pct=None, premium_available=False)
         feature = analyze(df, spot, cfg)
@@ -61,10 +61,17 @@ def collect(port: dict, cfg: dict, as_of: str = '') -> dict:
                          track=None, benchmark=bench_code,
                          settle=row.get('settle', 'T+1'),
                          feature=feature, rs=rs, decision=decision, quality=q,
+                         quote_date=q.get('last_date'),
+                         quote_source=((loader.source_report().get('channels', {}).get('daily_vendor') or {}).get(code)
+                                       or ('snapshot' if is_syn else 'live')),
+                         quote_fresh=bool((q.get('freshness') or {}).get('fresh')),
                          price=dict(side='', entry=feature.get('last'))))
         bars_by_code[code] = df
         last_of[code] = dict(last=feature.get('last'),
-                             change_pct=feature.get('change_pct') or 0.0)
+                             change_pct=feature.get('change_pct') or 0.0,
+                             quote_date=q.get('last_date'),
+                             quote_source=legs[-1]['quote_source'],
+                             quote_fresh=legs[-1]['quote_fresh'])
         qmap[code] = q
 
     snap = positions_mod.market_value(port, last_of) if port else None
@@ -72,7 +79,7 @@ def collect(port: dict, cfg: dict, as_of: str = '') -> dict:
         snap['as_of'] = max([q['last_date'] for q in qmap.values() if q.get('last_date')]
                             or ['']) or None
     return dict(legs=legs, snapshot=snap, bars_by_code=bars_by_code,
-                missing=missing, quality=qmap)
+                missing=missing, quality=qmap, source=loader.source_report())
 
 
 def load(cfg: dict | None = None, as_of: str = '') -> dict | None:

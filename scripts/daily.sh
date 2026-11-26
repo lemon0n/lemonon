@@ -65,9 +65,13 @@ if not os.path.exists(p):
     print('{"error": "data/last_run.json 不存在，说明还没跑过 finish"}')
     raise SystemExit(0)
 d = json.load(open(p, encoding='utf-8'))
-keep = ('ok', 'status', 'data_date', 'degraded', 'synthetic', 'levels',
-        'level_count', 'action_count', 'orders', 'fallback', 'validation', 'run_id', 'html')
-print(json.dumps({k: d.get(k) for k in keep}, ensure_ascii=False, indent=2))
+keep = ('ok', 'status', 'data_date', 'run_date', 'expected_data_date',
+        'data_stale', 'quote_dates', 'stale_assets', 'degraded', 'synthetic',
+        'levels', 'level_count', 'action_count', 'orders', 'fallback',
+        'validation', 'run_id', 'html')
+out = {k: d.get(k) for k in keep}
+out['source_live'] = (d.get('source') or {}).get('live')
+print(json.dumps(out, ensure_ascii=False, indent=2))
 PY
       exit 0
     fi

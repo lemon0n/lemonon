@@ -52,6 +52,21 @@ def render(final: FinalPlan, research=None, context: dict | None = None) -> str:
     lines.append('> 状态：**%s**　研究时点：%s　研究模式：%s'
                  % (status_cn.get(final.status, final.status), final.as_of,
                     (context.get('meta') or {}).get('mode', 'live')))
+    meta = context.get('meta') or {}
+    quality = context.get('quality') or {}
+    dates = sorted(x for x in (quality.get('quote_dates') or {}).values() if x)
+    lines.append('')
+    lines.append('- 运行日：%s；行情日期：%s；预期交易日：%s'
+                 % (meta.get('run_date') or final.trade_date,
+                    ' / '.join(dates) if dates else (meta.get('data_date') or '未知'),
+                    quality.get('expected_session') or meta.get('expected_data_date') or '未知'))
+    if quality.get('status') != 'OK' or meta.get('data_stale'):
+        lines.append('- 数据状态：**%s**；过期或日期缺失的行情不得标为实时，也不生成可执行交易动作。'
+                     % quality.get('status'))
+    for item in quality.get('stale_assets') or []:
+        lines.append('- 过期标的：%s，行情 %s，预期 %s，来源 %s'
+                     % (item.get('symbol'), item.get('quote_date') or '未知',
+                        item.get('expected_date') or '未知', item.get('source') or '未知'))
     lines.append('')
 
     if final.status in ('LLM_FAILED', 'ABSTAIN'):

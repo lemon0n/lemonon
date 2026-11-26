@@ -99,8 +99,8 @@ def build_context(collected: dict, *, settings: dict | None = None,
     scope = str((settings.get('research') or {}).get('scope', 'holdings')).strip()
     holdings_only = scope != 'holdings+watchlist'
     try:
-        held = None if snapshot is not None else holdings.load(collected.get('cfg'),
-                                                              as_of=data_date)
+        held = None if snapshot is not None else holdings.load(
+            collected.get('cfg'), as_of=meta.get('run_date') or meta.get('as_of') or data_date)
     except Exception as exc:
         held = None
         held_note.append('持仓取数失败：%s' % exc)
@@ -117,6 +117,7 @@ def build_context(collected: dict, *, settings: dict | None = None,
                                  if c not in bars_by_code})
         snapshot = held['snapshot'] or snapshot
         held_note.extend(held.get('missing') or [])
+        src = held.get('source') or src
     elif snapshot is None:
         snapshot = portfolio_from_legs(legs, collected.get('cfg'))
         if holdings_only:
@@ -145,9 +146,16 @@ def build_context(collected: dict, *, settings: dict | None = None,
             q_status = 'DEMO'
     else:
         q_status = meta.get('status')
+    stale_assets = [dict(symbol=a['symbol'], quote_date=a.get('quote_date'),
+                         expected_date=a.get('quote_expected_date'),
+                         source=a.get('quote_source'), warnings=a.get('quality_warnings') or [])
+                    for a in assets if not a.get('quote_fresh')]
     quality = dict(
         status=q_status,
         issues=list(src.get('fallback') or []) + held_note,
+        stale_assets=stale_assets,
+        quote_dates={a['symbol']: a.get('quote_date') for a in assets},
+        expected_session=(meta.get('expected_data_date')),
         source_timestamps=dict(channels=src.get('channels') or {},
                                checked_at=src.get('checked_at')))
 
@@ -169,6 +177,14 @@ def build_context(collected: dict, *, settings: dict | None = None,
     context['focus_questions'] = context_mod.build_focus_questions(
         context, int(ctx_cfg.get('max_focus_questions', 8)))
     context['evidence_catalog'] = evidence_mod.build_catalog(context)
+    context['meta'].update(
+        run_date=meta.get('run_date') or context['meta'].get('trade_date'),
+        expected_data_date=meta.get('expected_data_date'),
+        degraded=bool(meta.get('degraded') or q_status != 'OK'),
+        synthetic=bool(meta.get('synthetic')),
+        data_stale=bool(meta.get('data_stale') or stale_assets),
+        quote_dates={a['symbol']: a.get('quote_date') for a in assets},
+        source=src)
     context['meta']['snapshot_hash'] = evidence_mod.snapshot_hash(
         {k: v for k, v in context.items() if k != 'meta'})
     context['meta']['evidence_count'] = len(context['evidence_catalog'])
@@ -459,7 +475,8 @@ def finish(run_dir: str, *, output_path: str | None = None,
     page = _render_page(run_dir, payload) if render else None
     last_run = _write_last_run(run_dir, payload, page or {}, trade_date) if page else None
     pushed = _git_push(dict(data_date=trade_date, status=result['final'].status,
-                            degraded=False)) if push else False
+                            degraded=bool((payload.get('meta') or {}).get('degraded')),
+                            synthetic=bool((payload.get('meta') or {}).get('synthetic')))) if push else False
     return dict(provider='agent', run_id=run_id, run_dir=run_dir, trade_date=trade_date,
                 final=result['final'], payload=payload, page=page,
                 last_run=last_run, pushed=pushed, status=result['final'].status)
@@ -522,6 +539,15 @@ def _render_page(run_dir: str, payload: dict):
     out = webgen.render(data, data.get('trading'))
     pkt = storage.load_run(run_dir, 'packet.json') or {}
     if pkt:
+        dq = (payload.get('meta') or {}).get('data_quality') or {}
+        if dq.get('degraded'):
+            pkt['status'] = 'DEGRADED'
+            pkt.setdefault('data_quality', {}).update(
+                status='DEGRADED', research_quality=dq,
+                stale_fields=sorted(set(list((pkt.get('data_quality') or {}).get('stale_fields') or []) +
+                                           [x.get('symbol') for x in dq.get('stale_assets') or []])),
+                expected_data_date=(payload.get('meta') or {}).get('expected_data_date'),
+                quote_dates=dict(dq.get('quote_dates') or {}))
         pkt.setdefault('extras', {})['research'] = dict(
             status=payload['meta']['status'], run_id=payload['meta'].get('run_id'),
             trade_date=payload['meta']['trade_date'],
@@ -551,13 +577,24 @@ def _write_last_run(run_dir: str, payload: dict, page: dict, trade_date: str):
         status = payload['meta']['status']
         ok = status in ('APPROVED', 'REJECTED') and not violations if status == 'APPROVED' else status == 'REJECTED'
         meta = payload.get('meta') or {}
+        dq = meta.get('data_quality') or {}
+        source = dict(meta.get('source') or {})
+        source.update(live=bool(dq.get('source_live')) and not dq.get('degraded'),
+                      degraded=bool(dq.get('degraded')),
+                      synthetic=bool(dq.get('synthetic')),
+                      fallback=list(dq.get('fallback') or source.get('fallback') or []))
         r = dict(data_date=trade_date, status=status, mode='agent',
                  ok=bool(ok),
-                 degraded=bool(meta.get('degraded')), synthetic=bool(meta.get('synthetic')),
+                 degraded=bool(dq.get('degraded')), synthetic=bool(dq.get('synthetic')),
+                 data_stale=bool(dq.get('data_stale')),
+                 run_date=meta.get('run_date'),
+                 expected_data_date=meta.get('expected_data_date'),
+                 quote_dates=dict(dq.get('quote_dates') or {}),
+                 stale_assets=list(dq.get('stale_assets') or []),
                  levels=len(trades),
                  level_count=dict(actions), action_count=dict(sides),
                  orders=len(orders),
-                 skipped=[], source=dict(fallback=[], live=True),
+                 skipped=[], source=source,
                  validation=dict(ok=not violations, violations=violations),
                  run_id=payload['meta'].get('run_id'),
                  input_hash=payload['meta'].get('snapshot_hash'),
@@ -590,8 +627,33 @@ def _git_push(r: dict) -> bool:
 
 
 def attach_to_data(data: dict, payload: dict | None) -> dict:
-    """把研究载荷塞进 webgen.build_data 的产物（页面只读取，不再推导）。"""
+    """把研究载荷与真实数据质量塞回页面（页面只读取，不再推导）。"""
     if data is None:
         return data
-    data['research'] = payload
+    if payload:
+        data['research'] = payload
+        meta = data.setdefault('meta', {})
+        pm = payload.get('meta') or {}
+        dq = pm.get('data_quality') or {}
+        meta.update(degraded=bool(dq.get('degraded')),
+                    synthetic=bool(dq.get('synthetic')),
+                    data_stale=bool(dq.get('data_stale')),
+                    expected_data_date=pm.get('expected_data_date'),
+                    quote_dates=dict(dq.get('quote_dates') or {}),
+                    run_date=pm.get('run_date') or meta.get('run_date'))
+        src = dict(meta.get('source') or {})
+        src.update(live=bool(dq.get('source_live')) and not dq.get('degraded'),
+                   degraded=bool(dq.get('degraded')),
+                   synthetic=bool(dq.get('synthetic')),
+                   fallback=list(dq.get('fallback') or src.get('fallback') or []))
+        meta['source'] = src
+        if dq.get('degraded') and meta.get('status') == 'OK':
+            meta['status'] = 'DEGRADED'
+        pkt = data.setdefault('packet', {}).setdefault('data_quality', {})
+        pkt.update(status='DEGRADED' if dq.get('degraded') else pkt.get('status'),
+                   research_quality=dq,
+                   stale_fields=sorted(set(list(pkt.get('stale_fields') or []) +
+                                           [x.get('symbol') for x in dq.get('stale_assets') or []])),
+                   expected_data_date=pm.get('expected_data_date'),
+                   quote_dates=dict(dq.get('quote_dates') or {}))
     return data

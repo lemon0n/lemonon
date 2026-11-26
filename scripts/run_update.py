@@ -81,12 +81,18 @@ def write_manifest(r):
         'ran_at': pipeline.now_tz().strftime('%Y-%m-%d %H:%M:%S'),
         'mode': r.get('mode', 'live'),
         'data_date': r['data_date'],
+        'run_date': r.get('run_date'),
+        'expected_data_date': r.get('expected_data_date'),
+        'data_stale': r.get('data_stale', False),
+        'quote_dates': r.get('quote_dates', {}),
+        'stale_assets': r.get('stale_assets', []),
         'degraded': r['degraded'], 'synthetic': r.get('synthetic', False),
         'levels': r['levels'], 'level_count': r['level_count'],
         'action_count': r['action_count'],
         'orders': r['orders'],
         'skipped': r['skipped'],
-        'fallback': r['source']['fallback'],
+        'fallback': r['source'].get('fallback', []),
+        'source': r['source'],
         'validation': r.get('validation'),
         'research': r.get('research'),
         'run_id': r.get('run_id'),
@@ -168,7 +174,28 @@ def run_research(r, collected):
                      run_dir=res['run_dir'], provider=res['provider'],
                      violations=len((payload.get('final') or {}).get('violations') or []))
         integration.attach_to_data(collected['data'], payload)
+        dq = (payload.get('meta') or {}).get('data_quality') or {}
+        if dq.get('degraded'):
+            r['degraded'] = True
+            if r.get('status') == 'OK':
+                r['status'] = 'DEGRADED'
+            r['source'].update(live=False, degraded=True,
+                               synthetic=bool(dq.get('synthetic')),
+                               fallback=list(dq.get('fallback') or r['source'].get('fallback') or []))
+        r.update(data_stale=bool(dq.get('data_stale')),
+                 expected_data_date=(payload.get('meta') or {}).get('expected_data_date'),
+                 quote_dates=dict(dq.get('quote_dates') or {}),
+                 stale_assets=list(dq.get('stale_assets') or []),
+                 synthetic=bool(dq.get('synthetic')))
         pkt = collected.get('packet') or {}
+        if dq.get('degraded'):
+            pkt['status'] = 'DEGRADED'
+            pkt.setdefault('data_quality', {}).update(
+                status='DEGRADED', research_quality=dq,
+                stale_fields=sorted(set(list((pkt.get('data_quality') or {}).get('stale_fields') or []) +
+                                           [x.get('symbol') for x in dq.get('stale_assets') or []])),
+                expected_data_date=(payload.get('meta') or {}).get('expected_data_date'),
+                quote_dates=dict(dq.get('quote_dates') or {}))
         pkt.setdefault('extras', {})['research'] = dict(
             status=state['status'], run_id=state['run_id'],
             trade_date=payload['meta']['trade_date'],
@@ -230,14 +257,17 @@ def main():
     if a.json:
         slim = {k: v for k, v in r.items() if k not in ('source',)}
         slim['source'] = {k: r['source'][k] for k in
-                          ('live', 'degraded', 'synthetic', 'premium_ok', 'fallback')}
+                          ('live', 'degraded', 'synthetic', 'premium_ok', 'fallback', 'freshness')}
         print(json.dumps(slim, ensure_ascii=False))
     else:
         print('已生成 %s（%.1f KB）' % (r['html'], r['html_bytes'] / 1024))
-        print('状态 %s · 数据日 %s · 来源 %s · 标的 %s 只 · 动作 %s'
-              % (r['status'], r['data_date'] or '—',
+        print('状态 %s · 运行日 %s · 行情日 %s · 来源 %s · 标的 %s 只 · 动作 %s'
+              % (r['status'], r.get('run_date') or r['date'], r['data_date'] or '—',
                  '实时' if not r['degraded'] else '降级',
                  r['levels'], r['action_count']))
+        if r.get('data_stale'):
+            print('行情日期过期或缺失：预期 %s；不得标为实时'
+                  % (r.get('expected_data_date') or '未知'))
         if r['skipped']:
             print('已跳过（缺行情）：%s' % '、'.join(r['skipped']))
         if r['source']['fallback']:
