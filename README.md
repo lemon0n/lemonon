@@ -42,7 +42,7 @@ bash scripts/daily.sh
 `export LLM_BASE_URL=... LLM_MODEL=...`，或直接改 `config/llm.yaml`；先跑
 `python3.11 -m etfquant.llm.cli doctor` 确认连通。
 
-**文档**：运行细节见 [AGENTS.md](AGENTS.md)；页面每块由谁产出见
+**文档**：先看 [系统手册](docs/系统手册.md)（架构 / 分析口径 / 每日刷新 SOP / 验收与排查）；运行命令见 [AGENTS.md](AGENTS.md)；页面每块由谁产出见
 [页面区块对照](docs/页面区块对照.md)；LLM 研究层见
 [实施说明](docs/LLM研究决策层_实施说明.md)。历史设计与施工记录在
 [docs/archive](docs/archive/README.md)，不参与每日运行。
