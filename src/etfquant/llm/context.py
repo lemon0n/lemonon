@@ -221,6 +221,9 @@ def _regime_block(regime: dict) -> dict:
         days_above_ma5=_num(r.get('days_above_ma5'), 0),
         leaders=list(r.get('leaders') or []),
         laggards=list(r.get('laggards') or []),
+        market_snapshot_as_of=r.get('market_snapshot_as_of'),
+        auxiliary_stale=bool(r.get('auxiliary_stale')),
+        auxiliary_note=('市场主线/情绪快照日期早于行情日，本段已剔除' if r.get('auxiliary_stale') else None),
         gaps=list(r.get('gaps') or []),
     )
 

@@ -120,13 +120,24 @@ def main(argv=None) -> int:
     if not data or not context:
         raise SystemExit('缺少 page_data.json / context.json：%s' % run_dir)
 
+    run_id = os.path.basename(os.path.normpath(run_dir))
     latest = storage.read_latest() or {}
-    payload = (latest.get('payload') or {}) if latest.get('run_dir') == run_dir else None
-    if payload:
+    payload = ((latest.get('payload') or {})
+               if latest.get('run_id') == run_id
+               and os.path.abspath(latest.get('run_dir') or '') == os.path.abspath(run_dir)
+               else None)
+    if payload and payload.get('meta', {}).get('status') == 'APPROVED' \
+            and payload.get('meta', {}).get('executable'):
         data['research'] = payload
-    brief = storage.load_run(os.path.join(config.ROOT, 'data'), 'brief.json')
-    if brief:
+        data.setdefault('meta', {})['research_run_id'] = run_id
+    else:
+        data['research'] = None
+    brief = storage.load_run(run_dir, 'brief.json')
+    if brief and brief.get('run_id') == run_id \
+            and brief.get('data_date') == data.get('meta', {}).get('data_date'):
         data['brief'] = brief
+    else:
+        data['brief'] = None
 
     demo = demo_positions(context)
     out = args.out or os.path.join(ROOT, 'demo', '持仓分析页_demo.html')

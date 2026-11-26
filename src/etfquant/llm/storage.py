@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from datetime import datetime
 
@@ -26,6 +27,85 @@ RUNS_ROOT = os.path.join(config.ROOT, 'data', 'runs')
 LATEST_PATH = os.path.join(config.ROOT, 'data', 'research_latest.json')
 LOCK_PATH = os.path.join(config.ROOT, 'data', '.research.lock')
 
+
+
+def pending_path() -> str:
+    """pending 指针放在 runs 的父目录；测试隔离 RUNS_ROOT 时也会自动隔离。"""
+    return os.path.join(os.path.dirname(RUNS_ROOT), '.pending_run')
+
+
+def is_standard_run(run_dir: str, root: str | None = None) -> bool:
+    """只允许 data/runs/YYYY-MM-DD/HHMMSS_hash8 这种正式运行发布 latest。"""
+    root = os.path.abspath(root or RUNS_ROOT)
+    path = os.path.abspath(run_dir)
+    try:
+        if os.path.commonpath([root, path]) != root:
+            return False
+        rel = os.path.relpath(path, root).split(os.sep)
+    except ValueError:
+        return False
+    return (len(rel) == 2
+            and re.fullmatch(r'\d{4}-\d{2}-\d{2}', rel[0]) is not None
+            and re.fullmatch(r'\d{6}_[0-9a-f]{8}', rel[1]) is not None)
+
+
+def write_pending(run_dir: str, data_date: str = '') -> str:
+    path = pending_path()
+    evidence.atomic_write_json(path, dict(run_dir=os.path.abspath(run_dir),
+                                          data_date=data_date,
+                                          created_at=datetime.now().isoformat(timespec='seconds')))
+    return path
+
+
+def read_pending() -> str | None:
+    try:
+        with open(pending_path(), encoding='utf-8') as f:
+            d = json.load(f)
+        path = d.get('run_dir')
+        return path if path and os.path.isdir(path) else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def clear_pending(run_dir: str | None = None) -> None:
+    path = pending_path()
+    try:
+        if run_dir:
+            with open(path, encoding='utf-8') as f:
+                current = json.load(f).get('run_dir')
+            if os.path.abspath(current) != os.path.abspath(run_dir):
+                return
+        os.remove(path)
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+def latest_pending() -> str | None:
+    """只选最新 prepare；没有输出也返回该目录，让 finish 明确报缺输出，绝不回退旧日期。"""
+    pointer = pending_path()
+    if os.path.exists(pointer):
+        path = read_pending()
+        if path and is_standard_run(path):
+            manifest = load_run(path, 'manifest.json') or {}
+            if manifest.get('status') == 'AWAITING_AGENT':
+                return path
+        clear_pending(path)
+        return None
+    # 指针丢失时只扫描 AWAITING_AGENT，不扫描 agent_output，避免重放旧分析
+    if not os.path.isdir(RUNS_ROOT):
+        return None
+    for day in sorted(os.listdir(RUNS_ROOT), reverse=True):
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', day):
+            continue
+        day_dir = os.path.join(RUNS_ROOT, day)
+        if not os.path.isdir(day_dir):
+            continue
+        for run_id in sorted(os.listdir(day_dir), reverse=True):
+            cand = os.path.join(day_dir, run_id)
+            manifest = load_run(cand, 'manifest.json') or {}
+            if manifest.get('status') == 'AWAITING_AGENT':
+                return cand
+    return None
 
 def new_run_dir(trade_date: str, run_id: str, root: str | None = None) -> str:
     root = root or RUNS_ROOT
@@ -65,10 +145,29 @@ def save_prompts(run_dir: str, prompts: dict[str, str]) -> None:
         evidence.atomic_write_text(os.path.join(run_dir, 'prompts', '%s.md' % name), text)
 
 
-def publish_latest(payload: dict, path: str | None = None) -> str:
+def publish_latest(payload: dict, path: str | None = None) -> bool:
+    """发布最近一次尝试；旧数据日/旧上下文时间禁止覆盖新指针。"""
     path = path or LATEST_PATH
+    try:
+        with open(path, encoding='utf-8') as f:
+            old = json.load(f)
+    except (OSError, ValueError):
+        old = None
+    if old:
+        om = (old.get('payload') or {}).get('meta') or {}
+        nm = (payload.get('payload') or {}).get('meta') or {}
+        old_date = str(old.get('trade_date') or om.get('data_date') or '')
+        new_date = str(payload.get('trade_date') or nm.get('data_date') or '')
+        old_at = str(om.get('as_of') or old.get('created_at') or '')
+        new_at = str(nm.get('as_of') or payload.get('created_at') or '')
+        same_run = str(old.get('run_id') or om.get('run_id')) == str(payload.get('run_id') or nm.get('run_id'))
+        if not same_run and (new_date < old_date
+                             or (new_date == old_date and new_at < old_at)
+                             or (new_date == old_date and new_at == old_at
+                                 and str(payload.get('run_id') or '') < str(old.get('run_id') or ''))):
+            return False
     evidence.atomic_write_json(path, payload)
-    return path
+    return True
 
 
 def read_latest(path: str | None = None) -> dict | None:

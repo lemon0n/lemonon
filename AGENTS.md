@@ -67,6 +67,8 @@ bash scripts/daily.sh
 6. 模型/代理不可用时状态就是 `LLM_FAILED`，页面不会用规则模板冒充研究结论。
 7. **行情日期必须与运行日比对**：来源即使是 live，日期早于预期交易日也按降级处理；
    页面、报告、`last_run.json` 与提交说明必须写真实行情日期，不得标「实时」。
+8. **只收尾最新 prepare**：`--finish` 不带 run-dir 时只读 `.pending_run`，缺输出就报错，禁止回退旧日期；brief 必须绑定当前 run_id。
+9. **旧快照新闻/主线不作当日证据**；行业权重必须披露逐指数日期与 stale/errors。
 
 > **研究范围**由 `config/llm.yaml → research.scope` 决定，默认 `holdings`：只看你自己的持仓，
 > `config/universe.yaml` 的公开观察池不参与研究，也不能据此新建仓。
@@ -90,7 +92,7 @@ echo '你的口令' > positions/.passphrase          # 方式二：本地文件�
 
 ## 收工前验收（30 秒）
 
-1. `python -m pytest -q` → 全绿（当前 273 项）。
+1. `python -m pytest -q` → 全绿（当前 286 项）。
 2. 打开 `web/index.html`：
    - 三个标签在：市场概况 / 持仓分析 / 持仓设置；
    - 持仓分析是「一、持仓概况 → 二、持仓分析 → 三、市场洞察」；
@@ -106,6 +108,7 @@ echo '你的口令' > positions/.passphrase          # 方式二：本地文件�
 ## 延伸阅读
 
 - [系统手册](docs/系统手册.md)：架构 / 分析口径 / 每日 SOP / 验收与排查（**先看这个**）
+- [数据新鲜度审计](docs/数据新鲜度审计.md)：旧快照误用路径、修复边界与每日检查
 - [页面区块对照](docs/页面区块对照.md)：每一块由哪个函数生成（开发索引，口径以手册为准）
 - [LLM 研究决策层实施说明](docs/LLM研究决策层_实施说明.md)：四段研究、风控与订单的实现细节
 - [docs/archive](docs/archive/README.md)：历史设计与施工记录，不参与每日运行

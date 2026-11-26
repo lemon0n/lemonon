@@ -53,22 +53,8 @@ def cmd_prepare(a):
 
 
 def _latest_pending():
-    root = storage.RUNS_ROOT
-    best, best_mtime = None, -1
-    for day in sorted(os.listdir(root), reverse=True) if os.path.isdir(root) else []:
-        day_dir = os.path.join(root, day)
-        if not os.path.isdir(day_dir):
-            continue
-        for run_id in sorted(os.listdir(day_dir), reverse=True):
-            cand = os.path.join(day_dir, run_id)
-            out = os.path.join(cand, integration.AGENT_OUTPUT)
-            if os.path.exists(out):
-                mtime = os.path.getmtime(out)
-                if mtime > best_mtime:
-                    best, best_mtime = cand, mtime
-        if best:
-            break
-    return best
+    """只取最新 prepare 的 pending 指针；没有输出也绝不回退到旧日期。"""
+    return storage.latest_pending()
 
 
 def cmd_finish(a):

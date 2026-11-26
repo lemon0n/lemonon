@@ -80,7 +80,7 @@ def _news_note(data_date):
     return note or None
 
 
-def _brief(data_date):
+def _brief(data_date, run_id=None, *, require_run=False):
     """读取 skill 产出的 data/brief.json；日期不符、结构不合法、含禁词都不用。
 
     返回 None 时页面回退到本机引擎生成点评，并标注来源。
@@ -96,6 +96,8 @@ def _brief(data_date):
     if not isinstance(d, dict) or not isinstance(d.get('blocks'), list) or not d['blocks']:
         return None
     if data_date and d.get('data_date') != data_date:
+        return None
+    if require_run and (not run_id or d.get('run_id') != run_id):
         return None
     blocks, text = [], []
     for b in d['blocks']:
@@ -321,9 +323,10 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
 
     news_sentiment = dict(market.get('news_sentiment') or {})
     snapshot_date = str(market.get('as_of') or '')[:10] or None
-    note = _news_note(snapshot_date or meta.get('data_date'))
+    note = _news_note(meta.get('data_date'))
     if note and not news_sentiment.get('note'):
         news_sentiment['note'] = note
+        news_sentiment['note_as_of'] = meta.get('data_date')
     return dict(
         meta=dict(as_of=meta['as_of'], data_date=meta.get('data_date', ''),
                   run_date=meta.get('run_date', ''), mode=meta.get('mode', 'live'),
@@ -377,7 +380,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
         methodology=M.compact(),
         targets=(cfg.get('risk') or {}).get('structure_target_of_invested', {}),
         plan=plan,
-        brief=_brief(meta.get('data_date')),
+        brief=_brief(meta.get('data_date'), meta.get('research_run_id'), require_run=True),
         sector_weights=_load_sector_weights(),
         contract=dict(
             version='1.0',

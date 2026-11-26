@@ -2118,6 +2118,8 @@ function rsSectorMap(code,name,category){
   function weightsOf(idx){
     var w=sw&&sw.indices&&idx?sw.indices[idx]:null;
     if(!w) return null;
+    var failed=(sw.errors||[]).some(function(e){ return String(e).indexOf(String(idx)+':')===0; });
+    if(failed) return null;                 /* 抓取失败的指数保留旧权重，但不能静默当当前 */
     return Object.keys(w).map(function(k){ return [k,n(w[k])]; })
             .sort(function(a,b){ return b[1]-a[1]; });
   }
@@ -2144,9 +2146,33 @@ function rsSectorMap(code,name,category){
   RS_SECTOR_CACHE[code]=out;
   return out;
 }
-function rsSectorAsOf(){
+function rsSectorIndex(code,name,category){
   var sw=D.sector_weights;
-  return (sw&&sw.as_of)?String(sw.as_of):null;
+  if(sw&&sw.etf_index&&sw.etf_index[code]) return String(sw.etf_index[code]);
+  if(sw&&sw.indices&&typeof rsBroadIndex==='function'){
+    var idx=rsBroadIndex(name||(typeof QNAME!=='undefined'?(QNAME[code]||''):''));
+    if(idx) return String(idx);
+  }
+  return null;
+}
+function rsSectorAsOf(code,name,category){
+  var sw=D.sector_weights;
+  var idx=rsSectorIndex(code,name,category);
+  var d=idx&&sw.weights_date?sw.weights_date[idx]:null;
+  return String(d||(sw&&sw.as_of)||'')||null;
+}
+function rsSectorDateSummary(){
+  var sw=D.sector_weights;
+  if(!sw) return '缺少行业权重';
+  var parts=[];
+  Object.keys(sw.weights_date||{}).forEach(function(idx){
+    parts.push(idx+' '+sw.weights_date[idx]);
+  });
+  var errs=(sw.errors||[]).join('；');
+  return '行业权重截至 '+String(sw.as_of||'未知')+
+    (parts.length?'（逐指数：'+parts.join('、')+'）':'')+
+    (sw.stale?'；部分指数为旧权重':'')+
+    (errs?'；失败：'+errs:'');
 }
 /* 明细表「主要板块」：最大权重行业；没有权重就写未覆盖与数据日 */
 function rsSectorLabel(code,name,category){
@@ -4010,7 +4036,7 @@ function rsRenderSector(){
         '<span class="v">'+(x.pct>=25?'超配':(x.pct<=5?'低配':'中性'))+'</span></div>';
     }).join('')||'<div class="rs-note">暂无板块映射。</div>')+
     (uncovered>0?'<div class="rs-note">行业未覆盖 '+f2(uncovered)+'%'+
-      (rsSectorAsOf()?'（数据日 '+esc(rsSectorAsOf())+'）':'')+'，不计入上方暴露。</div>':'');
+      '（'+esc(rsSectorDateSummary())+'），不计入上方暴露。</div>':'');
   }
   var facts=document.getElementById('rsRiskFacts');
   if(facts){
@@ -4055,6 +4081,8 @@ function rsRenderSector(){
     else if(aligned) concl='结论：组合方向与主线基本一致，没有明显的结构错配';
     else concl='结论：组合方向偏离当前主线，先按差额减超配，再看主线能否自证';
     var lines=[concl];
+    if(D.sector_weights&&(D.sector_weights.stale||(D.sector_weights.errors||[]).length))
+      lines.push('权重提示：'+esc(rsSectorDateSummary())+'；失败指数的旧权重不参与映射。');
     lines.push('最大暴露 '+(topName?topName+' '+f2(top.pct)+'%':'—')+'，'+
       (aligned==null?'主线数据不足，无法判断':(aligned?'属于当前主线（'+esc(hitLeader||topName)+'）':
         '不在当前主线（'+esc(leaders.join('、'))+'）')));
@@ -4067,8 +4095,7 @@ function rsRenderSector(){
     lines.push('轮动信号：'+esc(rotationSignals(exp)));
     if(uncovered>0)
       lines.push('另有 '+f2(uncovered)+'% 的持仓没有行业映射（'+
-        (rsSectorAsOf()?('数据日 '+esc(rsSectorAsOf())):'缺少权重')+
-        '），不计入以上判断，一致性结论只覆盖有映射的部分');
+        esc(rsSectorDateSummary())+'），不计入以上判断，一致性结论只覆盖有映射的部分');
     readEl.innerHTML=lines.map(function(x,i){
       return '<div class="rs-note"'+(i?'':' style="margin-top:0"')+'>'+x+'</div>';
     }).join('');
@@ -4408,7 +4435,10 @@ function boot(){
     document.querySelector('.content').innerHTML='<div class="err">数据未加载</div>'; return;
   }
   D=window.DASHBOARD;
-  if(D.research&&D.research.proposal&&!D.plan){ D.plan=planFromResearch(D.research); }
+  if(D.research&&D.research.proposal&&!D.plan&&D.research.meta&&
+     D.research.meta.status==='APPROVED'&&D.research.meta.executable){
+    D.plan=planFromResearch(D.research);
+  }
   HOLD={rows:[],cash:0};
   if(D.demo_positions){                       /* demo：明文持仓，不需要解锁 */
     HOLD={rows:D.demo_positions.rows||[],cash:n(D.demo_positions.cash)};

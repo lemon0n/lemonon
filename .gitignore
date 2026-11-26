@@ -26,6 +26,7 @@ positions/
 data/research_latest.json
 data/ledger/
 data/.research.lock
+data/.pending_run
 
 # IDE 临时产物与第三方技能源包（与本项目运行无关）
 .trae/

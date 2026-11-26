@@ -25,6 +25,21 @@ MAX_EVENTS = 20
 DEFAULT_POSITIONS_REPORT = os.path.join(config.ROOT, 'docs', '持仓分析报告.md')
 
 
+
+
+def _positions_report_path() -> str:
+    default_root = os.path.join(config.ROOT, 'data', 'runs')
+    if os.path.abspath(storage.RUNS_ROOT) == os.path.abspath(default_root):
+        return DEFAULT_POSITIONS_REPORT
+    return os.path.join(os.path.dirname(storage.RUNS_ROOT), 'docs', '持仓分析报告.md')
+
+def _memory_path() -> str | None:
+    default_root = os.path.join(config.ROOT, 'data', 'runs')
+    if os.path.abspath(storage.RUNS_ROOT) == os.path.abspath(default_root):
+        return None
+    return os.path.join(os.path.dirname(storage.RUNS_ROOT), 'ledger', 'etf_llm.sqlite3')
+
+
 def _names(legs) -> dict:
     return {str(l['code']): l.get('name') or str(l['code']) for l in legs or []}
 
@@ -52,7 +67,11 @@ def portfolio_from_legs(legs, cfg=None) -> dict | None:
 
 
 def _events(market: dict, data_date: str, limit: int = MAX_EVENTS) -> list[dict]:
+    """只把可证明属于当日的快讯登记为证据；旧快照新闻整批丢弃。"""
     out = []
+    snapshot_date = str((market or {}).get('as_of') or '')[:10]
+    if not snapshot_date or (data_date and snapshot_date < data_date):
+        return out
     for i, item in enumerate((market or {}).get('news') or []):
         if len(out) >= limit:
             break
@@ -61,8 +80,17 @@ def _events(market: dict, data_date: str, limit: int = MAX_EVENTS) -> list[dict]
         title = str(item.get('title') or item.get('text') or '').strip()
         if not title:
             continue
-        out.append(dict(evidence_id='event:market:%s:%04d' % (data_date, i + 1),
-                        title=title, as_of=str(item.get('time') or data_date)[:19],
+        raw_time = str(item.get('time') or '').strip()
+        if len(raw_time) >= 10 and raw_time[:4].isdigit():
+            item_date = raw_time[:10]
+            stamp = raw_time[:19]
+        else:
+            item_date = snapshot_date
+            stamp = (snapshot_date + ' ' + raw_time[:8]).strip()
+        if data_date and item_date < data_date:
+            continue
+        out.append(dict(evidence_id='event:market:%s:%04d' % (item_date, i + 1),
+                        title=title, as_of=stamp,
                         source=item.get('source') or 'news'))
     return out
 
@@ -82,7 +110,7 @@ def previous_block(theses: list[dict]) -> list[dict]:
 
 
 def build_context(collected: dict, *, settings: dict | None = None,
-                  theses: list[dict] | None = None) -> dict:
+                  theses: list[dict] | None = None, memory_path: str | None = None) -> dict:
     """把 pipeline 的中间产物冻结成 context.json 的内容。"""
     settings = settings or policy.settings()
     ctx_cfg = settings.get('context') or {}
@@ -123,7 +151,8 @@ def build_context(collected: dict, *, settings: dict | None = None,
         if holdings_only:
             held_note.append('未读取到持仓：本次只有市场层，不给个股结论')
     portfolio = context_mod.portfolio_block(snapshot)
-    previous = previous_block(theses if theses is not None else memory.active_theses())
+    previous = previous_block(theses if theses is not None else memory.active_theses(
+        path=memory_path if memory_path is not None else _memory_path()))
 
     assets = []
     for leg in legs:
@@ -231,24 +260,31 @@ def _finalize(*, final, research, redteam, revised, context, run_dir, run_id,
     if write_report:
         text = report.render(final, research, context)
         report.write_report(os.path.join(run_dir, 'report.md'), text)
-        # 深度持仓报告：模型真的产出了计划才覆盖旧版确定性报告，
-        # 否则保留 analyze_positions.py 的产物（不能拿空结论冒充深度分析）
+        # 深度持仓报告只保留本轮新产物；没有新报告就删除旧版，避免历史分析冒充今日
+        report_path = positions_report_path or _positions_report_path()
         if (context.get('portfolio') or {}).get('positions') \
                 and final.model_proposal is not None \
                 and provider != 'mock':
             deep = report.render_positions(final, research, context)
-            report.write_report(positions_report_path or DEFAULT_POSITIONS_REPORT, deep)
+            report.write_report(report_path, deep)
+        elif provider != 'mock':
+            # 用户只保留最新分析：本轮没有新深度报告时，删除旧报告，避免误当今日
+            try:
+                os.remove(report_path)
+            except OSError:
+                pass
     payload = publish.page_payload(
         final, research=research, redteam=redteam, revised=revised, context=context,
         provider_label=provider_label)
     payload['meta']['run_id'] = run_id
     payload['meta']['run_dir'] = run_dir
     # 脚本/演示运行绝不覆盖「最近一次真实研究」：否则页面会把演示结果当成历史建议
-    payload['meta']['published'] = publishable
+    publishable = bool(publishable and storage.is_standard_run(run_dir))
+    payload['meta']['published'] = False
     if publishable:
-        storage.publish_latest(dict(payload=payload, run_id=run_id, run_dir=run_dir,
-                                    trade_date=trade_date,
-                                    created_at=now.isoformat(timespec='seconds')))
+        payload['meta']['published'] = storage.publish_latest(
+            dict(payload=payload, run_id=run_id, run_dir=run_dir,
+                 trade_date=trade_date, created_at=now.isoformat(timespec='seconds')))
     return payload
 
 
@@ -268,7 +304,8 @@ def run(collected: dict, *, scripted: list | None = None,
         raise policy.PolicyError('风控政策与 risk.yaml 不一致：%s' % '；'.join(issues))
 
     now = now or datetime.now()
-    context = build_context(collected, settings=settings)
+    mem_path = memory_path if memory_path is not None else _memory_path()
+    context = build_context(collected, settings=settings, memory_path=mem_path)
     run_id = storage.make_run_id(now, context['meta'].get('snapshot_hash') or '')
     trade_date = context['meta'].get('data_date') or now.strftime('%Y-%m-%d')
     run_dir = storage.new_run_dir(trade_date, run_id)
@@ -393,6 +430,7 @@ def prepare(collected: dict, *, settings: dict | None = None,
         snapshot_hash=context['meta'].get('snapshot_hash'),
         config_hash=_config_hash(settings), data_date=context['meta'].get('data_date'),
         code_version=_code_version(), duration_seconds=0.0))
+    storage.write_pending(run_dir, trade_date)
     return dict(provider='agent', run_id=run_id, trade_date=trade_date, run_dir=run_dir,
                 context_path=os.path.join(run_dir, 'context.json'),
                 task_path=os.path.join(run_dir, AGENT_TASK),
@@ -453,13 +491,15 @@ def finish(run_dir: str, *, output_path: str | None = None,
         client=client_mod.ScriptedLLM(responses),
         policy=pol, settings=settings, prompts=prompts, run_dir=run_dir,
         trade_date=trade_date, provider='agent', now=now,
+        memory_path=_memory_path(),
         code_version=_code_version(), prompt_version=prompts_mod.version(prompts))
     result = pipeline.run(context, deps)
     run_id = os.path.basename(str(run_dir).rstrip('\\/'))
 
     try:
         manifest = storage.load_run(run_dir, 'manifest.json') or {}
-        memory.save_run(manifest, payload=dict(run_dir=run_dir, trade_date=trade_date))
+        memory.save_run(manifest, payload=dict(run_dir=run_dir, trade_date=trade_date),
+                        path=deps.memory_path)
     except Exception:
         pass
 
@@ -468,10 +508,13 @@ def finish(run_dir: str, *, output_path: str | None = None,
         revised=result['revised'], context=context, run_dir=run_dir, run_id=run_id,
         trade_date=trade_date, provider='agent',
         provider_label='代理模型（本机操作者）', write_report=write_report,
-        positions_report_path=positions_report_path, now=now, publishable=True)
+        positions_report_path=positions_report_path, now=now,
+        publishable=storage.is_standard_run(run_dir))
 
-    if brief:
-        _save_brief(brief, trade_date)
+    brief_doc = _save_brief(brief, trade_date, run_id) if brief else None
+    if brief_doc:
+        storage.save_json(run_dir, 'brief.json', brief_doc)
+    storage.clear_pending(run_dir)
     page = _render_page(run_dir, payload) if render else None
     last_run = _write_last_run(run_dir, payload, page or {}, trade_date) if page else None
     pushed = _git_push(dict(data_date=trade_date, status=result['final'].status,
@@ -482,24 +525,24 @@ def finish(run_dir: str, *, output_path: str | None = None,
                 last_run=last_run, pushed=pushed, status=result['final'].status)
 
 
-def _save_brief(brief: dict, trade_date: str) -> None:
+def _save_brief(brief: dict, trade_date: str, run_id: str = '') -> dict | None:
     """今日点评：日期一致、八块结构、无禁词，否则不落盘（页面回退引擎版）。"""
     if not isinstance(brief, dict) or not isinstance(brief.get('blocks'), list):
-        return
+        return None
     if str(brief.get('data_date') or '') != str(trade_date):
         print('点评日期 %s 与数据日 %s 不一致，丢弃' % (brief.get('data_date'), trade_date))
-        return
+        return None
     blocks = []
     for b in brief['blocks']:
         if not isinstance(b, dict):
-            return
+            return None
         k, v = str(b.get('k') or '').strip(), str(b.get('v') or '').strip()
         if not k or not v:
-            return
+            return None
         blocks.append(dict(k=k, v=v, refs=b.get('refs') or []))
     if len(blocks) < 6:
         print('点评块数 %d < 6，丢弃' % len(blocks))
-        return
+        return None
     try:
         banned = [w.strip() for w in
                   io.open(os.path.join(config.ROOT, 'config', 'brief_banned.txt'),
@@ -510,11 +553,11 @@ def _save_brief(brief: dict, trade_date: str) -> None:
     hits = [w for w in banned if w in joined]
     if hits:
         print('点评含禁词 %s，丢弃' % '、'.join(hits))
-        return
-    storage.save_json(os.path.join(config.ROOT, 'data'), 'brief.json',
-                      dict(data_date=trade_date,
-                           conclusion=str(brief.get('conclusion') or '').strip(),
-                           blocks=blocks))
+        return None
+    doc = dict(data_date=trade_date, run_id=run_id,
+               conclusion=str(brief.get('conclusion') or '').strip(), blocks=blocks)
+    storage.save_json(os.path.dirname(storage.RUNS_ROOT), 'brief.json', doc)
+    return doc
 
 
 def _config_hash(settings: dict) -> str:
@@ -532,10 +575,13 @@ def _render_page(run_dir: str, payload: dict):
     if not data:
         return None
     attach_to_data(data, payload)
-    # 页面构建于 prepare 阶段，点评是 finish 之后才有的，这里补进去
-    brief = storage.load_run(os.path.join(config.ROOT, 'data'), 'brief.json')
-    if brief:
+    # 点评只读本次运行快照；没有新点评就明确为空，绝不注入全局旧 brief
+    brief = storage.load_run(run_dir, 'brief.json')
+    if brief and brief.get('run_id') == payload['meta'].get('run_id'):
         data['brief'] = brief
+        data.setdefault('meta', {})['research_run_id'] = payload['meta'].get('run_id')
+    else:
+        data['brief'] = None
     out = webgen.render(data, data.get('trading'))
     pkt = storage.load_run(run_dir, 'packet.json') or {}
     if pkt:
@@ -640,6 +686,7 @@ def attach_to_data(data: dict, payload: dict | None) -> dict:
                     data_stale=bool(dq.get('data_stale')),
                     expected_data_date=pm.get('expected_data_date'),
                     quote_dates=dict(dq.get('quote_dates') or {}),
+                    research_run_id=pm.get('run_id'),
                     run_date=pm.get('run_date') or meta.get('run_date'))
         src = dict(meta.get('source') or {})
         src.update(live=bool(dq.get('source_live')) and not dq.get('degraded'),

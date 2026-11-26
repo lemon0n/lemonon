@@ -120,8 +120,14 @@ def compute(bench_bars, market=None, cfg=None):
     market = market or {}
     rot = market.get('rotation') or {}
     sent = market.get('sentiment') or {}
-    out.update(stage_note=(rot.get('note') or '') if out['regime'] != '未知' else '',
-               leaders=rot.get('leaders', []), laggards=rot.get('laggards', []),
+    snapshot_date = str(market.get('as_of') or '')[:10]
+    bench_date = str(out.get('as_of') or '')[:10]
+    auxiliary_stale = bool(snapshot_date and bench_date and snapshot_date < bench_date)
+    out.update(market_snapshot_as_of=snapshot_date or None,
+               auxiliary_stale=auxiliary_stale,
+               stage_note=(rot.get('note') or '') if out['regime'] != '未知' and not auxiliary_stale else '',
+               leaders=[] if auxiliary_stale else rot.get('leaders', []),
+               laggards=[] if auxiliary_stale else rot.get('laggards', []),
                sentiment_label=sent.get('label', ''),
                sentiment_score=sent.get('score', 0),
                panic=bool(sent.get('panic')),

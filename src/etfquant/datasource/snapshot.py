@@ -57,8 +57,3 @@ def index_daily(code):
     if not os.path.exists(p):
         raise FileNotFoundError('离线快照缺少基准 %s 日线：%s' % (code, p))
     return validate_bars(pd.read_csv(p), 'index:%s' % code)
-
-
-def benchmark_ret():
-    """旧版固定区间收益。仅为兼容保留，相对强弱不得再使用（见 P0-03）。"""
-    return config.snap_json('benchmark_ret.json')

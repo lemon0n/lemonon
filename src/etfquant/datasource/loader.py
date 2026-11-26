@@ -106,8 +106,6 @@ def daily(code, live_=None):
         if df is not None:
             try:
                 df = validate_bars(df, code)
-                config.ensure_dirs(config.CACHE)
-                df.to_csv(os.path.join(config.CACHE, 'daily_%s.csv' % code), index=False)
                 STATE['daily'][code] = 'live'
                 STATE['daily_vendor'][code] = live.LAST_DAILY_SOURCE or 'akshare'
                 STATE['daily_dates'][code] = _last_date(df)
