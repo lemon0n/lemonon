@@ -210,7 +210,7 @@ python3.11 -m etfquant.llm.cli api --port 8008
 |---|---|---|
 | `scripts/` | `daily.sh`、`fetch.py`、`run_update.py`、`run_research.py`、`analyze_positions.py` | 是 |
 | `src/etfquant/` | 取数（`datasource/`）、指标、规则基线、页面打包、`llm/` 研究层 | 是 |
-| `tools/` | 回测、对照实验、快照生成等一次性工具 | 否 |
+| 	ools/ | 一次性/研究性工具（回测入口、明文预览页生成） | 否 |
 | `docs/` | 在用的 5 份说明；历史设计与施工记录在 `docs/archive/` | 否 |
 
 数据抓取已合并成一个入口：`scripts/fetch.py [--market] [--national] [--sector] [--all]`，

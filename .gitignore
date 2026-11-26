@@ -41,3 +41,7 @@ docs/rule_v3_compare.json
 
 # 页面 demo（含明文持仓，只在本地看，不进仓库）
 demo/
+
+# 每日生成的本地产物：会嵌进页面或在本地复核，不必入库
+data/brief.json
+docs/持仓分析报告.md
