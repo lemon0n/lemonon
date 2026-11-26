@@ -1,21 +1,15 @@
 {
-  "ok": true,
-  "status": "APPROVED",
-  "ran_at": "2026-11-26 14:14:38",
+  "ok": false,
+  "status": "LLM_FAILED",
+  "ran_at": "2026-11-26 16:42:48",
   "mode": "agent",
-  "data_date": "2026-11-25",
+  "data_date": "2026-11-26",
   "degraded": false,
   "synthetic": false,
-  "levels": 5,
-  "level_count": {
-    "REDUCE": 2,
-    "EXIT": 1,
-    "HOLD": 2
-  },
-  "action_count": {
-    "SELL": 3
-  },
-  "orders": 3,
+  "levels": 0,
+  "level_count": {},
+  "action_count": {},
+  "orders": 0,
   "skipped": [],
   "fallback": [],
   "validation": {
@@ -23,11 +17,11 @@
     "violations": []
   },
   "research": {
-    "status": "APPROVED",
-    "run_id": "141239_47815b89"
+    "status": "LLM_FAILED",
+    "run_id": "163533_636b7ba7"
   },
-  "run_id": "141239_47815b89",
-  "input_hash": "sha256:da3a97dd8f6347f992621a751bb42ba8d27e19a03d2ddff9580d6e510ccc17d3",
+  "run_id": "163533_636b7ba7",
+  "input_hash": "sha256:c6e8a71edbabf63a540d7f3c7435578229bb43706c4e72b2ac775e3a71197db7",
   "config_hash": null,
   "html": "/workspace/web/index.html"
 }
