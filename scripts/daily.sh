@@ -1,18 +1,34 @@
 #!/usr/bin/env bash
 # 每日更新唯一入口：拉代码 → 装依赖 → 取数生成 → 发布前校验 → 提交推送。
 #
-#   bash scripts/daily.sh
+#   bash scripts/daily.sh                 # 全流程（openai 模式）或「抓数+冻结事实」（agent 模式）
+#   bash scripts/daily.sh --finish --push # agent 模式第二步：写 agent_output.json 后收尾并推送
+#   bash scripts/daily.sh --status        # 只读 data/last_run.json，打印今日运行摘要
 #
 # 可选环境变量：
 #   PY=python3.12    指定解释器（默认 python3.11，找不到就用 python3）
 #   SKIP_PULL=1      跳过 git pull（离线调试用）
 #   RESEARCH=0       跳过 LLM 研究层，只更新确定性页面（默认按 config/llm.yaml 判断）
 #   LLM_BASE_URL / LLM_MODEL / LLM_API_KEY  覆盖本地模型地址与模型名
+#   POSITIONS_PASSPHRASE  持仓口令（可选；未设置时只做市场层，属正常）
 #
-# 退出码：0 成功 / 2 运行异常 / 3 提交推送失败 / 4 发布前校验未通过
+# 退出码：0 成功 / 4 校验或风控未通过（不要重试）/ 3 提交推送失败（可重跑一次）/ 2 运行异常
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
+
+# ---------- 0. 参数 ----------
+MODE=run
+EXTRA=()
+case "${1:-}" in
+  --status) MODE=status ;;
+  --finish) MODE=finish; shift; EXTRA=("$@") ;;
+  -h|--help)
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0 ;;
+  "") ;;
+  *) printf '\n[失败] 未知参数：%s（可用 --finish [--push] / --status）\n' "$1" >&2; exit 2 ;;
+esac
 
 say() { printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$1"; }
 die() { printf '\n[失败] %s\n' "$1" >&2; exit "${2:-2}"; }
@@ -37,6 +53,28 @@ PY_BIN=''
 for c in "${CANDS[@]}"; do
   if "$c" -c "$NEED" >/dev/null 2>&1; then PY_BIN="$c"; break; fi
 done
+
+# ---------- 1.5 只读状态（不拉代码、不装依赖） ----------
+if [ "$MODE" = "status" ]; then
+  for c in "${CANDS[@]}"; do
+    if "$c" -c 'import json,sys; sys.exit(0)' >/dev/null 2>&1; then
+      "$c" - <<'PY'
+import json, os
+p = os.path.join('data', 'last_run.json')
+if not os.path.exists(p):
+    print('{"error": "data/last_run.json 不存在，说明还没跑过 finish"}')
+    raise SystemExit(0)
+d = json.load(open(p, encoding='utf-8'))
+keep = ('ok', 'status', 'data_date', 'degraded', 'synthetic', 'levels',
+        'level_count', 'action_count', 'orders', 'fallback', 'validation', 'run_id', 'html')
+print(json.dumps({k: d.get(k) for k in keep}, ensure_ascii=False, indent=2))
+PY
+      exit 0
+    fi
+  done
+  printf '\n[失败] 找不到可用的 Python，读不了 last_run.json。\n' >&2
+  exit 2
+fi
 
 # ---------- 2. 同步代码 ----------
 if [ "${SKIP_PULL:-0}" != "1" ]; then
@@ -74,6 +112,20 @@ fi
 
 say "使用解释器 $("$PY_BIN" -V 2>&1)"
 
+# ---------- 3.3 agent 模式第二步：收尾（+ 推送） ----------
+if [ "$MODE" = "finish" ]; then
+  say "收尾：证据校验 → 确定性风控 → 订单 → 报告 → 页面"
+  "$PY_BIN" scripts/run_research.py --finish "${EXTRA[@]}"
+  code=$?
+  case "$code" in
+    0) say "完成：页面已刷新${EXTRA[*]:+（参数：${EXTRA[*]}）}" ;;
+    4) printf '\n[失败] 校验或风控未通过（退出码 4），不要重试；按提示改建议后重跑。\n' >&2 ;;
+    3) printf '\n[失败] 产物已生成但推送失败（退出码 3），通常远端有新提交，可重跑一次。\n' >&2 ;;
+    *) printf '\n[失败] 运行异常（退出码 %s），不要盲目重试。\n' "$code" >&2 ;;
+  esac
+  exit "$code"
+fi
+
 # ---------- 3.5 研究模式 ----------
 # agent 模式：没有模型服务，研究由「正在操作这个仓库的代理模型」完成。
 # 这里只做到「抓数 + 冻结事实 + 出任务卡」，剩下的两步交给代理。
@@ -97,8 +149,8 @@ if [ "$PROVIDER" = "agent" ]; then
     printf '\n[失败] prepare 失败（退出码 %s）。\n' "$code" >&2
     exit 2
   fi
-  say "下一步：让代理读任务卡并写 agent_output.json，然后执行"
-  say "  $PY_BIN scripts/run_research.py --finish --push"
+  say "下一步：读任务卡写 agent_output.json，然后执行"
+  say "  bash scripts/daily.sh --finish --push"
   exit 0
 fi
 

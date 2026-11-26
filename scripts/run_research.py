@@ -83,10 +83,11 @@ def cmd_finish(a):
         return 2
 
     final = res['final']
+    violations = [v.code for v in (final.risk.violations if final.risk else [])]
     summary = dict(status=final.status, run_dir=res['run_dir'],
                    trade_date=res['trade_date'],
                    orders=len(final.orders or []),
-                   violations=[v.code for v in (final.risk.violations if final.risk else [])],
+                   violations=violations,
                    page=(res.get('page') or {}).get('path'),
                    pushed=res.get('pushed'))
     _print(summary, a.json)
@@ -101,7 +102,16 @@ def cmd_finish(a):
         print('报告：%s' % os.path.join(res['run_dir'], 'report.md'))
         if os.path.exists(os.path.join(config.ROOT, 'docs', '持仓分析报告.md')):
             print('持仓：docs/持仓分析报告.md')
-    return 0 if final.status in ('APPROVED', 'REJECTED') else 1
+    # 退出码与每日指令一致：0 成功 / 4 校验或风控未通过（别重试）/ 3 推送失败 / 2 运行异常
+    if a.push and res.get('page') and res.get('pushed') is False:
+        print('推送失败：产物已生成，本地未推送', file=sys.stderr)
+        return 3
+    if final.status == 'APPROVED':
+        return 0
+    if final.status == 'REJECTED':
+        return 4
+    print('研究未完成：status=%s' % final.status, file=sys.stderr)
+    return 2
 
 
 def cmd_direct(a):

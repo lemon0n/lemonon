@@ -541,12 +541,25 @@ def _write_last_run(run_dir: str, payload: dict, page: dict, trade_date: str):
         if scripts not in _sys.path:
             _sys.path.insert(0, scripts)
         import run_update
-        r = dict(data_date=trade_date, status=payload['meta']['status'], mode='agent',
-                 degraded=False, synthetic=False, levels=page.get('legs'),
-                 level_count={}, action_count={},
-                 orders=len(payload.get('final', {}).get('orders') or []),
+        from collections import Counter
+        final = payload.get('final') or {}
+        trades = ((payload.get('proposal') or {}).get('trades') or [])
+        actions = Counter(str(t.get('action') or '—') for t in trades)
+        orders = payload.get('final', {}).get('orders') or []
+        sides = Counter(str(o.get('side') or '—') for o in orders)
+        violations = [v.get('code') for v in ((final.get('risk') or {}).get('violations') or [])]
+        status = payload['meta']['status']
+        ok = status in ('APPROVED', 'REJECTED') and not violations if status == 'APPROVED' else status == 'REJECTED'
+        meta = payload.get('meta') or {}
+        r = dict(data_date=trade_date, status=status, mode='agent',
+                 ok=bool(ok),
+                 degraded=bool(meta.get('degraded')), synthetic=bool(meta.get('synthetic')),
+                 levels=len(trades),
+                 level_count=dict(actions), action_count=dict(sides),
+                 orders=len(orders),
                  skipped=[], source=dict(fallback=[], live=True),
-                 validation=dict(ok=True), run_id=payload['meta'].get('run_id'),
+                 validation=dict(ok=not violations, violations=violations),
+                 run_id=payload['meta'].get('run_id'),
                  input_hash=payload['meta'].get('snapshot_hash'),
                  config_hash=None, html=page.get('path'), html_bytes=page.get('bytes'),
                  research=dict(status=payload['meta']['status'],

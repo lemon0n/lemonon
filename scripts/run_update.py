@@ -76,7 +76,7 @@ def write_manifest(r):
     path = os.path.join(config.ROOT, 'data', 'last_run.json')
     config.ensure_dirs(os.path.dirname(path))
     payload = {
-        'ok': r['status'] in ('OK', 'DEGRADED'),
+        'ok': r.get('ok', r['status'] in ('OK', 'DEGRADED')),
         'status': r['status'],
         'ran_at': pipeline.now_tz().strftime('%Y-%m-%d %H:%M:%S'),
         'mode': r.get('mode', 'live'),

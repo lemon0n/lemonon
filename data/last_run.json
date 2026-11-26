@@ -1,19 +1,26 @@
 {
-  "ok": false,
+  "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-26 12:26:54",
+  "ran_at": "2026-11-26 13:51:55",
   "mode": "agent",
   "data_date": "2026-11-24",
   "degraded": false,
   "synthetic": false,
-  "levels": 0,
-  "level_count": {},
-  "action_count": {},
+  "levels": 5,
+  "level_count": {
+    "EXIT": 2,
+    "REDUCE": 1,
+    "HOLD": 2
+  },
+  "action_count": {
+    "SELL": 3
+  },
   "orders": 3,
   "skipped": [],
   "fallback": [],
   "validation": {
-    "ok": true
+    "ok": true,
+    "violations": []
   },
   "research": {
     "status": "APPROVED",

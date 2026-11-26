@@ -1,6 +1,7 @@
 # 每日刷新（唯一入口）
 
 > 架构、每块分析口径、验收清单、故障排查：见 **[系统手册](docs/系统手册.md)**。
+> 交给外部执行器（如 /workspace 的每日 runner）的完整指令：**[每日更新指令](docs/每日更新指令.md)**。
 > 本文件只保留「今天要执行的命令」和硬规则。
 
 先看 `config/llm.yaml` 的 `provider`，只有两种情况，别混用。
@@ -12,10 +13,13 @@
 不需要任何模型服务。**三条命令**：
 
 ```bash
-python3 scripts/run_research.py --prepare                       # ① 抓数 + 冻结事实 + 出任务卡
+bash scripts/daily.sh                       # ① 抓数 + 冻结事实 + 出任务卡（打印 run_dir）
 #   ② 读 <run_dir>/AGENT_TASK.md 与 context.json，写 <run_dir>/agent_output.json
-python3 scripts/run_research.py --finish --push                 # ③ 风控 + 订单 + 报告 + 页面 + 推送
+bash scripts/daily.sh --finish --push       # ③ 风控 + 订单 + 报告 + 页面 + 推送
+bash scripts/daily.sh --status              # 随时查看 data/last_run.json 摘要
 ```
+
+（`daily.sh` 内部就是调 `scripts/run_research.py --prepare/--finish`；直接用 python 命令也等价。）
 
 `--prepare` 成功后会直接打印 `run_dir`、任务卡路径、输出路径和下一步命令，照抄即可。
 
@@ -47,7 +51,7 @@ bash scripts/daily.sh
 | 持仓深度分析（逐只：角色/因果链/反证/失效条件/目标权重） | `docs/持仓分析报告.md` |
 | 今天该不该动、风控改了什么 | `data/runs/<日期>/<run>/report.md` |
 | 网页（GitHub Pages） | `web/index.html` → `lemon0n.github.io/lemonon` |
-| 机器可读状态 | 命令最后一行 JSON：`status` / `data_date` / `validation.ok` |
+| 机器可读状态 | `bash scripts/daily.sh --status`，或 `data/last_run.json`（status/data_date/levels/action_count/validation） |
 
 ---
 
