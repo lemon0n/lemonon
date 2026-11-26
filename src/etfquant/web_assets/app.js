@@ -3491,8 +3491,11 @@ function rsRenderDetail(){
   }
   var paneStruct=
     '<div class="rs-chartcard"><div class="ch"><span class="ct">K 线主图 · 笔 / 中枢 / 买卖点（简化实现）</span><div class="rs-legend">'+
-    '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span><span><i style="background:#94a3b8"></i>中枢</span></div></div>'+
-    '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas></div>'+
+    '<span><i style="background:#1d4ed8"></i>MA5</span><span><i style="background:#d97706"></i>MA10</span><span><i style="background:#7c3aed"></i>MA20</span>'+
+    '<span><i style="background:#94a3b8"></i>中枢</span><span><i style="background:#475569"></i>笔</span>'+
+    '<span><i style="background:#148f5b"></i>▲ 买点</span><span><i style="background:#c0392b"></i>▼ 卖点</span></div></div>'+
+    '<canvas id="rsKline"></canvas><canvas id="rsMacd"></canvas>'+
+    '<div class="rs-note" id="rsChartNote" style="margin-top:6px"></div></div>'+
     '<div class="box"><div class="bt">三周期</div><table class="tbl"><thead><tr><th>周期</th><th>位置</th><th>结论</th></tr></thead><tbody>'+
     tr(['月线',(sc.month?('收 '+f3(sc.month.last)+' / 20 月线 '+(sc.month.ma20==null?'—':f3(sc.month.ma20))):'月线数据不足'),
       (sc.month&&sc.month.ma20!=null)?(n(sc.month.last)>n(sc.month.ma20)?'20 月线上方，可重仓区':'20 月线下方，上涨当反弹'):'—'])+
@@ -3626,12 +3629,26 @@ function rsDrawChart(code){
   var vmax=Math.max.apply(null,vols)||1, vBase=H-padB+12;
   bars.forEach(function(b,i){ var hh=b.v/vmax*volH; ctx.fillStyle=b.c>=b.o?'rgba(192,57,43,.5)':'rgba(20,143,91,.5)'; ctx.fillRect(x(i)-Math.max(1,step*0.35),vBase+volH-hh,Math.max(1,step*0.7),hh); });
   ctx.fillStyle='#94a3b8'; ctx.fillText('VOL',padL,vBase+9);
-  var note=document.getElementById('rsChanNote');
-  if(note){
-    var dTxt=chan.pivot?('中枢 '+chan.pivot.zd.toFixed(2)+' ~ '+chan.pivot.zg.toFixed(2)):'暂无有效中枢';
-    var sTxt=chan.signal?('当前信号：'+chan.signal.label):'当前无买卖点';
-    note.textContent='笔 '+chan.strokes.length+' 段 · '+dTxt+' · '+sTxt+
-      '；按日线分型→笔→中枢简化计算，不含线段与多级别递归。';
+  /* 图例说明：图上每个标记都能在上方「结构与图」的表格里找到对应一行 */
+  var cap=document.getElementById('rsChartNote');
+  if(cap){
+    var rows=bars;
+    var pt=null, vp=null, cd=null;
+    try{ pt=rsChanPoints(chan,rows); }catch(e){}
+    try{ vp=rsVolumePrice(rows); }catch(e){}
+    try{ cd=rsCandlePattern(rows); }catch(e){}
+    var bd=null;
+    try{ bd=rsBackdiv(chan,closes); }catch(e){}
+    var marks=[];
+    if(pt&&pt.list&&pt.list.length) marks=pt.list.map(function(m){ return m.label; });
+    var parts=[];
+    parts.push('图例：<b>灰折线</b>=笔 '+chan.strokes.length+' 段');
+    parts.push(chan.pivot?('<b>虚线框</b>=中枢 ZG '+f3(chan.pivot.zg)+' / ZD '+f3(chan.pivot.zd)):'<b>虚线框</b>=中枢（当前未形成）');
+    parts.push('<b>▲</b>=买点 <b>▼</b>=卖点'+(marks.length?('（'+marks.join('、')+'）'):'（当前无）'));
+    if(bd) parts.push('<b>三角</b>旁的「'+bd.label+'」= 面积背驰');
+    if(vp) parts.push('量价：'+esc(vp.text));
+    if(cd) parts.push('K 线形态：'+esc(cd.text));
+    cap.innerHTML=parts.join('｜')+'<br>以上标识与上方「三周期 / 缠论结构」表格同源；只解释结构，不改目标与订单。';
   }
   rsDrawMacd(closes);
 }
