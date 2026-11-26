@@ -58,6 +58,8 @@ bash scripts/daily.sh
 ## 硬规则（违反即失败，不是建议）
 
 1. 引用的 `evidence_id` 必须出现在 `context.evidence_catalog` 里；一条都不引用也判失败。
+   **例外**：本次没有任何可交易标的（未加载持仓）时允许零引用 —— 此时计划是「空仓 + 现金 100%」，
+   用 `proposal.evidence` 引用 `market:regime` 说明等待理由即可；一旦有标的，规则立即恢复。
 2. 权重是占含现金总资产的比例（0–1 小数），`sum(target_weight) + cash_target_weight = 1`。
 3. 方向与权重必须一致（BUY/ADD 抬、SELL/REDUCE 降、EXIT 归零、HOLD 不动）。
 4. 风控退回就改建议，**不要**放宽 `config/risk_policy.yaml` 来让它通过。
@@ -86,7 +88,7 @@ echo '你的口令' > positions/.passphrase          # 方式二：本地文件�
 
 ## 收工前验收（30 秒）
 
-1. `python -m pytest -q` → 全绿（当前 267 项）。
+1. `python -m pytest -q` → 全绿（当前 262 项）。
 2. 打开 `web/index.html`：
    - 三个标签在：市场概况 / 持仓分析 / 持仓设置；
    - 持仓分析是「一、持仓概况 → 二、持仓分析 → 三、市场洞察」；

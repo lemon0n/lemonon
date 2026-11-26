@@ -129,6 +129,8 @@ class ProposalOutput(StrictModel):
     portfolio_thesis: str = Field(min_length=2)
     cash_target_weight: float = Field(ge=0, le=1)
     trades: list[TradeAdvice]
+    # 无交易（空仓/无持仓）时的证据落点：结论可以有引用，不必硬塞进 trades
+    evidence: list[EvidenceRef] = []
     why_not_alternatives: list[str]
     expected_benefit: str
     expected_cost_and_risk: str

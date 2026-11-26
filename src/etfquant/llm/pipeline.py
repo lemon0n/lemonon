@@ -86,7 +86,11 @@ class ResearchRun:
         system = self.deps.prompts['common_system']
         attempt = 0
         last_error = None
-        while attempt < 2:
+        # agent/ScriptedLLM：每段只有一份预写输出，重试只会吃掉下一段的响应（schema 连环报错）
+        # 只有 agent 模式没有第二次模型输出；openai_compatible 仍允许一次带反馈重试
+        scripted = self.deps.provider == 'agent'
+        max_attempts = 1 if scripted else 2
+        while attempt < max_attempts:
             attempt += 1
             prompt = user if not feedback else (
                 user + '\n\n上一次输出被证据校验拒绝：%s\n'
@@ -108,7 +112,7 @@ class ResearchRun:
                 continue
             self._log(stage, usage=usage, attempts=attempt)
             return model
-        raise LLMError('证据校验连续失败（%s）：%s' % (stage, last_error))
+        raise LLMError('证据校验失败（%s）：%s' % (stage, last_error))
 
     # ------------------------------------------------------------ 主流程
     def run(self) -> FinalPlan:
@@ -139,16 +143,21 @@ class ResearchRun:
         # ---- ① 研究 ----
         research = self._call(stage='research', schema=ResearchOutput,
                               template=self.deps.prompts['research'],
-                              extra=dict(CONTEXT_JSON=ctx_json))
+                              extra=dict(CONTEXT_JSON=ctx_json),
+                              min_refs=(1 if self.context.get('assets') else 0))
         self.research = research
         self._save('01_research.json', research)
 
         # ---- ② 组合建议 ----
+        min_refs = 1 if self.context.get('assets') else 0
+        if not self.context.get('assets'):
+            self.notes.append('本次没有可交易标的（未加载持仓）：按空仓处理，允许零证据引用')
+            self._log('evidence_policy', reason='no_tradable_assets', min_refs=0)
         proposal = self._call(
             stage='portfolio_manager', schema=ProposalOutput,
             template=self.deps.prompts['portfolio_manager'],
             extra=dict(CONTEXT_JSON=ctx_json, RESEARCH_JSON=research,
-                       RISK_POLICY_JSON=self.deps.policy))
+                       RISK_POLICY_JSON=self.deps.policy), min_refs=min_refs)
         self.proposal = proposal
         self._save('02_proposal.json', proposal)
 
@@ -168,7 +177,7 @@ class ResearchRun:
             stage='revision', schema=RevisedProposal,
             template=self.deps.prompts['revision'],
             extra=dict(CONTEXT_JSON=ctx_json, RESEARCH_JSON=research,
-                       PROPOSAL_JSON=proposal, REDTEAM_JSON=redteam))
+                       PROPOSAL_JSON=proposal, REDTEAM_JSON=redteam), min_refs=min_refs)
         revised, adjustments, notes = risk_mod.complete_proposal(revised, self.context)
         self.adjustments.extend(adjustments)
         self.notes.extend(notes)

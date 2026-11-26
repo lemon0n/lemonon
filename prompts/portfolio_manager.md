@@ -26,8 +26,15 @@ execution_rule 要描述可执行条件。没有盘口数据时不得假设流�
 
 why_not_alternatives 至少比较一个真正可行的替代组合，不允许写空泛答案。
 
+**无持仓（可交易标的为 0）时**：
+- `trades` 必须为空数组，`cash_target_weight` 必须为 1.0；
+- 在 `evidence` 里引用至少一条市场事实（如 `market:regime:<日期>`、`market:quality:<日期>`），
+  用它说明「为什么今天只能空仓等待」，不要凭空写没有引用来源的判断；
+- `portfolio_thesis` 写清：无持仓的原因（未加载持仓 / 口令缺失）、等待什么条件再入场、
+  什么情况下这个空仓结论会失效。
+
 输出 ProposalOutput JSON，字段：
-as_of / portfolio_thesis / cash_target_weight / trades[] / why_not_alternatives[] /
+as_of / portfolio_thesis / cash_target_weight / trades[] / evidence[] / why_not_alternatives[] /
 expected_benefit / expected_cost_and_risk / review_triggers[]
 
 每条 trade 必须含：

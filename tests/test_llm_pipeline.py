@@ -143,4 +143,49 @@ def test_revision_must_not_add_new_facts(tmp_path):
                             bad_revised])
     out = pipeline.run(ctx, deps)
     assert out['final'].status == 'LLM_FAILED'
-    assert '证据校验连续失败' in (out['final'].notes[0] or '')
+    assert '证据校验失败' in (out['final'].notes[0] or '')
+
+def test_no_tradable_assets_approved_cash_only(tmp_path):
+    """无持仓：trades 为空、现金 100%，仍应 APPROVED（空仓也是一种计划）。"""
+    ctx = H.context()
+    ctx['assets'] = []
+    ctx['portfolio']['positions'] = []
+    ctx['portfolio']['position_weight'] = 0.0
+    ctx['portfolio']['cash_weight'] = 1.0
+    # 只保留市场级证据，模拟 portfolio/positions 为空的情况
+    ctx['evidence_catalog'] = {k: v for k, v in ctx['evidence_catalog'].items()
+                               if k.startswith('market:')}
+    research = H.research(ctx, codes=[])
+    proposal = dict(
+        as_of=H.DATE, portfolio_thesis='没有可交易标的，保持现金等待',
+        cash_target_weight=1.0, trades=[],
+        evidence=[dict(evidence_id='market:regime:2026-11-24', claim='市场状态为震荡区间')],
+        why_not_alternatives=['没有可交易标的，谈替代组合没有意义'],
+        expected_benefit='不承担市场风险', expected_cost_and_risk='踏空风险',
+        review_triggers=['加载到持仓或观察池后重新评估'])
+    deps = _deps(tmp_path, [research, proposal, H.redteam('ACCEPT'), H.revised(proposal)],
+                 provider='agent')
+    out = pipeline.run(ctx, deps)
+    final = out['final']
+    assert final.status == 'APPROVED', [v.code for v in (final.risk.violations
+                                                         if final.risk else [])]
+    assert final.orders == []
+    assert final.model_proposal is not None
+    assert final.model_proposal.cash_target_weight == 1.0
+    assert any('没有可交易标的' in n for n in final.notes)
+
+
+def test_agent_mode_evidence_failure_does_not_cascade(tmp_path):
+    """agent 模式只有一份输出：证据失败直接失败，不能把下一段当重试。"""
+    ctx = H.context(positions=[H.position('510300', weight=0.2, shares=5000)])
+    research = H.research(ctx)
+    bad = H.proposal(ctx, [H.trade('510300', 'ADD', 0.2, 0.24,
+                                   evidence_id='EV:DOES:NOT:EXIST')], cash=0.76)
+    deps = _deps(tmp_path, [research, bad, H.redteam('ACCEPT'), H.revised(bad)],
+                 provider='agent')
+    out = pipeline.run(ctx, deps)
+    final = out['final']
+    assert final.status == 'LLM_FAILED'
+    joined = ' '.join(final.notes)
+    assert '证据校验失败' in joined
+    assert 'validation errors' not in joined      # 不能出现「把 redteam 当 proposal」的 schema 连环错
