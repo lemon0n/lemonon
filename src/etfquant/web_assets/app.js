@@ -3232,7 +3232,7 @@ function rsPageHTML(p,s1,adv){
   h+='<div class="box"><div id="rsReview" class="rs-note">加载中…</div></div>';
 
   h+='<div class="rs-sub">6. 新方向候选（受环境额度约束）</div>';
-  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自研究范围（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只）；当前 scope=holdings 时不生成候选。上涨占比是历史相似条件统计，不是收益保证。</div></div>';
+  h+='<div class="box tight rs-scroll"><table class="tbl"><thead><tr><th>方向</th><th>代码</th><th>名称</th><th class="r">5日上涨占比</th><th class="r">20日上涨占比</th><th class="r">20日中位</th><th>建议</th><th>理由</th><th>风险</th></tr></thead><tbody id="rsIdeaBody"></tbody></table><div class="rs-note">候选来自研究范围（板块 B 级以上、非持仓、近 5 日不弱于大盘，同类别只留一只）；'+((D.meta&&D.meta.scope&&D.meta.scope!=='holdings')?('当前 scope='+esc(D.meta.scope)+'。'):('当前 scope=holdings：只研究已持仓，不生成候选。'))+'上涨占比是历史相似条件统计，不是收益保证。</div></div>';
   return h;
 }
 function rsAfterBars(){
@@ -4333,7 +4333,7 @@ function rsRenderIdeas(){
   if(!body) return;
   if(!RS_IDEAS.length) RS_IDEAS=buildIdeas();
   if(!RS_IDEAS.length){
-    body.innerHTML='<tr><td colspan="9" class="muted">当前研究范围（scope=holdings）不生成新方向候选。</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="muted">当前研究范围（scope='+esc((D.meta&&D.meta.scope)||'holdings')+'）不生成新方向候选：只研究已持仓标的。</td></tr>';
   }else{
   body.innerHTML=RS_IDEAS.map(function(x){
     var f=rsForecast(LBARS[x.code]);

@@ -224,6 +224,16 @@ def _r(x, d=3):
         return None
 
 
+
+def _research_scope() -> str:
+    """研究范围：holdings = 只研究持仓；holdings+watchlist = 持仓 + 观察池。"""
+    try:
+        conf = config.yaml_conf('llm.yaml') or {}
+        return str((conf.get('research') or {}).get('scope', 'holdings')).strip() or 'holdings'
+    except Exception:
+        return 'holdings'
+
+
 def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=None,
                plan=None):
     """组装前端数据：公开行情 + 逐腿证据卡 + 权威数据包摘要 + 决策契约参数。"""
@@ -316,6 +326,7 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                   source=meta['source'], skipped=meta.get('skipped', []),
                   version=meta.get('version', '3.0'),
                   dashboard_version='4.0',
+                  scope=_research_scope(),
                   tz=meta.get('tz', 'Asia/Shanghai'),
                   snapshot_date=snapshot_date,
                   benchmark_date=meta.get('benchmark_date')),
@@ -394,6 +405,10 @@ def render(data, cfg=None, decision=True, demo=None, out_path=None):
                 prevs[str(row.get('code'))] = row['prev']
         data['demo_positions']['prices'] = prices
         data['demo_positions']['prevs'] = prevs
+    if isinstance(data, dict):
+        meta = data.setdefault('meta', {})
+        if not meta.get('scope'):
+            meta['scope'] = _research_scope()
     payload = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     payload = payload.replace('<', '\\u003c').replace('>', '\\u003e')
     if demo:
