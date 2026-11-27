@@ -65,7 +65,7 @@
     if (status === 'DEMO') {
       return {status: 'DEMO', level: '—', action: 'ABSTAIN', rule_ids: [],
               hits: [], blocked_by: ['DEMO'],
-              unknowns: ['离线合成数据：仅演示规则求值，不输出交易动作']};
+              unknowns: ['数据状态不是 OK：只做规则求值，不输出交易动作']};
     }
     var rs = rules(D), i, r = null;
     for (i = 0; i < rs.length; i++) {

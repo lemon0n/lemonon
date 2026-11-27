@@ -1,27 +1,56 @@
 {
-  "ok": false,
-  "status": "LLM_FAILED",
-  "ran_at": "2026-11-26 16:42:48",
+  "ok": true,
+  "status": "APPROVED",
+  "ran_at": "2026-11-27 10:03:52",
   "mode": "agent",
   "data_date": "2026-11-26",
+  "run_date": "2026-11-27",
+  "expected_data_date": "2026-11-26",
+  "data_stale": false,
+  "quote_dates": {
+    "158041": "2026-11-26",
+    "159322": "2026-11-26",
+    "512000": "2026-11-26",
+    "512630": "2026-11-26",
+    "588170": "2026-11-26"
+  },
+  "stale_assets": [],
   "degraded": false,
   "synthetic": false,
-  "levels": 0,
-  "level_count": {},
-  "action_count": {},
-  "orders": 0,
+  "levels": 5,
+  "level_count": {
+    "REDUCE": 2,
+    "EXIT": 1,
+    "HOLD": 2
+  },
+  "action_count": {
+    "SELL": 3
+  },
+  "orders": 3,
   "skipped": [],
-  "fallback": [],
+  "fallback": [
+    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）",
+    "未配置公开观察池：页面只展示市场与持仓"
+  ],
+  "source": {
+    "live": true,
+    "degraded": false,
+    "synthetic": false,
+    "fallback": [
+      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）",
+      "未配置公开观察池：页面只展示市场与持仓"
+    ]
+  },
   "validation": {
     "ok": true,
     "violations": []
   },
   "research": {
-    "status": "LLM_FAILED",
-    "run_id": "163533_636b7ba7"
+    "status": "APPROVED",
+    "run_id": "095433_90d1a789"
   },
-  "run_id": "163533_636b7ba7",
-  "input_hash": "sha256:c6e8a71edbabf63a540d7f3c7435578229bb43706c4e72b2ac775e3a71197db7",
+  "run_id": "095433_90d1a789",
+  "input_hash": "sha256:119f5a6b10cbba063dce381dbd40d05b2fe358f5ba04ebf05dc2cfd78bd8c37d",
   "config_hash": null,
-  "html": "/workspace/web/index.html"
+  "html": "D:\\缓存\\其他\\L-mx\\repo\\web\\index.html"
 }

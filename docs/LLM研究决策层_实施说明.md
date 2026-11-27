@@ -182,7 +182,7 @@ python3.11 -m pip install -r requirements.txt
 
 # 只跑研究层（不推送）
 python3.11 scripts/run_research.py --json
-python3.11 scripts/run_research.py --snapshot --mock --no-page   # 离线链路自查
+python3.11 scripts/run_research.py --mock --no-page   # 不联网：用 mock 回放自查链路
 
 # 诊断 / 重放 / 报告 / 接口
 python3.11 -m etfquant.llm.cli doctor
@@ -214,7 +214,7 @@ python3.11 -m etfquant.llm.cli api --port 8008
 | `docs/` | 在用的 5 份说明；历史设计与施工记录在 `docs/archive/` | 否 |
 
 数据抓取已合并成一个入口：`scripts/fetch.py [--market] [--national] [--sector] [--all]`，
-内部按任务隔离，任一失败只沿用上次快照，不会中断页面更新。
+内部按任务隔离，任一失败只记录失败原因（不沿用旧值），不会中断页面更新。
 
 ---
 

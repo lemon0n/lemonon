@@ -114,15 +114,14 @@ def test_render_page_never_injects_global_old_brief(tmp_path, monkeypatch):
     assert captured['meta']['research_run_id'] == '180955_cd56a877'
 
 
-def test_old_snapshot_news_is_not_current_evidence():
-    market = dict(as_of='2026-11-12 09:05:00',
-                  news=[dict(time='08:52', text='旧快讯')])
-    assert integration._events(market, '2026-11-26') == []
-    current = dict(as_of='2026-11-26 09:05:00',
-                   news=[dict(time='08:52', text='当日快讯')])
-    events = integration._events(current, '2026-11-26')
-    assert events[0]['evidence_id'].startswith('event:market:2026-11-26:')
+def test_news_events_come_from_live_fetch_only():
+    assert integration._events(dict(items=[]), '2026-11-26') == []
+    live = dict(fetched_at='2026-11-26 09:05:00', source='eastmoney',
+                items=[dict(time='2026-11-26 08:52:00', title='当日快讯')])
+    events = integration._events(live, '2026-11-26')
+    assert events[0]['evidence_id'].startswith('news:2026-11-26:')
     assert events[0]['as_of'].startswith('2026-11-26')
+    assert events[0]['source'] == 'eastmoney'
 
 
 def test_stale_market_snapshot_does_not_supply_current_leaders():
@@ -143,19 +142,32 @@ def test_brief_requires_current_run_in_production(tmp_path, monkeypatch):
     assert webgen._brief('2026-11-26', require_run=True) is None
 
 
-def test_build_data_does_not_attach_old_news_note(tmp_path, monkeypatch):
-    note = tmp_path / 'news_note.json'
-    note.write_text(json.dumps(dict(data_date='2026-11-12', note='旧消息解读')), encoding='utf-8')
-    monkeypatch.setattr(webgen, 'NEWS_NOTE_PATH', str(note))
-    market = dict(as_of='2026-11-12 09:05:00', indices=[], breadth={}, sentiment={},
-                  rotation={}, distribution={}, premium={}, valuation={}, **{'global': {}},
-                  liquidity={}, macro={}, news=[], calendar=[], news_sentiment={},
-                  policy_heat=[])
-    meta = dict(as_of='2026-11-26T16:00:00', data_date='2026-11-26',
-                run_date='2026-11-26', mode='live', status='OK', run_id='r1', source={})
-    data = webgen.build_data(market, None, dict(regime='震荡区间', fit_lo=60, fit_hi=70),
-                             [], config.cfg(), meta, packet={})
-    assert not data['market']['news_sentiment'].get('note')
+def test_build_data_uses_only_live_news():
+    from etfquant import config as cfg_mod, webgen as wg
+    market = dict(available=True, fetched_at='2026-11-26 09:05:00', phase='盘前',
+                  breadth=None, distribution=None, errors=[],
+                  premium=dict(available=False, reason='无 IOPV'),
+                  **{'global': {'items': []}})
+    meta = dict(as_of='2026-11-26T09:05:00', data_date='2026-11-26',
+                run_date='2026-11-26', mode='live', status='OK', run_id='r1',
+                source={})
+    data = wg.build_data(market, None, dict(regime='震荡区间', fit_lo=60, fit_hi=70,
+                                            observations=[]), [],
+                         cfg_mod.cfg(), meta, packet={}, news=None)
+    assert data['market']['news'] == []
+    assert data['market']['news_available'] is False
+    assert data['market']['sentiment'] is None
+    # 有实时快讯时按时间与来源展示，不生成任何「昨日 note」
+    news = dict(fetched_at='2026-11-26 09:05:00', source='eastmoney', available=True,
+                items=[dict(time='2026-11-26 08:52:00', title='快讯A',
+                            url='https://example.com', summary='', source='eastmoney')],
+                sentiment=dict(score=55, label='中性', positive=1, negative=0,
+                               neutral=0, basis='测试'))
+    data = wg.build_data(market, None, dict(regime='震荡区间', fit_lo=60, fit_hi=70,
+                                            observations=[]), [],
+                         cfg_mod.cfg(), meta, packet={}, news=news)
+    assert data['market']['news'][0]['text'] == '快讯A'
+    assert data['market']['news_available'] is True
 
 
 def _fn(src, name):

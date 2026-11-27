@@ -1,31 +1,34 @@
 # -*- coding: utf-8 -*-
-"""统一取数入口：实时源 → 失败降级离线快照，并如实记录每一条通道的真实来源。
+"""统一取数入口：只走实时通道，没有离线兜底。
 
-降级语义（重要）：
-  · 'live'      真实行情，可用于研究性决策
-  · 'snapshot'  离线合成快照，仅演示；上层必须标记 DEMO/ABSTAIN，不得输出交易动作
+历史教训：旧版在实时源失败时回退 data/snapshot/* 「降级兜底」，结果是页面把
+上周的行情当成今天展示。现在语义只有两种：
 
-source_report() 返回分通道明细与「是否合成」，任何关键通道（daily / spot / index）
-落到 snapshot 即 degraded=True；上层据此把分析状态降级为 DEMO / ABSTAIN。
+  · 'live'       真实行情，可用于研究性决策
+  · 取不到       抛异常 / 返回 None，并在 source_report 里记失败原因；
+                 上层据此 ABSTAIN 或显示「抓取失败」，**绝不显示上一次的数值**。
 
-运行模式（MODE）由 pipeline 在开始时设置一次，模块内所有取数函数共用。
+market / news 由 scripts/fetch.py 在每日流程开头实时重建，loader 只读同一次运行
+产出的 data/live/{market,news}.json，并校验抓取时间。
 """
-import os
+from __future__ import annotations
+
 import datetime
+import json
+import os
 
 from .. import config
-from . import snapshot, akshare_adapter as live
+from . import akshare_adapter as live
 from .schema import validate_bars
 
-MODE = {'live': True}   # False = 强制离线快照
-
 STATE = {
-    'daily': {},          # code -> 'live' | 'snapshot'
+    'daily': {},          # code -> 'live'
     'spot': None,
     'sector': None,
     'market': None,
-    'indices': None,      # 'live' | 'snapshot'
-    'index_daily': {},    # code -> 'live' | 'snapshot'
+    'news': None,
+    'indices': None,
+    'index_daily': {},
     'fallback': [],
     'daily_vendor': {},
     'daily_dates': {},
@@ -36,7 +39,15 @@ STATE = {
 
 _CACHE = {'daily': {}, 'spot': None, 'sector': None, 'index_daily': {}}
 
-CRITICAL = ('daily', 'spot', 'index_daily')
+LIVE_DIR = os.path.join(config.ROOT, 'data', 'live')
+MARKET_PATH = os.path.join(LIVE_DIR, 'market.json')
+NEWS_PATH = os.path.join(LIVE_DIR, 'news.json')
+
+# 腾讯/新浪兜底通道需要代码清单；这里只放常用宽基，不携带任何行情数值。
+DEFAULT_SPOT_CODES = ['510300', '510500', '588000', '159915']
+
+# 市场/快讯文件超过这个时长视为「不是本次运行的数据」
+MAX_MARKET_AGE_MINUTES = 30
 
 
 def _now_bj():
@@ -48,7 +59,9 @@ def _now_bj():
 
 
 def reset(live_mode=True):
-    MODE['live'] = bool(live_mode)
+    """兼容旧调用；离线模式已移除，任何非实时模式都直接拒绝。"""
+    if not live_mode:
+        raise RuntimeError('离线快照已删除：不再支持不联网运行，请用真实数据或直接报错')
     STATE['daily'].clear()
     STATE['daily_vendor'].clear()
     STATE['daily_dates'].clear()
@@ -57,7 +70,7 @@ def reset(live_mode=True):
     STATE['spot_dates'].clear()
     STATE['spot_vendor'] = None
     STATE['fallback'] = []
-    for k in ('spot', 'sector', 'market', 'indices'):
+    for k in ('spot', 'sector', 'market', 'news', 'indices'):
         STATE[k] = None
     for k in ('daily', 'spot', 'sector', 'index_daily'):
         _CACHE[k] = {} if k in ('daily', 'index_daily') else None
@@ -67,7 +80,6 @@ def note_fallback(msg):
     msg = str(msg)
     if msg not in STATE['fallback']:
         STATE['fallback'].append(msg)
-
 
 
 def _last_date(df) -> str | None:
@@ -94,134 +106,137 @@ def _spot_dates(df) -> dict:
             out[code] = stamp
     return out
 
+
+def _load_live_json(path: str, kind: str):
+    """读取同一次运行生成的数据文件；超过 30 分钟视为过期，不读。"""
+    try:
+        with open(path, encoding='utf-8') as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        return None, '%s 未生成（先跑 scripts/fetch.py）' % os.path.basename(path)
+    fetched = str(doc.get('fetched_at') or doc.get('as_of') or '')
+    try:
+        ts = datetime.datetime.fromisoformat(fetched)
+    except ValueError:
+        return None, '%s 缺少抓取时间，拒绝使用' % os.path.basename(path)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=_now_bj().tzinfo)
+    age = (_now_bj() - ts).total_seconds() / 60
+    if age > MAX_MARKET_AGE_MINUTES:
+        return None, '%s 抓取于 %s（%.0f 分钟前），超过 %d 分钟，拒绝当本次数据' % (
+            kind, fetched, age, MAX_MARKET_AGE_MINUTES)
+    return doc, None
+
+
 def daily(code, live_=None):
-    """日线：真实源（东财→腾讯→新浪）优先，失败降级离线快照。"""
+    """日线：真实源（东财→腾讯→新浪）。失败抛异常，不降级。"""
     code = str(code)
     if code in _CACHE['daily']:
         return _CACHE['daily'][code].copy()
-    use_live = MODE['live'] if live_ is None else bool(live_)
-
-    if use_live:
-        df = live.fetch_daily(code)
-        if df is not None:
-            try:
-                df = validate_bars(df, code)
-                STATE['daily'][code] = 'live'
-                STATE['daily_vendor'][code] = live.LAST_DAILY_SOURCE or 'akshare'
-                STATE['daily_dates'][code] = _last_date(df)
-                _CACHE['daily'][code] = df
-                return df.copy()
-            except Exception as e:
-                note_fallback('%s 日线不可用: %s' % (code, e))
-    STATE['daily'][code] = 'snapshot'
-    STATE['daily_vendor'][code] = 'snapshot'
-    note_fallback('%s 日线降级离线合成快照' % code)
-    df = snapshot.daily(code)
+    df = live.fetch_daily(code)
+    if df is None:
+        raise RuntimeError('%s 日线实时源全部失败' % code)
+    df = validate_bars(df, code)
+    STATE['daily'][code] = 'live'
+    STATE['daily_vendor'][code] = live.LAST_DAILY_SOURCE or 'live'
     STATE['daily_dates'][code] = _last_date(df)
     _CACHE['daily'][code] = df
     return df.copy()
 
 
 def index_daily(code, live_=None):
-    """基准指数日线：真实指数序列（腾讯/新浪）优先，失败退回快照。
-
-    相对强弱必须由「同日」指数 K 线计算；不得使用预置的固定区间收益。
-    """
+    """基准指数日线：真实指数序列（腾讯/新浪）。失败抛异常，不降级。"""
     code = str(code)
     if code in _CACHE['index_daily']:
         return _CACHE['index_daily'][code].copy()
-    use_live = MODE['live'] if live_ is None else bool(live_)
-    if use_live:
-        df = live.fetch_index_daily(code)
-        if df is not None and len(df) >= 30:
-            try:
-                df = validate_bars(df, 'index:%s' % code)
-                STATE['index_daily'][code] = 'live'
-                STATE['index_daily_dates'][code] = _last_date(df)
-                _CACHE['index_daily'][code] = df
-                return df.copy()
-            except Exception as e:
-                note_fallback('基准 %s 日线不可用: %s' % (code, e))
-    STATE['index_daily'][code] = 'snapshot'
-    note_fallback('基准 %s 日线降级离线快照' % code)
-    df = snapshot.index_daily(code)
+    df = live.fetch_index_daily(code)
+    if df is None or len(df) < 30:
+        raise RuntimeError('基准 %s 日线实时源失败或不足 30 根' % code)
+    df = validate_bars(df, 'index:%s' % code)
+    STATE['index_daily'][code] = 'live'
     STATE['index_daily_dates'][code] = _last_date(df)
     _CACHE['index_daily'][code] = df
     return df.copy()
 
 
 def spot(codes=None, live_=None):
+    """ETF 实时价：东财全量 → 腾讯/新浪（需代码清单）。失败返回 None。"""
     if _CACHE['spot'] is not None:
         return _CACHE['spot'].copy()
-    use_live = MODE['live'] if live_ is None else bool(live_)
-
-    if use_live:
-        if codes is None:
-            try:
-                codes = [str(c) for c in snapshot.spot()['code'].astype(str)]
-            except Exception:
-                codes = []
-        df = live.fetch_spot(codes)
-        if df is not None and 'code' in df.columns:
-            df['code'] = df['code'].astype(str).str.zfill(6)
-            STATE['spot'] = 'live'
-            STATE['spot_vendor'] = live.LAST_SPOT_SOURCE or 'akshare'
-            STATE['spot_dates'] = _spot_dates(df)
-            _CACHE['spot'] = df
-            return df.copy()
+    df = live.fetch_spot(codes)
+    if df is None or 'code' not in getattr(df, 'columns', []):
         note_fallback('实时行情（东财/腾讯/新浪）均失败')
-    STATE['spot'] = 'snapshot'
-    STATE['spot_vendor'] = 'snapshot'
-    note_fallback('实时行情降级离线合成快照')
-    df = snapshot.spot()
+        STATE['spot'] = 'failed'
+        return None
+    df['code'] = df['code'].astype(str).str.zfill(6)
+    STATE['spot'] = 'live'
+    STATE['spot_vendor'] = live.LAST_SPOT_SOURCE or 'live'
     STATE['spot_dates'] = _spot_dates(df)
     _CACHE['spot'] = df
     return df.copy()
 
 
 def sector_flow(live_=None):
+    """板块资金流：实时。失败返回 None，页面显示「板块数据抓取失败」。"""
     if _CACHE['sector'] is not None:
         return _CACHE['sector'].copy()
-    use_live = MODE['live'] if live_ is None else bool(live_)
-    if use_live:
-        df = live.fetch_sector_flow()
-        if df is not None:
-            STATE['sector'] = 'live'
-            _CACHE['sector'] = df
-            return df.copy()
-        note_fallback('板块资金流降级离线快照')
-    STATE['sector'] = 'snapshot'
-    df = snapshot.sector_flow()
+    df = live.fetch_sector_flow()
+    if df is None:
+        note_fallback('板块资金流实时抓取失败')
+        STATE['sector'] = 'failed'
+        return None
+    STATE['sector'] = 'live'
     _CACHE['sector'] = df
     return df.copy()
 
 
 def indices(live_=None):
-    """指数实时点位（腾讯/新浪）。失败返回 None，由调用方保留快照旧值。"""
-    use_live = MODE['live'] if live_ is None else bool(live_)
-    if use_live:
-        rows = live.fetch_indices()
-        if rows:
-            STATE['indices'] = 'live'
-            return rows
-        note_fallback('指数点位降级离线快照')
-    STATE['indices'] = 'snapshot'
-    return None
+    """指数实时点位。失败返回 None。"""
+    rows = live.fetch_indices()
+    if not rows:
+        note_fallback('指数点位实时抓取失败')
+        STATE['indices'] = 'failed'
+        return None
+    STATE['indices'] = 'live'
+    return rows
 
 
 def market():
-    """宏观/资讯/情绪等人工维护文本，恒为离线快照（必须标记，不参与交易决策）。"""
-    STATE['market'] = 'snapshot'
-    return snapshot.market()
+    """市场数据：只读本次运行抓取的 data/live/market.json；不合并、不兜底。"""
+    doc, err = _load_live_json(MARKET_PATH, 'market.json')
+    if doc is None:
+        note_fallback('市场数据不可用：%s' % err)
+        STATE['market'] = 'missing'
+        return dict(available=False, reason=err, fetched_at=None,
+                    breadth=None, distribution=None,
+                    premium=dict(available=False, reason=err), errors=[err],
+                    **{'global': None})
+    STATE['market'] = 'live'
+    for msg in doc.get('errors') or []:
+        note_fallback('市场抓取部分失败：%s' % msg)
+    doc['available'] = bool(doc.get('breadth') or (doc.get('global') or {}).get('items'))
+    doc.setdefault('reason', None if doc['available'] else '全部实时抓取失败')
+    return doc
+
+
+def news():
+    """财经快讯：只读本次运行抓取的 data/live/news.json。"""
+    doc, err = _load_live_json(NEWS_PATH, 'news.json')
+    if doc is None:
+        note_fallback('快讯不可用：%s' % err)
+        STATE['news'] = 'missing'
+        return dict(available=False, reason=err, fetched_at=None,
+                    items=[], source=None, sentiment=None)
+    STATE['news'] = 'live'
+    doc['available'] = bool(doc.get('items'))
+    if not doc['available']:
+        doc['reason'] = '；'.join(doc.get('errors') or ['快讯源无返回'])
+        note_fallback('快讯抓取失败：%s' % doc['reason'])
+    return doc
 
 
 def source_report():
-    """分通道来源 + 合成判定。
-
-    只有「决策输入」通道（日线 / 实时价 / 基准指数）落到离线快照才算 synthetic：
-    市场状态由真实指数序列计算，因此 market.json（资讯/情绪）只作展示，
-    单独标记 market_snapshot=True，不影响决策状态。
-    """
+    """分通道来源 + 失败明细。没有 snapshot 通道，synthetic 恒为 False。"""
     channels = {
         'daily': dict(STATE['daily']),
         'daily_vendor': dict(STATE['daily_vendor']),
@@ -234,11 +249,12 @@ def source_report():
         'sector': STATE['sector'],
         'indices': STATE['indices'],
         'market': STATE['market'],
+        'news': STATE['news'],
     }
     daily_live = all(v == 'live' for v in STATE['daily'].values())
-    index_live = bool(STATE['index_daily']) and all(v == 'live' for v in STATE['index_daily'].values())
+    index_live = bool(STATE['index_daily']) and all(
+        v == 'live' for v in STATE['index_daily'].values())
     spot_live = STATE['spot'] == 'live'
-    synthetic = (not daily_live) or (not spot_live) or (not index_live)
     degraded = not (daily_live and spot_live and index_live)
     premium_ok = spot_live and STATE['spot_vendor'] == 'akshare'
     if spot_live and not premium_ok:
@@ -246,14 +262,15 @@ def source_report():
                       % (STATE['spot_vendor'] or '兜底源'))
     return dict(
         channels=channels, live=not degraded, degraded=degraded,
-        synthetic=synthetic, index_live=index_live,
+        synthetic=False, index_live=index_live,
         daily_live=daily_live, spot_live=spot_live,
-        market_snapshot=STATE['market'] == 'snapshot',
-        sector_snapshot=STATE['sector'] != 'live',
+        market_live=STATE['market'] == 'live',
+        news_live=STATE['news'] == 'live',
+        sector_live=STATE['sector'] == 'live',
         premium_ok=premium_ok,
         premium_missing_reason=None if premium_ok else (
             '兜底行情源无 IOPV' if spot_live else '实时行情未取到'),
-        mode='live' if MODE['live'] else 'snapshot',
+        mode='live',
         fallback=list(STATE['fallback']),
         checked_at=_now_bj().strftime('%Y-%m-%d %H:%M:%S'),
     )

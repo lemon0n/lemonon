@@ -5,13 +5,24 @@
 页面只渲染 analysis_packet（权威结果），不自行推导第二套动作。
 """
 import os
+import datetime
 import json
 
 from . import config
 from . import methodology as M
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web_assets')
-SECTOR_WEIGHTS_PATH = os.path.join(config.ROOT, 'data', 'snapshot', 'index_sector_weights.json')
+SECTOR_WEIGHTS_PATH = os.path.join(config.ROOT, 'data', 'live', 'index_sector_weights.json')
+
+
+def _failed_indices(doc):
+    """从 errors 解析抓取失败的指数代码；这些指数的权重一律不用。"""
+    out = set()
+    for msg in doc.get('errors') or []:
+        code = str(msg).split(':', 1)[0].strip()
+        if code:
+            out.add(code)
+    return out
 
 
 def _load_sector_weights():
@@ -34,6 +45,13 @@ def _load_sector_weights():
         for k, v in w.items():
             if not isinstance(k, str) or not isinstance(v, (int, float)):
                 return None
+    fetched = str(d.get('fetched_at') or '')[:10]
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    if fetched != today:
+        # 不是今天抓的权重一律不用：页面显示「未覆盖」，不拿旧权重冒充当前
+        return None
+    failed = _failed_indices(d)
+    d['indices'] = {k: v for k, v in d['indices'].items() if k not in failed}
     return d
 
 
@@ -48,7 +66,6 @@ def _national_team():
         return None
 
 BRIEF_PATH = os.path.join(config.ROOT, 'data', 'brief.json')
-NEWS_NOTE_PATH = os.path.join(config.ROOT, 'data', 'news_note.json')
 BANNED_PATH = os.path.join(config.ROOT, 'config', 'brief_banned.txt')
 
 
@@ -60,24 +77,6 @@ def _banned():
     except OSError:
         return None
     return words or None
-
-
-def _news_note(data_date):
-    """消息面解读：由模型按当日快讯写 100 字以内，落 data/news_note.json。
-
-    只在日期一致时采用；没有就让页面只显示分数，不硬凑一句。
-    """
-    try:
-        with open(NEWS_NOTE_PATH, encoding='utf-8') as f:
-            d = json.load(f)
-    except (OSError, ValueError):
-        return None
-    if not isinstance(d, dict) or not isinstance(d.get('note'), str):
-        return None
-    if data_date and d.get('data_date') != data_date:
-        return None
-    note = d['note'].strip()
-    return note or None
 
 
 def _brief(data_date, run_id=None, *, require_run=False):
@@ -238,8 +237,29 @@ def _research_scope() -> str:
         return 'holdings'
 
 
+def _sentiment_from_breadth(breadth):
+    """情绪只由实时广度计算，口径写清楚；没有广度就返回 None，不编造。"""
+    if not isinstance(breadth, dict) or not breadth.get('sample'):
+        return None
+    up = breadth.get('up_ratio')
+    if up is None:
+        return None
+    score = int(round(up))
+    label = '偏强' if score >= 60 else ('偏弱' if score <= 40 else '中性')
+    items = [
+        dict(k='上涨 / 下跌', v='%d / %d' % (breadth.get('advance', 0),
+                                             breadth.get('decline', 0))),
+        dict(k='涨停 / 跌停', v='%d / %d' % (breadth.get('limit_up', 0),
+                                             breadth.get('limit_down', 0))),
+        dict(k='上涨占比', v='%.1f%%' % up),
+        dict(k='样本', v='%d 只' % breadth.get('sample', 0)),
+    ]
+    return dict(score=score, label=label, items=items, panic=False,
+                basis='据实时全市场涨跌统计', method='breadth')
+
+
 def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=None,
-               plan=None):
+               plan=None, news=None):
     """组装前端数据：公开行情 + 逐腿证据卡 + 权威数据包摘要 + 决策契约参数。"""
     def _col(row, key, default=0.0):
         try:
@@ -320,13 +340,14 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
     glob_block = dict(market.get('global') or {})
     if glob_block.get('items'):
         glob_block['items'] = _sane(glob_block['items'])
-
-    news_sentiment = dict(market.get('news_sentiment') or {})
-    snapshot_date = str(market.get('as_of') or '')[:10] or None
-    note = _news_note(meta.get('data_date'))
-    if note and not news_sentiment.get('note'):
-        news_sentiment['note'] = note
-        news_sentiment['note_as_of'] = meta.get('data_date')
+    news_doc = dict(news or {})
+    news_items = [dict(time=x.get('time'), text=x.get('title'),
+                       url=x.get('url'), summary=x.get('summary'),
+                       source=x.get('source'))
+                  for x in (news_doc.get('items') or [])]
+    breadth = market.get('breadth')
+    sentiment = _sentiment_from_breadth(breadth)
+    fetched_at = market.get('fetched_at') or news_doc.get('fetched_at')
     return dict(
         meta=dict(as_of=meta['as_of'], data_date=meta.get('data_date', ''),
                   run_date=meta.get('run_date', ''), mode=meta.get('mode', 'live'),
@@ -342,22 +363,40 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                   dashboard_version='4.0',
                   scope=_research_scope(),
                   tz=meta.get('tz', 'Asia/Shanghai'),
-                  snapshot_date=snapshot_date,
+                  market_fetched_at=market.get('fetched_at'),
+                  market_phase=market.get('phase'),
+                  market_available=bool(market.get('available')),
+                  market_reason=market.get('reason'),
+                  news_fetched_at=news_doc.get('fetched_at'),
+                  news_available=bool(news_doc.get('available')),
+                  news_reason=news_doc.get('reason'),
+                  news_source=news_doc.get('source'),
                   benchmark_date=meta.get('benchmark_date')),
         packet=dict(schema_version=pkt.get('schema_version'), status=pkt.get('status'),
                     run_id=pkt.get('run_id'), generated_at=pkt.get('generated_at'),
                     config_hash=pkt.get('config_hash'), input_hash=pkt.get('input_hash'),
                     validation=pkt.get('validation'),
                     data_quality=pkt.get('data_quality'), extras=pkt.get('extras')),
-        market=dict(as_of=market.get('as_of'),
-                breadth_as_of=market.get('breadth_as_of'),
-                indices=market.get('indices'), breadth=market['breadth'],
-                    sentiment=market['sentiment'], rotation=market['rotation'],
-                    distribution=market['distribution'], premium=market['premium'],
-                    valuation=market['valuation'], glob=glob_block,
-                    liquidity=market['liquidity'], macro=market['macro'],
-                    news=market['news'], calendar=market['calendar'],
-                    news_sentiment=news_sentiment, policy_heat=market['policy_heat'],
+        market=dict(as_of=fetched_at,
+                    fetched_at=fetched_at, phase=market.get('phase'),
+                    available=bool(market.get('available')),
+                    reason=market.get('reason'), errors=market.get('errors') or [],
+                    indices=market.get('indices'),
+                    breadth=breadth, distribution=market.get('distribution'),
+                    sentiment=sentiment,
+                    rotation=market.get('rotation') or dict(leaders=[], laggards=[], note=''),
+                    premium=market.get('premium') or dict(available=False,
+                                                           reason='抓取失败'),
+                    glob=glob_block,
+                    news=news_items, news_sentiment=news_doc.get('sentiment'),
+                    news_fetched_at=news_doc.get('fetched_at'),
+                    news_source=news_doc.get('source'),
+                    news_available=bool(news_doc.get('available')),
+                    news_reason=news_doc.get('reason'),
+                    valuation=dict(available=False, items=[]),
+                    liquidity=dict(available=False, items=[]),
+                    macro=dict(available=False, items=[]),
+                    calendar=[], policy_heat=[],
                     heat=heat, flow=flow, national_team=_national_team(),
                     regime=dict(regime=regime['regime'], fit_lo=regime['fit_lo'],
                                 fit_hi=regime['fit_hi'], stage_note=regime.get('stage_note', ''),

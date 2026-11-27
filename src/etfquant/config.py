@@ -6,7 +6,8 @@ import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CFG = os.path.join(ROOT, 'config')
-SNAP = os.path.join(ROOT, 'data', 'snapshot')
+LIVE = os.path.join(ROOT, 'data', 'live')
+SNAP = LIVE          # 兼容旧引用；离线快照已删除，旧路径不再存在
 CACHE = os.path.join(ROOT, 'data', 'cache')
 POS = os.path.join(ROOT, 'positions')
 WEB = os.path.join(ROOT, 'web')

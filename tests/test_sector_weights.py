@@ -1,25 +1,28 @@
 # -*- coding: utf-8 -*-
-"""行业权重快照的契约测试：权重和、行业名、ETF 映射、抓取失败不动原文件。"""
-import importlib.util
+"""行业权重的契约测试：权重和、行业名、ETF 映射、失败不沿用旧值。"""
+import datetime
 import json
 import os
 import sys
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SNAP = os.path.join(ROOT, 'data', 'snapshot', 'index_sector_weights.json')
-SECTOR_CSV = os.path.join(ROOT, 'data', 'snapshot', 'sector_flow.csv')
+LIVE = os.path.join(ROOT, 'data', 'live', 'index_sector_weights.json')
+SW_MAP = os.path.join(ROOT, 'config', 'sw_industry_map.json')
 sys.path.insert(0, os.path.join(ROOT, 'src'))
+
+TODAY = datetime.date.today().strftime('%Y-%m-%d')
 
 
 def _doc():
-    with open(SNAP, encoding='utf-8') as f:
+    with open(LIVE, encoding='utf-8') as f:
         return json.load(f)
 
 
 def _sectors():
-    import csv
-    with open(SECTOR_CSV, encoding='utf-8-sig') as f:
-        return {r['sector'] for r in csv.DictReader(f)}
+    with open(SW_MAP, encoding='utf-8') as f:
+        return set(json.load(f).get('level1') or [])
 
 
 def _module():
@@ -27,36 +30,44 @@ def _module():
     return sector
 
 
-def test_snapshot_exists_and_shape():
-    assert os.path.exists(SNAP), '缺少 data/snapshot/index_sector_weights.json'
+def _has_live():
+    return os.path.exists(LIVE)
+
+
+def test_live_weights_shape():
+    if not _has_live():
+        pytest.skip('本机还没跑过 scripts/fetch.py --sector')
     d = _doc()
-    for k in ('as_of', 'indices', 'etf_index', 'stale'):
+    for k in ('as_of', 'fetched_at', 'indices', 'etf_index', 'stale', 'errors'):
         assert k in d
-    assert isinstance(d['indices'], dict) and d['indices']
+    assert isinstance(d['indices'], dict)
     assert isinstance(d['etf_index'], dict)
 
 
 def test_weight_sum_within_tolerance():
-    d = _doc()
-    for idx, w in d['indices'].items():
+    if not _has_live():
+        pytest.skip('本机还没跑过 scripts/fetch.py --sector')
+    for idx, w in _doc()['indices'].items():
         total = sum(float(v) for v in w.values())
         assert 99 <= total <= 101, '%s 权重和 %.2f 超出 99~101' % (idx, total)
 
 
-def test_sector_names_match_snapshot():
+def test_sector_names_are_sw_level1():
+    if not _has_live():
+        pytest.skip('本机还没跑过 scripts/fetch.py --sector')
     sectors = _sectors()
-    d = _doc()
-    for idx, w in d['indices'].items():
+    for idx, w in _doc()['indices'].items():
         bad = [k for k in w if k not in sectors and k != '其他']
-        assert not bad, '%s 出现板块快照里没有的行业：%s' % (idx, bad)
+        assert not bad, '%s 出现申万一级名录之外的行业：%s' % (idx, bad)
 
 
 def test_etf_index_covers_universe():
+    if not _has_live():
+        pytest.skip('本机还没跑过 scripts/fetch.py --sector')
     d = _doc()
     for etf in ('510300', '510500', '588000', '159915'):
         idx = d['etf_index'].get(etf)
         assert idx, '%s 缺少指数映射' % etf
-        assert idx in d['indices'], '%s 映射到 %s，但没有该指数的权重' % (etf, idx)
 
 
 def test_valid_rejects_bad_input():
@@ -67,8 +78,8 @@ def test_valid_rejects_bad_input():
     assert not m.valid({'不存在行业': 100.0}, sectors)
 
 
-def test_fetch_failure_keeps_previous_weights(tmp_path, monkeypatch):
-    """整网失败时沿用上次权重，并置 stale:true；不写空表。"""
+def test_fetch_failure_writes_empty_not_old(tmp_path, monkeypatch):
+    """整网失败：写空 indices 并记录错误，绝不沿用上次权重。"""
     m = _module()
     out = tmp_path / 'w.json'
     out.write_text(json.dumps({'indices': {'000300': {'电子': 100.0}},
@@ -82,19 +93,17 @@ def test_fetch_failure_keeps_previous_weights(tmp_path, monkeypatch):
     assert m.main() == 0
     d = json.loads(out.read_text(encoding='utf-8'))
     assert d['stale'] is True
-    assert d['indices']['000300'] == {'电子': 100.0}
+    assert d['indices'] == {}                 # 旧权重不再保留
     assert d['errors']
 
 
 def test_webgen_loader_missing_file(tmp_path, monkeypatch):
-    sys.path.insert(0, os.path.join(ROOT, 'src'))
     from etfquant import webgen
     monkeypatch.setattr(webgen, 'SECTOR_WEIGHTS_PATH', str(tmp_path / 'nope.json'))
     assert webgen._load_sector_weights() is None
 
 
 def test_webgen_loader_rejects_bad_shape(tmp_path, monkeypatch):
-    sys.path.insert(0, os.path.join(ROOT, 'src'))
     from etfquant import webgen
     bad = tmp_path / 'bad.json'
     bad.write_text(json.dumps({'indices': [], 'etf_index': {}}), encoding='utf-8')
@@ -102,9 +111,38 @@ def test_webgen_loader_rejects_bad_shape(tmp_path, monkeypatch):
     assert webgen._load_sector_weights() is None
 
 
-def test_webgen_loader_accepts_snapshot():
-    sys.path.insert(0, os.path.join(ROOT, 'src'))
+def test_webgen_loader_rejects_stale_file(tmp_path, monkeypatch):
+    """不是今天抓的权重一律不用，避免旧权重冒充当前。"""
     from etfquant import webgen
-    d = webgen._load_sector_weights()
-    assert d and d['etf_index'].get('510300') == '000300'
+    doc = dict(fetched_at='2026-01-01 09:00:00', as_of='2026-01-01',
+               stale=False, errors=[], indices={'000300': {'电子': 100.0}},
+               etf_index={'510300': '000300'})
+    p = tmp_path / 'w.json'
+    p.write_text(json.dumps(doc), encoding='utf-8')
+    monkeypatch.setattr(webgen, 'SECTOR_WEIGHTS_PATH', str(p))
+    assert webgen._load_sector_weights() is None
 
+
+def test_webgen_loader_drops_failed_index(tmp_path, monkeypatch):
+    from etfquant import webgen
+    doc = dict(fetched_at=TODAY + ' 09:00:00', as_of=TODAY, stale=True,
+               errors=['399006: 未取到成分'],
+               indices={'000300': {'电子': 100.0}, '399006': {'电子': 100.0}},
+               etf_index={'510300': '000300', '159915': '399006'})
+    p = tmp_path / 'w.json'
+    p.write_text(json.dumps(doc), encoding='utf-8')
+    monkeypatch.setattr(webgen, 'SECTOR_WEIGHTS_PATH', str(p))
+    d = webgen._load_sector_weights()
+    assert d and '000300' in d['indices'] and '399006' not in d['indices']
+
+
+def test_webgen_loader_accepts_today(tmp_path, monkeypatch):
+    from etfquant import webgen
+    doc = dict(fetched_at=TODAY + ' 09:00:00', as_of=TODAY, stale=False, errors=[],
+               indices={'000300': {'电子': 100.0}},
+               etf_index={'510300': '000300'})
+    p = tmp_path / 'w.json'
+    p.write_text(json.dumps(doc), encoding='utf-8')
+    monkeypatch.setattr(webgen, 'SECTOR_WEIGHTS_PATH', str(p))
+    d = webgen._load_sector_weights()
+    assert d and d['indices'] == {'000300': {'电子': 100.0}}

@@ -1,10 +1,12 @@
-# 核心（离线快照可跑，必需）
+# 核心（必需）
 numpy>=1.24
 pandas>=2.0
 PyYAML>=6.0
-# 可选：--live 模式实时取数（未安装或网络失败自动降级到离线快照）
+# 实时取数（无离线快照：抓不到就显示失败）
 akshare>=1.14
 requests>=2.28
+# 国证指数样本表是 .xls，解析创业板指权重需要 xlrd
+xlrd>=2.0
 # 持仓密文读写（scripts/positions_crypto.py）
 cryptography>=42.0
 # LLM 研究决策层的数据契约（src/etfquant/llm/domain.py）；

@@ -35,7 +35,7 @@ def _print(obj, as_json):
 def cmd_prepare(a):
     collected = {}
     try:
-        r = pipeline.run(use_live=not a.snapshot, collect=collected.update,
+        r = pipeline.run(collect=collected.update,
                          write_page=False, write_packet=False)
     except Exception as exc:
         print('确定性层运行失败：%s' % exc, file=sys.stderr)
@@ -103,7 +103,7 @@ def cmd_finish(a):
 def cmd_direct(a):
     collected = {}
     try:
-        r = pipeline.run(use_live=not a.snapshot, collect=collected.update,
+        r = pipeline.run(collect=collected.update,
                          write_page=False, write_packet=False)
     except Exception as exc:
         print('确定性层运行失败：%s' % exc, file=sys.stderr)
@@ -146,7 +146,6 @@ def main():
     g.add_argument('--finish', action='store_true', help='读代理产出，跑风控/订单/报告/页面')
     ap.add_argument('--run-dir', help='--finish 用；缺省取最近一个待完成的运行')
     ap.add_argument('--push', action='store_true', help='--finish 后提交并推送产物')
-    ap.add_argument('--snapshot', action='store_true', help='离线快照（不联网）')
     ap.add_argument('--no-page', action='store_true', help='不重新渲染页面')
     ap.add_argument('--mock', action='store_true', help='脚本回放（仅演示链路）')
     ap.add_argument('--json', action='store_true', help='机器可读输出')

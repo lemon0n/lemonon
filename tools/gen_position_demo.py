@@ -41,22 +41,13 @@ def latest_run() -> str:
 def bars_of(code: str, n: int = 600, data_date: str | None = None) -> dict | None:
     """持仓日线（页面画均线与结构图用）；取不到就不塞，页面会走自己的取数/回退卡。"""
     df = None
-    for attempt in range(3):          # 取数偶发失败：重试三次再退回快照
+    for attempt in range(3):          # 取数偶发失败：重试三次，仍失败就不塞
         try:
             df = loader.daily(code)
         except Exception:
             df = None
         if df is not None and len(df) >= 30:
             break
-    if df is None or len(df) < 30:
-        # 网络不可用时退回本地快照，保证 demo 能画出均线与结构图
-        import pandas as _pd
-        snap = os.path.join(config.SNAP, 'etf_daily', '%s.csv' % code)
-        if os.path.exists(snap):
-            try:
-                df = _pd.read_csv(snap)
-            except Exception:
-                df = None
     if df is None or len(df) < 30:
         return None
     if data_date:                     # 与持仓快照同一数据日，避免图和表不是同一天

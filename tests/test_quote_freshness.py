@@ -116,16 +116,15 @@ def test_last_run_manifest_does_not_claim_live_for_stale_data(tmp_path, monkeypa
 
 
 def test_pipeline_marks_stale_live_feeds_degraded(tmp_path, monkeypatch):
-    fixed = datetime.datetime(2026, 11, 26, 16, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=8)))
+    import live_feeds as F
+    fixed = datetime.datetime(2026, 11, 26, 16, 0,
+                              tzinfo=datetime.timezone(datetime.timedelta(hours=8)))
     monkeypatch.setattr(pipeline, 'now_tz', lambda *a, **k: fixed)
-    monkeypatch.setattr(loader.live, 'fetch_index_daily', lambda code: _bars())
-    monkeypatch.setattr(loader.live, 'fetch_spot', lambda codes: pd.DataFrame([dict(
-        code='510300', name='沪深300ETF', last=4.0, change_pct=0.0,
-        iopv=4.0, premium_pct=0.0, volume=1, amount=4.0,
-        as_of='2026-11-12 09:05:00')]))
-    monkeypatch.setattr(loader.live, 'fetch_indices', lambda: [])
-    monkeypatch.setattr(loader.live, 'fetch_sector_flow', lambda: None)
-    out = pipeline.run(use_live=True, write_packet=False, write_page=False)
+    F.patch_live(monkeypatch, bars_end='2026-11-12',
+                 spot_as_of='2026-11-12 09:05:00',
+                 market=F.market_doc(fetched_at='2026-11-26 16:00:00'),
+                 news=F.news_doc(fetched_at='2026-11-26 16:00:00'))
+    out = pipeline.run(write_packet=False, write_page=False)
     assert out['status'] == 'DEGRADED'
     assert out['degraded'] is True
     assert out['data_date'] == '2026-11-12'
@@ -134,6 +133,7 @@ def test_pipeline_marks_stale_live_feeds_degraded(tmp_path, monkeypatch):
     assert out['run_date'] == '2026-11-26'
     assert out['expected_data_date'] == '2026-11-26'
     assert out['data_stale'] is True
+
 
 def test_page_does_not_keep_previous_run_research(tmp_path, monkeypatch):
     monkeypatch.setattr(config, 'ROOT', str(tmp_path))

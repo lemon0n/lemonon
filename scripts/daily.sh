@@ -145,8 +145,8 @@ PY
 )"
 if [ "$PROVIDER" = "agent" ]; then
   say "agent 模式：抓数并冻结事实（研究由代理完成）"
-  "$PY_BIN" scripts/fetch.py --market --national \
-    || printf '\n[警告] 部分抓取失败，沿用上次快照。\n' >&2
+  "$PY_BIN" scripts/fetch.py --market --national --sector --news \
+    || printf '\n[警告] 部分实时抓取失败：相关区块会显示抓取失败，不使用旧值。\n' >&2
   "$PY_BIN" scripts/run_research.py --prepare
   code=$?
   if [ "$code" != "0" ]; then
@@ -175,12 +175,12 @@ else
 fi
 
 # ---------- 5. 生成 + 校验 + 推送 ----------
-say "抓取市场快照与宽基份额（失败沿用上次快照，不阻断主流程）"
-if ! "$PY_BIN" scripts/fetch.py --market --national; then
-  printf '\n[警告] 部分抓取失败，本次沿用旧快照。\n' >&2
+say "抓取实时市场数据/快讯/行业权重（失败不沿用旧值，不阻断主流程）"
+if ! "$PY_BIN" scripts/fetch.py --market --national --sector --news; then
+  printf '\n[警告] 部分实时抓取失败：相关区块显示抓取失败，不使用旧值。\n' >&2
 fi
 
-say "取数并生成页面（实时源失败会自动降级）"
+say "取数并生成页面（全部实时，失败即显示失败，不回退旧数据）"
 RESEARCH_ARG=""
 if [ "${RESEARCH:-1}" = "0" ]; then
   RESEARCH_ARG="--no-research"

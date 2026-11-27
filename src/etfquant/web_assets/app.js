@@ -738,9 +738,9 @@ function candidateRows(adv,p,pdec){
 }
 function stateKind(s){ return s==='READY'?'buy':(s==='AVOID'?'sell':'hold'); }
 function evidenceStatus(label,snapshot){
-  var status=snapshot?'离线快照':'实时通道';
+  var status=snapshot?'抓取失败':'实时通道';
   return '<span class="evidence-status '+(snapshot?'snapshot':'live')+'" title="'+
-    (snapshot?'快照条目没有独立采集时间，不能视为当日实时事实。':'来自当前运行的实时数据通道；行业数据行未包含独立观测时间。')+'">'+
+    (snapshot?'该通道本次抓取失败，页面只显示成功抓到的数据。':'来自当前运行的实时数据通道。')+'">'+
     esc(label)+' · '+status+'</span>';
 }
 function sourceLink(url){
@@ -748,36 +748,27 @@ function sourceLink(url){
 }
 function marketEvidenceSection(){
   var m=D.market||{}, src=(D.packet&&D.packet.data_quality)||{};
-  var sectorSnapshot=!!src.sector_snapshot;
-  var marketDate=(D.market&&D.market.as_of)||'未知';
+  var marketDate=m.fetched_at||'未知';
   var h='<div class="evidence-grid">';
-  h+=box(btInfo('行业走势','用于市场背景。当前没有 ETF 到申万行业的成分权重映射，因此不作逐仓归因。')+
-    evidenceStatus('板块通道',sectorSnapshot)+' '+
-    (src.sector_snapshot?'':'<span class="evidence-status snapshot">展示快照 · 非实时</span>')+
-    '<div class="evidence-date">市场快照 '+esc(marketDate)+'；行业行无独立日期</div>'+tbl(['行业','涨跌幅','成交额','成交占比'],
+  h+=box(btInfo('行业走势','用于市场背景。行业行来自本次运行的实时板块抓取。')+
+    evidenceStatus('板块通道',!src.sector_live)+
+    '<div class="evidence-date">抓取于 '+esc(marketDate)+'；'+
+      (src.sector_live?'实时':'抓取失败，不显示旧值')+'</div>'+
+    tbl(['行业','涨跌幅','成交额','成交占比'],
       (m.heat||[]).slice().sort(function(a,b){return Math.abs(n(b.chg))-Math.abs(n(a.chg));}).slice(0,8).map(function(x){
         var f=(m.flow||[]).filter(function(y){return y.sector===x.name;})[0]||{};
         return tr([esc(x.name),col(x.chg),f2(x.v)+' 亿',f2(f.share)+'%']);
       }),['','','r','r']));
-  var macroRows=((m.macro&&m.macro.items)||[]).concat(((m.glob&&m.glob.items)||[]).map(function(x){
-    return {k:x.k,v:x.v,url:x.url};
-  }));
-  h+=box(btInfo('宏观与外围','只作组合级背景。没有持仓的宏观敏感度映射，不解释为单只 ETF 的涨跌原因。')+
-    evidenceStatus('宏观资料',true)+
-    '<div class="evidence-date">快照 '+esc(marketDate)+'；条目统计期/采集时间未提供</div>'+tbl(['指标','当前值','来源'],
-      macroRows.map(function(x){return tr([esc(x.k),esc(x.v),sourceLink(x.url)]);})));
-  var policyRows=(m.policy_heat||[]).map(function(x){
-    return tr([lnk(x.url,x.theme),String(x.heat),col(parseFloat(x.chg)),sourceLink(x.url)]);
-  }).concat((m.calendar||[]).map(function(x){
-    return tr([lnk(x.url,x.event),esc(x.level),esc(x.date)+'（年份未提供）',sourceLink(x.url)]);
-  }));
-  h+=box(btInfo('政策与日历','链接是来源入口，未核验原文；主题热度与事件只作背景，不作逐仓因果判断。')+
-    evidenceStatus('政策主题',true)+
-    '<div class="evidence-date">快照 '+esc(marketDate)+'；无逐条采集时间</div>'+tbl(['主题/事件','热度/级别','变化/日期','来源'],policyRows));
-  h+=box(btInfo('消息面','新闻链接多为入口且未核验原文；情绪分没有可追溯样本与统计窗口，只作弱背景。')+
-    evidenceStatus('新闻与情绪',true)+
-    '<div class="evidence-date">快照 '+esc(marketDate)+'；快讯日期字段不完整</div>'+tbl(['时间字段','摘要','来源'],
-      (m.news||[]).map(function(x){return tr([esc(x.time),lnk(x.url,x.text),sourceLink(x.url)]);})));
+  h+=box(btInfo('外围市场','来自本次运行的新浪外盘实时抓取。')+
+    evidenceStatus('外盘',!(m.glob&&(m.glob.items||[]).length))+
+    '<div class="evidence-date">抓取于 '+esc(marketDate)+'</div>'+
+    tbl(['指数','涨跌幅'],((m.glob&&m.glob.items)||[]).map(function(x){
+      return tr([esc(x.k),esc(x.v)]); })));
+  h+=box(btInfo('消息面','只展示本次运行抓到的快讯；没有实时快讯时明确留空。')+
+    evidenceStatus('快讯',!m.news_available)+
+    '<div class="evidence-date">抓取于 '+esc(m.news_fetched_at||'—')+
+      (m.news_source?'（'+esc(m.news_source)+'）':'')+'</div>'+tbl(['时间','摘要','来源'],
+      (m.news||[]).slice(0,12).map(function(x){return tr([esc(x.time),lnk(x.url,x.text),sourceLink(x.url)]);})));
   h+='</div>';
   return h;
 }
@@ -1678,77 +1669,96 @@ function staleNotice(){
 }
 
 function page1(){
-  var m=D.market, rg=m.regime, b=m.breadth, s=m.sentiment;
-  var h='<div class="pg-h"><h1>市场概况</h1>'+
-    '</div>'+staleNotice();
-  var snap=(D.meta&&D.meta.snapshot_date)||'';
-  if(snap&&snap!==((D.meta&&D.meta.data_date)||'')){
-    h+='<div class="notice">市场广度、情绪、快讯与政策热度来自离线快照 '+esc(snap)+
-      '，不是行情日 '+esc(D.meta.data_date)+' 当日数据；环境判断以基准指数与行情日为准。</div>';
+  var m=D.market||{}, rg=m.regime||{}, b=m.breadth||null, s=m.sentiment||null;
+  var idx=m.indices||[], glob=(m.glob&&m.glob.items)||[], dist=m.distribution||null;
+  var ns=m.news_sentiment||null, news=m.news||[];
+  var h='<div class="pg-h"><h1>市场概况</h1></div>'+staleNotice();
+  if(m.available===false){
+    h+='<div class="notice err"><b>实时市场数据抓取失败</b>：'+esc(m.reason||'未知原因')+
+      '。本页不显示上一次的数值；恢复网络后重跑 <code>bash scripts/daily.sh</code>。</div>';
+  }else{
+    h+='<div class="notice">市场数据抓取于 <b>'+esc(m.fetched_at||'—')+'</b>'+
+      (m.phase?'（'+esc(m.phase)+'）':'')+
+      (m.news_available?'；快讯抓取于 '+esc(m.news_fetched_at||'—')+'（'+esc(m.news_source||'—')+'）'
+                       :'；<b>快讯抓取失败</b>')+'。</div>';
   }
+  if((m.errors||[]).length)
+    h+='<div class="notice">部分通道失败：'+esc(m.errors.join('；'))+'</div>';
 
   h+=sec('市场总览');
   h+='<div class="grid4">'+[
-    ['两市成交额', b.amount_yi.toLocaleString()+' 亿', '环比 '+sign(b.amount_chg_pct)+f2(b.amount_chg_pct)+'%'],
-    ['市场情绪（快照）', s.score+' / 100', esc(s.label)],
+    ['两市成交额', b?(n(b.amount_yi).toLocaleString()+' 亿'):'—',
+      b?('样本 '+n(b.sample).toLocaleString()+' 只'):'抓取失败'],
+    ['市场情绪', s?(s.score+' / 100'):'—', s?(esc(s.label)+' · '+esc(s.basis||'')):'无实时广度，未计算'],
     ['仓位区间', rg.fit_lo==null?'—':rg.fit_lo+'~'+rg.fit_hi+'%',
-      esc(rg.regime)+(rg.as_of?' · 基准日 '+rg.as_of:'')],
+      esc(rg.regime||'未知')+(rg.as_of?' · 基准日 '+rg.as_of:'')],
     ['市场状态依据', (rg.observations||[]).length+' 项','基准指数趋势 / 波动']
   ].map(function(k){ return '<div class="kpi"><div class="k">'+k[0]+'</div><div class="v">'+k[1]+
       '</div><div class="d">'+k[2]+'</div></div>'; }).join('')+'</div>';
 
   h+='<div class="grid2" style="margin-top:12px">';
-  h+=box(bt('指数与均线状态')+tbl(['指数','最新','涨跌','均线状态'],
-    m.indices.map(function(x){ return tr([lnk(x.url,x.name),f2(x.last),col(x.chg_pct),esc(x.ma_state)]); })));
-  h+=box(bt('市场状态与情绪')+kv(s.items.map(function(x){ return [x.k,esc(x.v),x.url]; })));
+  h+=box(bt('指数与均线状态')+(idx.length?tbl(['指数','最新','涨跌','均线状态'],
+    idx.map(function(x){ return tr([lnk(x.url,x.name),f2(x.last),col(x.chg_pct),esc(x.ma_state)]); }))
+    :'<div class="rs-note">指数点位抓取失败，不显示旧值。</div>'));
+  h+=box(bt('市场状态与情绪')+((s&&s.items&&s.items.length)
+    ?kv(s.items.map(function(x){ return [x.k,esc(x.v),x.url]; }))
+    :'<div class="rs-note">实时广度不可用，情绪未计算。</div>'));
   h+='</div>';
 
   /* 与持仓分析联动：同一套阶段/仓位口径，页面间互相印证 */
   h+=box(bt('阶段 → 仓位 → 我的持仓')+'<div class="lk">'+linkStrip()+'</div>');
   h+=planSection(true);
 
-  h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅');
+  h+=secDetails('板块概况','申万一级行业 · 面积=流通市值 · 颜色=涨跌幅（实时抓取）');
 
   /* 国家队独立卡：宽基 ETF 份额，只作背景，不参与规则定仓 */
   h+=nationalTeamSection();
 
-  h+=heatMap(m.heat);
+  var heat=m.heat||[], flow=(m.flow||[]).slice().sort(function(a,b){ return b.turnover-a.turnover; });
+  if(heat.length){
+    h+=heatMap(heat);
+    h+=box(bt('行业成交额与占比')+
+      tbl(['行业','成交额','占比','涨跌幅','流通市值'],flow.map(function(x){
+        return tr([esc(x.sector), f2(x.turnover)+' 亿', f2(x.share)+'%', col(x.chg),
+                   Math.round(n(x.cap)).toLocaleString()+' 亿']);
+      }),['','r','r','r','r']));
+  }else{
+    h+=box(bt('板块数据')+'<div class="rs-note">板块资金流实时抓取失败，本页不显示旧值。</div>');
+  }
 
-  var flow=(m.flow||[]).slice().sort(function(a,b){ return b.turnover-a.turnover; });
-  h+=box(bt('行业成交额与占比')+
-    tbl(['行业','成交额','占比','涨跌幅','流通市值'],flow.map(function(x){
-      return tr([esc(x.sector), f2(x.turnover)+' 亿', f2(x.share)+'%', col(x.chg),
-                 Math.round(n(x.cap)).toLocaleString()+' 亿']);
-    }),['','r','r','r','r']));
   h+='<div class="grid2">'+box(bt('轮动与主线')+
-      kv([['阶段',esc(rg.regime)],['主线方向',esc((rg.leaders||[]).join('、'))],
-          ['落后方向',esc((rg.laggards||[]).join('、'))]]))+
-    box(bt('涨跌分布')+bars(Object.keys(m.distribution).map(function(k){
-      return [k,n(m.distribution[k])/6, m.distribution[k]+' 家']; })))+'</div>';
+      kv([['阶段',esc(rg.regime||'未知')],['主线方向',esc((rg.leaders||[]).join('、')||'—')],
+          ['落后方向',esc((rg.laggards||[]).join('、')||'—')],
+          ['依据',esc(rg.stage_note||'实时板块涨跌幅排序')]]))+
+    box(bt('涨跌分布')+(dist?bars(Object.keys(dist).map(function(k){
+      return [k,n(dist[k])/6, dist[k]+' 家']; })):'<div class="rs-note">广度抓取失败，无分布。</div>'))+
+    '</div>';
 
-  h+=secInfo('宏观环境','宏观、外围和政策/新闻内容来自人工维护的离线快照；各条目的统计期、发布时间和采集时间可能缺失。仅作背景参考，不参与规则定仓。');
+  h+=secInfo('外围与折溢价','外盘与 ETF 折溢价均为本次运行实时抓取；IOPV 缺失时明确标不可用。');
   h+='<div class="grid2">';
-  h+=box(bt('估值')+tbl(['指标','值','分位'],m.valuation.items.map(function(x){
-    return tr([lnk(x.url,x.k),esc(x.v),esc(x.pos)]); })));
-  h+=box(bt('外围市场')+kv(m.glob.items.map(function(x){ return [x.k,esc(x.v),x.url]; })));
-  h+='</div><div class="grid2" style="margin-top:12px">';
-  h+=box(bt('资金面')+kv(m.liquidity.items.map(function(x){ return [x.k,esc(x.v),x.url]; })));
-  h+=box(bt('宏观数据')+kv(m.macro.items.map(function(x){ return [x.k,esc(x.v),x.url]; })));
+  h+=box(bt('外围市场')+(glob.length?kv(glob.map(function(x){ return [x.k,esc(x.v),x.url]; }))
+    :'<div class="rs-note">外盘抓取失败，不显示旧值。</div>'));
+  var prem=m.premium||{};
+  h+=box(bt('ETF 折溢价')+(prem.available
+    ?('<div class="kv"><span class="k">均值</span><span class="v">'+f2(prem.avg_pct)+'%</span>'+
+      '<span class="k">偏高 / 偏低</span><span class="v">'+n(prem.high_count)+' / '+n(prem.low_count)+'</span></div>'+
+      '<div class="rs-note">样本 '+n(prem.sample)+' 只，来自东财 IOPV。</div>')
+    :'<div class="rs-note">'+esc(prem.reason||'折溢价不可用')+'</div>'));
   h+='</div>';
 
   h+=sec('政策与消息面');
   h+='<div class="grid2">';
-  h+=box(bt('快讯')+'<ul class="news">'+m.news.map(function(x){
-    return '<li><span class="tm">'+esc(x.time)+'</span>'+lnk(x.url,x.text)+'</li>'; }).join('')+'</ul>');
-  h+=box(bt('财经日历')+tbl(['日期','事件','级别'],m.calendar.map(function(x){
-    return tr([esc(x.date),lnk(x.url,x.event),esc(x.level)]); })));
-  h+='</div><div class="grid2" style="margin-top:12px">';
-  h+=box(bt('消息面情绪')+kv([['综合',esc(m.news_sentiment.label)+' '+m.news_sentiment.score+'/100'],
-      ['正面',m.news_sentiment.positive+'%'],['中性',m.news_sentiment.neutral+'%'],
-      ['负面',m.news_sentiment.negative+'%']])+
-    (m.news_sentiment.note?'<div class="rs-note" style="margin-top:6px">'+esc(m.news_sentiment.note)+'</div>':''));
-  h+=box(bt('政策主题净热度')+tbl(['主题','热度','变化'],m.policy_heat.map(function(x){
-    return tr([lnk(x.url,x.theme),String(x.heat),col(parseFloat(x.chg))]); })));
+  h+=box(bt('快讯 · 实时')+(news.length
+    ?'<ul class="news">'+news.slice(0,30).map(function(x){
+        return '<li><span class="tm">'+esc(x.time)+'</span>'+lnk(x.url,x.text)+'</li>'; }).join('')+'</ul>'
+    :'<div class="rs-note">'+esc(m.news_reason||'快讯抓取失败')+'，不显示旧快讯。</div>'));
+  h+=box(bt('消息面情绪')+(ns
+    ?kv([['综合',esc(ns.label)+' '+ns.score+'/100'],
+         ['正面 / 负面',n(ns.positive)+' / '+n(ns.negative)],
+         ['中性',n(ns.neutral)],
+         ['口径',esc(ns.basis||'')]])+
+      '<div class="rs-note">仅按当日快讯标题关键词计数，不作主观打分。</div>'
+    :'<div class="rs-note">没有实时快讯，情绪未计算。</div>'));
   h+='</div>';
   return h;
 }
@@ -4409,8 +4419,7 @@ function render(){
     b.className='badge '+(live?'live':'degraded');
     b.title=live?'日线、实时行情与基准指数均为真实且当日数据'
       :(stale?'行情日期早于预期交易日，或行情时间缺失；不得视为实时'
-             :(src.synthetic?'关键通道回退离线合成快照（仅演示，不给可执行交易动作）'
-                            :'部分通道回退离线快照'));
+             :'部分实时通道抓取失败，页面只显示成功抓到的数据，不显示旧值');
   }
   var sb=document.getElementById('statusBadge');
   if(sb){
@@ -4420,7 +4429,7 @@ function render(){
     sb.title={'OK':'数据满足要求，可生成研究性方案',
               'DEGRADED':'非关键字段缺失，结果附带限制说明',
               'ABSTAIN':'关键数据不足，不输出交易动作',
-              'DEMO':'离线合成数据，仅演示，不输出交易动作',
+              'DEMO':'数据不足，不输出交易动作',
               'ERROR':'运行或校验失败，未发布可执行建议'}[st]||st;
   }
   document.getElementById('p1').innerHTML=page1();

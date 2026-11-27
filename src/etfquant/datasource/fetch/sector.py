@@ -9,8 +9,9 @@
 个股所属行业取东方财富 f100（申万二级），再按 config/sw_industry_map.json
 归并到申万一级；无法归并的二级行业并入「其他」，并在 unmapped 中列出，不静默丢弃。
 
-失败策略：任一指数的权重校验不通过（和不在 99~101、行业名不在板块快照里），
-就沿用上次结果并把 stale 置 true；一个都没有时写空 indices，由页面显示「未覆盖」。
+失败策略：任一指数的权重校验不通过（和不在 99~101、行业名不在申万一级名录里），
+该指数不参与映射；一个都没有时写空 indices，由页面显示「未覆盖」。
+**不沿用上次结果**：旧权重不得冒充当前权重。
 
 用法：
   python3 scripts/fetch_index_sector_weights.py            # 抓取并写 data/snapshot/index_sector_weights.json
@@ -29,8 +30,8 @@ import yaml
 
 from ... import config
 ROOT = config.ROOT
-OUT = os.path.join(ROOT, 'data', 'snapshot', 'index_sector_weights.json')
-SECTOR_CSV = os.path.join(ROOT, 'data', 'snapshot', 'sector_flow.csv')
+OUT = os.path.join(ROOT, 'data', 'live', 'index_sector_weights.json')
+SW_LEVEL1 = os.path.join(ROOT, 'config', 'sw_industry_map.json')
 UNIVERSE = os.path.join(ROOT, 'config', 'universe.yaml')
 SW_MAP = os.path.join(ROOT, 'config', 'sw_industry_map.json')
 
@@ -73,8 +74,13 @@ def load_universe():
 
 
 def load_sectors():
-    with open(SECTOR_CSV, encoding='utf-8-sig') as f:
-        return {row['sector'] for row in csv.DictReader(f)}
+    """申万一级名录来自配置，不依赖任何行情快照文件。"""
+    with open(SW_LEVEL1, encoding='utf-8') as f:
+        doc = json.load(f)
+    names = set(doc.get('level1') or [])
+    if not names:
+        raise RuntimeError('config/sw_industry_map.json 缺少 level1 行业名录')
+    return names
 
 
 def load_sw_map():
@@ -258,23 +264,19 @@ def main(argv=None):
                 wdate[idx] = day
             if unm:
                 unmapped[idx] = unm
-        except Exception as e:                    # 网络、格式、校验都走同一条降级
+        except Exception as e:                    # 网络、格式、校验都走同一条失败
             errors.append('%s: %s' % (idx, e))
-            old = (prev.get('indices') or {}).get(idx)
-            if old:
-                indices[idx] = old
-                source[idx] = (prev.get('source') or {}).get(idx, '沿用上次')
-                method[idx] = (prev.get('method') or {}).get(idx, dict(method='stale'))
-                wdate[idx] = (prev.get('weights_date') or {}).get(idx, '')
-                stale = True
+            # 失败就不参与映射，绝不沿用上次权重（旧数据不得冒充当前）
+            stale = True
 
     if not indices:
-        print('未取到任何指数权重，保留原文件不动：' + '；'.join(errors), file=sys.stderr)
-        return 1
+        print('未取到任何指数权重，写空文件（不回退旧文件）：' + '；'.join(errors),
+              file=sys.stderr)
 
     as_of = max([d for d in wdate.values() if d] or [datetime.date.today().isoformat()])
     doc = dict(
         as_of=as_of,
+        fetched_at=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         generated_at=datetime.datetime.now().isoformat(timespec='seconds'),
         stale=bool(stale),
         unit='%',

@@ -2,7 +2,7 @@
 """主链路编排：一次运行完成「数据 → 质量检查 → 指标 → 唯一决策 → 参考价位 → HTML」。
 
 链路（与指导书 3.1 一致）：
-  取数（真实源 → 失败降级快照，并标记 is_synthetic）
+  取数（全部实时；失败即报错/缺席，不存在离线快照兜底）
     → 质量检查（quality.check_bars）
     → indicators.analyze（features.frame 唯一实现）
     → relative_strength（同日真实基准序列）
@@ -12,7 +12,7 @@
     → webgen.build_data + render（单文件 HTML）
 
 关键约定：
-  · 合成快照运行 → 状态 DEMO：可展示，但不得出现「可执行」的交易动作；
+  · 市场状态、广度、快讯都来自同一次运行刚抓取的数据；读不到就显示失败；
   · 关键数据缺失 / 陈旧 → ABSTAIN，页面显示原因而不是继续给单；
   · 观察池只含公开行情，不读取个人持仓。
 """
@@ -37,17 +37,30 @@ def now_tz(name='Asia/Shanghai'):
         return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
 
 
-def run(use_live=True, strict=False, write_packet=True, collect=None, write_page=True):
+def run(strict=False, write_packet=True, collect=None, write_page=True):
     cfg = config.cfg()
     uni = universe.load()
-    loader.reset(live_mode=use_live)
+    loader.reset()
     now = now_tz(cfg['schedule'].get('timezone', 'Asia/Shanghai'))
 
-    # ---- 数据层 ----
+    # ---- 数据层（全部实时；取不到的显式缺席）----
     market = loader.market()
+    news_doc = loader.news()
     sectors = loader.sector_flow()
     spot_df = loader.spot()
-    spot = spot_df.set_index('code')
+    spot = spot_df.set_index('code') if spot_df is not None else None
+    if spot is None:
+        loader.note_fallback('实时行情不可用：ETF 现价与折溢价留空')
+    # 板块主线/落后由实时板块涨跌幅直接算，不用人工维护文本
+    if sectors is not None and len(sectors):
+        ranked = sorted(
+            [(str(r['sector']), float(r['change_pct'])) for _, r in sectors.iterrows()
+             if r.get('change_pct') is not None],
+            key=lambda x: x[1], reverse=True)
+        market = dict(market, rotation=dict(
+            leaders=[k for k, _ in ranked[:3]],
+            laggards=[k for k, _ in ranked[-3:]][::-1],
+            note='主线/落后按实时板块涨跌幅排序', as_of=market.get('fetched_at')))
     # 不再维护公开观察池：页面只展示市场概况与自己的持仓（研究层按 holdings 取数）
     wl = dict(rows=[], skipped=[])
 
@@ -89,7 +102,7 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
     spot_fresh = quality.check_quote_rows(spot_df, now.isoformat())
     src['freshness'] = dict(benchmark=bench_fresh, spot=spot_fresh,
                             expected_session=bench_fresh.get('expected_date'))
-    if use_live and (not bench_fresh.get('fresh') or not spot_fresh.get('fresh')):
+    if not bench_fresh.get('fresh') or not spot_fresh.get('fresh'):
         src['degraded'] = True
         src['live'] = False
         loader.note_fallback(
@@ -142,11 +155,9 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
 
     status = (quality.merge_status(*[l['quality']['status'] for l in legs])
               if legs else 'OK')
-    if not use_live:
-        status = 'DEMO'
-    elif src.get('synthetic') and legs:
-        # 有观察池时，任何一条腿用了合成快照就不能当作实时
-        status = 'DEMO'
+    if bench is None:
+        status = 'ABSTAIN'
+        loader.note_fallback('基准指数日线不可用：市场状态未知，本轮弃权')
     elif status == 'OK' and (not src.get('index_live', False)
                              or not bench_fresh.get('fresh')
                              or not spot_fresh.get('fresh')):
@@ -162,12 +173,20 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
                     if bench is not None and len(bench) else
                     now.strftime('%Y-%m-%d'))),
         run_date=now.strftime('%Y-%m-%d'),
-        mode='live' if use_live else 'snapshot',
+        mode='live',
         source=src, skipped=skipped,
         version='3.0', tz=cfg['schedule']['timezone'],
         status=status,
         degraded=bool(src.get('degraded') or status in ('DEGRADED', 'ABSTAIN', 'ERROR')),
-        synthetic=bool(src.get('synthetic')),
+        synthetic=False,
+        market_fetched_at=market.get('fetched_at'),
+        market_phase=market.get('phase'),
+        market_available=bool(market.get('available')),
+        market_reason=market.get('reason'),
+        news_fetched_at=news_doc.get('fetched_at'),
+        news_available=bool(news_doc.get('available')),
+        news_reason=news_doc.get('reason'),
+        news_source=news_doc.get('source'),
         data_stale=bool(not bench_fresh.get('fresh') or not spot_fresh.get('fresh')
                         or any(not l['quality'].get('freshness', {}).get('fresh')
                                for l in legs)),
@@ -197,8 +216,15 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
         conflicts=list(src.get('fallback') or []),
         blockers=[b for l in legs for b in l['quality']['blocking']],
         premium_ok=bool(src.get('premium_ok')),
-        market_snapshot=bool(src.get('market_snapshot', True)),
-        sector_snapshot=bool(src.get('sector_snapshot', True)),
+        market_available=bool(market.get('available')),
+        market_fetched_at=market.get('fetched_at'),
+        market_phase=market.get('phase'),
+        market_reason=market.get('reason'),
+        news_available=bool(news_doc.get('available')),
+        news_fetched_at=news_doc.get('fetched_at'),
+        news_source=news_doc.get('source'),
+        news_reason=news_doc.get('reason'),
+        sector_live=bool(src.get('sector_live')),
         checked_at=src.get('checked_at'),
     )
     pkt = packet.build(
@@ -211,7 +237,10 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
                     observations=regime.get('observations')),
         market=dict(regime=regime['regime'], data_date=meta['data_date'],
                     benchmark_date=meta['benchmark_date'],
-                    market_json_is_synthetic=True),
+                    market_fetched_at=market.get('fetched_at'),
+                    market_available=bool(market.get('available')),
+                    news_fetched_at=news_doc.get('fetched_at'),
+                    news_available=bool(news_doc.get('available'))),
         portfolio_before=None,
         legs=[dict(code=l['code'], name=l['name'], category=l['category'],
                    data_status=l['quality']['status'], data_date=l['quality']['last_date'],
@@ -263,13 +292,13 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
         pkt['validation']['blocked'] = True
 
     data = webgen.build_data(market, sectors, regime, legs, cfg, meta,
-                             packet=pkt, plan=None)
+                             packet=pkt, plan=None, news=news_doc)
     # LLM 研究层从这里接管：拿到的是已冻结的事实（同一份 legs / regime / 数据日），
     # 不重新取数、不重新算指标，避免「一边分析一边数据在变」。
     if collect is not None:
         collect(dict(legs=legs, regime=regime, meta=meta, source=src,
                      bars_by_code=bars_by_code, market=market, sectors=sectors,
-                     cfg=cfg, data=data, packet=pkt, bench=bench))
+                     news=news_doc, cfg=cfg, data=data, packet=pkt, bench=bench))
     out = webgen.render(data, cfg) if write_page else None
     if write_packet:
         runs_dir = os.path.join(config.ROOT, 'data', 'runs')
@@ -286,7 +315,15 @@ def run(use_live=True, strict=False, write_packet=True, collect=None, write_page
                                    source=(src.get('channels', {}).get('daily_vendor') or {}).get(l['code']))
                               for l in legs
                               if not (l['quality'].get('freshness') or {}).get('fresh')],
-                status=status, run_id=meta['run_id'], mode=meta['mode'],
+                status=status, run_id=meta['run_id'], mode='live',
+                market=dict(available=bool(market.get('available')),
+                            fetched_at=market.get('fetched_at'),
+                            phase=market.get('phase'),
+                            reason=market.get('reason')),
+                news=dict(available=bool(news_doc.get('available')),
+                          fetched_at=news_doc.get('fetched_at'),
+                          source=news_doc.get('source'),
+                          reason=news_doc.get('reason')),
                 input_hash=pkt.get('input_hash'), config_hash=pkt.get('config_hash'),
                 levels=len(legs),
                 level_count={k: sum(1 for l in legs if l['decision']['level'] == k)
@@ -339,6 +376,3 @@ def _code_version():
     except Exception:
         return 'unknown'
 
-
-def run_snapshot():
-    return run(use_live=False)

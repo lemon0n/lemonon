@@ -66,13 +66,15 @@ def portfolio_from_legs(legs, cfg=None) -> dict | None:
     return positions_mod.market_value(port, last_of, names)
 
 
-def _events(market: dict, data_date: str, limit: int = MAX_EVENTS) -> list[dict]:
-    """只把可证明属于当日的快讯登记为证据；旧快照新闻整批丢弃。"""
+def _events(news: dict, data_date: str, limit: int = MAX_EVENTS) -> list[dict]:
+    """只登记本次运行实时抓到的快讯；抓不到就是没有，不读旧快照。"""
     out = []
-    snapshot_date = str((market or {}).get('as_of') or '')[:10]
-    if not snapshot_date or (data_date and snapshot_date < data_date):
+    doc = news or {}
+    items = doc.get('items') or []
+    if not items:
         return out
-    for i, item in enumerate((market or {}).get('news') or []):
+    fetched = str(doc.get('fetched_at') or '')[:19]
+    for i, item in enumerate(items):
         if len(out) >= limit:
             break
         if not isinstance(item, dict):
@@ -80,18 +82,10 @@ def _events(market: dict, data_date: str, limit: int = MAX_EVENTS) -> list[dict]
         title = str(item.get('title') or item.get('text') or '').strip()
         if not title:
             continue
-        raw_time = str(item.get('time') or '').strip()
-        if len(raw_time) >= 10 and raw_time[:4].isdigit():
-            item_date = raw_time[:10]
-            stamp = raw_time[:19]
-        else:
-            item_date = snapshot_date
-            stamp = (snapshot_date + ' ' + raw_time[:8]).strip()
-        if data_date and item_date < data_date:
-            continue
-        out.append(dict(evidence_id='event:market:%s:%04d' % (item_date, i + 1),
+        stamp = str(item.get('time') or fetched)[:19]
+        out.append(dict(evidence_id='news:%s:%04d' % (stamp[:10] or data_date, i + 1),
                         title=title, as_of=stamp,
-                        source=item.get('source') or 'news'))
+                        source=item.get('source') or doc.get('source') or 'news'))
     return out
 
 
@@ -197,7 +191,7 @@ def build_context(collected: dict, *, settings: dict | None = None,
         regime=regime,
         assets=assets,
         portfolio=portfolio,
-        events=_events(collected.get('market') or {}, data_date),
+        events=_events(collected.get('news') or {}, data_date),
         previous_research=previous,
         focus_questions=[],
         change_signals=[])
@@ -207,6 +201,12 @@ def build_context(collected: dict, *, settings: dict | None = None,
         context, int(ctx_cfg.get('max_focus_questions', 8)))
     context['evidence_catalog'] = evidence_mod.build_catalog(context)
     context['meta'].update(
+        market_fetched_at=(collected.get('market') or {}).get('fetched_at'),
+        market_available=bool((collected.get('market') or {}).get('available')),
+        market_phase=(collected.get('market') or {}).get('phase'),
+        news_fetched_at=(collected.get('news') or {}).get('fetched_at'),
+        news_available=bool((collected.get('news') or {}).get('available')),
+        news_source=(collected.get('news') or {}).get('source'),
         run_date=meta.get('run_date') or context['meta'].get('trade_date'),
         expected_data_date=meta.get('expected_data_date'),
         degraded=bool(meta.get('degraded') or q_status != 'OK'),

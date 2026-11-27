@@ -18,6 +18,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'src'))
+sys.path.insert(0, os.path.join(ROOT, 'tests'))
 
 from etfquant import config, methodology as M, pricing  # noqa: E402
 
@@ -215,16 +216,17 @@ process.stdout.write(JSON.stringify(out));
 
 
 @pytest.mark.skipif(not _node(), reason='需要 node')
-def test_page_payload_matches_backend_decisions(tmp_path):
+def test_page_payload_matches_backend_decisions(tmp_path, monkeypatch):
     """页面内嵌数据 → 前端引擎的动作与价位，必须与后端写出的完全一致。"""
+    import live_feeds as F
     from etfquant import pipeline
-    import etfquant.webgen as webgen
     cfg = config.cfg()
+    F.patch_live(monkeypatch)
     old_web, old_root = config.WEB, config.ROOT
     config.WEB = str(tmp_path)
     config.ROOT = str(tmp_path.parent)
     try:
-        r = pipeline.run(use_live=False, write_packet=True)
+        r = pipeline.run(write_packet=True)
         html = r['html']
     finally:
         config.WEB, config.ROOT = old_web, old_root

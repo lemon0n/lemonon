@@ -28,6 +28,10 @@ data/ledger/
 data/.research.lock
 data/.pending_run
 
+# 实时抓取数据：每次运行重建，不入库（仓库里不允许出现旧行情快照）
+data/live/
+data/national_team.json
+
 # IDE 临时产物与第三方技能源包（与本项目运行无关）
 .trae/
 .trae-*/

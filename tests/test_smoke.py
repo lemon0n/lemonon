@@ -1,47 +1,46 @@
 # -*- coding: utf-8 -*-
 """冒烟测试：全链路、单文件 HTML 自包含、无持仓数据、无密钥。
 
-一律走离线快照（loader.reset(live_mode=False)），不依赖网络。
-离线快照是合成数据，因此全链路状态必须是 DEMO：可展示，但不得给出交易动作。
+离线快照已删除：测试用「真实通道的合成响应」跑全链路（monkeypatch live 适配器），
+因此仍不依赖网络，但走的是与生产相同的实时链路。
 """
+import datetime
 import json
 import os
 import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pytest
 
-from etfquant import config, pipeline
+from etfquant import config, pipeline, webgen
 from etfquant.datasource import loader
-from etfquant.indicators import analyze
-from etfquant.signals import relative_strength, market_regime
 
 CFG = config.cfg()
 CODES = ['510300', '510500', '588000', '159915']
+INDEXES = ['000300', '000905', '399006', '000688']
 
 
 @pytest.fixture(autouse=True)
-def offline():
-    loader.reset(live_mode=False)
+def live_feeds(monkeypatch):
+    """用合成响应替换实时适配器：链路与生产一致，但不联网。"""
+    import live_feeds as F
+    F.patch_live(monkeypatch)
     yield
-    loader.reset(live_mode=False)
+    loader.reset()
 
 
-def _sp():
-    return loader.spot().set_index('code')
-
-
-def test_snapshot_bars():
+def test_live_bars():
     for code in CODES:
         df = loader.daily(code)
         assert len(df) >= 30, code
         assert list(df.columns) == ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
 
 
-def test_index_snapshot_exists():
-    for code in ('000300', '000905', '399006', '000688'):
+def test_live_index_bars():
+    for code in INDEXES:
         df = loader.index_daily(code)
         assert len(df) >= 100, code
         assert {'date', 'close'}.issubset(df.columns)
@@ -53,14 +52,20 @@ def test_premium_unavailable_is_safe():
     row = pd.Series(dict(code='510300', name='沪深300ETF', last=4.05, iopv=float('nan'),
                          premium_pct=float('nan'), premium_available=False,
                          change_pct=0.3))
-    f = analyze(bars, row, CFG)
+    f = analyze_bars(bars, row)
     assert f['premium_available'] is False
     assert f['premium_pct'] is None
     assert f['premium_state'] == '数据不可用'
     assert f['premium_high'] is False and f['penalty'] == 0
 
 
+def analyze_bars(bars, row):
+    from etfquant.indicators import analyze
+    return analyze(bars, row, CFG)
+
+
 def test_regime_from_index_series():
+    from etfquant.signals import market_regime
     rg = market_regime.compute(loader.index_daily('000300'), {}, CFG)
     assert rg['regime'] in ('上行趋势', '下行趋势', '震荡区间',
                             '上行趋势 · 波动抬升', '下行趋势 · 波动抬升',
@@ -69,15 +74,14 @@ def test_regime_from_index_series():
     assert (rg['fit_lo'] is None) == (rg['regime'] == '未知')
 
 
-def test_pipeline_end_to_end_demo(tmp_path, monkeypatch):
-    """离线跑全链路：状态 DEMO，动作全部 ABSTAIN，产物自包含。"""
+def test_pipeline_end_to_end_live(tmp_path, monkeypatch):
+    """实时链路跑通：产物自包含，不联网也能复现。"""
     monkeypatch.setattr(config, 'WEB', str(tmp_path))
     monkeypatch.setattr(config, 'ROOT', str(tmp_path.parent))
-    r = pipeline.run(use_live=False, write_packet=False)
+    r = pipeline.run(write_packet=False)
     assert r['legs'] == 0                  # 不再有公开观察池
-    assert r['status'] == 'DEMO'
+    assert r['status'] in ('OK', 'DEGRADED')
     assert r['orders'] == 0
-    assert r['degraded'] is True and r['synthetic'] is True
     assert r['data_date']
     assert r['validation']['ok'], r['validation']
     s = open(r['html'], encoding='utf-8').read()
@@ -98,24 +102,18 @@ def test_no_legacy_report_layers():
     assert set(os.listdir(config.WEB)) <= allowed
 
 
-@pytest.fixture(scope='module')
-def demo_page(tmp_path_factory):
-    """在临时目录生成一版离线页面，断言不依赖仓库里的当前产物。"""
-    import etfquant.webgen as webgen
-    tmp = tmp_path_factory.mktemp('web')
-    old_web, old_root = config.WEB, config.ROOT
-    old_assets = webgen.ASSETS
-    config.WEB = str(tmp)
-    config.ROOT = str(tmp.parent)
-    try:
-        r = pipeline.run(use_live=False, write_packet=True)
-        s = open(r['html'], encoding='utf-8').read()
-        m = re.search(r'window\.DASHBOARD = (\{.*?\});</script>', s, re.S)
-        assert m, '未找到内嵌数据'
-        return json.loads(m.group(1)), s
-    finally:
-        config.WEB, config.ROOT = old_web, old_root
-        webgen.ASSETS = old_assets
+@pytest.fixture
+def demo_page(tmp_path, monkeypatch):
+    """在临时目录生成一版页面，断言不依赖仓库里的当前产物。"""
+    tmp = tmp_path / 'web'
+    tmp.mkdir()
+    monkeypatch.setattr(config, 'WEB', str(tmp))
+    monkeypatch.setattr(config, 'ROOT', str(tmp.parent))
+    r = pipeline.run(write_packet=True)
+    s = open(r['html'], encoding='utf-8').read()
+    m = re.search(r'window\.DASHBOARD = (\{.*?\});</script>', s, re.S)
+    assert m, '未找到内嵌数据'
+    return json.loads(m.group(1)), s
 
 
 def _dashboard(demo_page):
@@ -125,10 +123,10 @@ def _dashboard(demo_page):
 def test_dashboard_contract(demo_page):
     d, s = demo_page
     assert d['legs'] == []                 # 页面只展示市场与持仓
-    assert d['meta']['status'] == 'DEMO'
+    assert d['meta']['status'] in ('OK', 'DEGRADED')
     assert d['meta']['data_date'] and d['meta']['as_of']
     assert 'source' in d['meta']
-    assert d['meta']['source']['synthetic'] is True
+    assert d['meta']['source']['synthetic'] is False
     if d['market']['heat']:
         assert {'name', 'cap', 'chg', 'v'} <= set(d['market']['heat'][0])
     assert d['market']['regime']['observations']
@@ -137,8 +135,8 @@ def test_dashboard_contract(demo_page):
     assert d['packet']['validation']['ok'] is True
     assert 'extras' in d['packet']
     dq = d['packet']['data_quality']
-    assert dq['market_snapshot'] is True
-    assert 'sector_snapshot' in dq
+    assert 'market_available' in dq and 'news_available' in dq
+    assert dq['market_available'] is True and dq['news_available'] is True
 
 
 def test_no_account_data_in_page(demo_page):

@@ -379,11 +379,8 @@ def fetch_spot(codes=None):
             LAST_SPOT_SOURCE = 'akshare'
             return df
     if codes is None:
-        try:
-            from .. import config
-            codes = list(config.snap_csv('etf_spot.csv')['code'].astype(str))
-        except Exception:
-            codes = []
+        from .loader import DEFAULT_SPOT_CODES
+        codes = list(DEFAULT_SPOT_CODES)
     df = fetch_spot_tencent(codes)
     if df is not None:
         return df

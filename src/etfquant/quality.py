@@ -121,8 +121,11 @@ def quote_freshness(last_date, as_of) -> dict:
     except Exception:
         return dict(status='UNKNOWN', last_date=last, expected_date=expected,
                     age_calendar_days=None, fresh=False)
+    as_of_date = str(as_of)[:10]
     if age < 0:
-        status = 'FUTURE'
+        # 盘前/盘中的报价会带今天的日期（价格仍是上一交易日收盘），
+        # 只要不晚于运行日就是最新可得数据，不能判成未来数据。
+        status = 'FRESH' if last <= as_of_date else 'FUTURE'
     elif age == 0:
         status = 'FRESH'
     else:

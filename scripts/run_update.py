@@ -4,7 +4,6 @@
 用法:
   python3 scripts/run_update.py                # 实时取数（默认），失败自动降级
   python3 scripts/run_update.py --strict       # 非 OK 状态（降级/弃权/演示）退出码 1
-  python3 scripts/run_update.py --snapshot     # 完全不联网，用离线快照（仅演示）
   python3 scripts/run_update.py --json         # 机器可读输出（供 agent / workflow 解析）
   python3 scripts/run_update.py --push         # 生成后提交并推送（用本机 IP 取数）
   python3 scripts/run_update.py --verify       # 只做发布前校验（不重新取数）
@@ -20,8 +19,8 @@ import subprocess
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 from etfquant import config, packet, pipeline  # noqa: E402
 
-PRODUCTS = ['web/index.html', 'web/analysis_packet.json', 'data/last_run.json',
-            'data/national_team.json', 'data/snapshot/market.json']
+# 只提交「本次运行生成的页面与状态」；实时数据留在本地，避免仓库里出现旧行情。
+PRODUCTS = ['web/index.html', 'web/analysis_packet.json', 'data/last_run.json']
 # 持仓分析产物：只有本地跑过 analyze_positions.py 才存在，存在才纳入同一次提交
 OPTIONAL_PRODUCTS = ['docs/持仓分析报告.md', 'data/packets/positions_packet.json']
 
@@ -218,7 +217,6 @@ def run_research(r, collected):
 
 def main():
     ap = argparse.ArgumentParser(description='ETF 决策平台 · 单次更新')
-    ap.add_argument('--snapshot', action='store_true', help='不联网，用离线快照（仅演示）')
     ap.add_argument('--strict', action='store_true',
                     help='状态非 OK 时退出码 1（供 CI 使用）')
     ap.add_argument('--json', action='store_true', help='输出机器可读 JSON')
@@ -239,8 +237,7 @@ def main():
     collected = {}
 
     try:
-        r = pipeline.run(use_live=not a.snapshot,
-                         collect=(collected.update if want_research else None))
+        r = pipeline.run(collect=(collected.update if want_research else None))
     except Exception as e:
         if a.json:
             print(json.dumps({'ok': False, 'status': 'ERROR', 'error': str(e)},
