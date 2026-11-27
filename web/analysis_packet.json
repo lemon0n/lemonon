@@ -1,38 +1,38 @@
 {
   "benchmark": {
-    "as_of": "2026-11-26",
+    "as_of": "2026-11-27",
     "code": "000300",
     "observations": [
-      "基准收盘 3900.55 / MA20 4006.59 / MA60 4251.47",
+      "基准收盘 4063.06 / MA20 4010.47 / MA60 4242.01",
       "MA5 低于 MA20",
-      "20日年化波动 14.07% vs 60日 13.64%（未抬升）",
-      "近120日 高 5059.66 / 低 3898.24（现价距高点 -22.91%、距低点 0.06%）"
+      "20日年化波动 20.19% vs 60日 16.25%（未抬升）",
+      "近120日 高 5059.66 / 低 3898.24（现价距高点 -19.70%、距低点 4.23%）"
     ]
   },
-  "code_version": "88e798f",
+  "code_version": "a0bce14",
   "config_hash": "7dc121bf9c53564c",
-  "data_date": "2026-11-26",
+  "data_date": "2026-11-27",
   "data_quality": {
     "blockers": [],
-    "checked_at": "2026-11-27 11:08:40",
+    "checked_at": "2026-11-27 16:18:32",
     "conflicts": [
       "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ],
     "coverage_pct": 0.0,
-    "expected_data_date": "2026-11-26",
+    "expected_data_date": "2026-11-27",
     "freshness": {
       "benchmark": {
         "age_calendar_days": 0,
-        "expected_date": "2026-11-26",
+        "expected_date": "2026-11-27",
         "fresh": true,
-        "last_date": "2026-11-26",
+        "last_date": "2026-11-27",
         "status": "FRESH"
       },
-      "expected_session": "2026-11-26",
+      "expected_session": "2026-11-27",
       "spot": {
-        "age_calendar_days": -1,
+        "age_calendar_days": 0,
         "dated_rows": 4,
-        "expected_date": "2026-11-26",
+        "expected_date": "2026-11-27",
         "fresh": true,
         "last_date": "2026-11-27",
         "row_count": 4,
@@ -40,15 +40,15 @@
       }
     },
     "market_available": true,
-    "market_fetched_at": "2026-11-27 11:07:08",
-    "market_phase": "盘中",
+    "market_fetched_at": "2026-11-27 16:18:04",
+    "market_phase": "盘后",
     "market_reason": null,
     "news_available": true,
-    "news_fetched_at": "2026-11-27 11:07:32",
+    "news_fetched_at": "2026-11-27 16:18:17",
     "news_reason": null,
     "news_source": "eastmoney",
     "premium_ok": false,
-    "quote_at": "2026-11-27 11:08:24",
+    "quote_at": "2026-11-27 16:15:00",
     "quote_dates": {},
     "sector_live": true,
     "stale_fields": [],
@@ -56,16 +56,16 @@
     "synthetic_fields": []
   },
   "decisions": [],
-  "generated_at": "2026-11-27 11:08:26",
+  "generated_at": "2026-11-27 16:18:31",
   "input_hash": "4f53cda18c2baa0c",
   "legs": [],
   "market": {
-    "benchmark_date": "2026-11-26",
-    "data_date": "2026-11-26",
+    "benchmark_date": "2026-11-27",
+    "data_date": "2026-11-27",
     "market_available": true,
-    "market_fetched_at": "2026-11-27 11:07:08",
+    "market_fetched_at": "2026-11-27 16:18:04",
     "news_available": true,
-    "news_fetched_at": "2026-11-27 11:07:32",
+    "news_fetched_at": "2026-11-27 16:18:17",
     "regime": "下行趋势"
   },
   "methodology_version": "2.0",
@@ -79,18 +79,18 @@
   },
   "portfolio_before": null,
   "regime": {
-    "as_of": "2026-11-26",
+    "as_of": "2026-11-27",
     "fit_hi": 40,
     "fit_lo": 30,
     "observations": [
-      "基准收盘 3900.55 / MA20 4006.59 / MA60 4251.47",
+      "基准收盘 4063.06 / MA20 4010.47 / MA60 4242.01",
       "MA5 低于 MA20",
-      "20日年化波动 14.07% vs 60日 13.64%（未抬升）",
-      "近120日 高 5059.66 / 低 3898.24（现价距高点 -22.91%、距低点 0.06%）"
+      "20日年化波动 20.19% vs 60日 16.25%（未抬升）",
+      "近120日 高 5059.66 / 低 3898.24（现价距高点 -19.70%、距低点 4.23%）"
     ],
     "regime": "下行趋势"
   },
-  "run_id": "20261127T110826-4f53cda18c2baa0c",
+  "run_id": "20261127T161831-4f53cda18c2baa0c",
   "schema_version": "2.0",
   "status": "OK",
   "validation": {
@@ -105,8 +105,8 @@
   "extras": {
     "research": {
       "status": "APPROVED",
-      "run_id": "110840_4bf2833e",
-      "trade_date": "2026-11-26",
+      "run_id": "161832_14b023d1",
+      "trade_date": "2026-11-27",
       "executable": true,
       "risk_status": "APPROVED"
     }

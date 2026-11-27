@@ -1,44 +1,30 @@
 {
   "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-27 11:24:37",
+  "ran_at": "2026-11-27 16:19:57",
   "mode": "agent",
-  "data_date": "2026-11-26",
+  "data_date": "2026-11-27",
   "run_date": "2026-11-27",
-  "expected_data_date": "2026-11-26",
+  "expected_data_date": "2026-11-27",
   "data_stale": false,
-  "quote_dates": {
-    "158041": "2026-11-26",
-    "159322": "2026-11-26",
-    "512000": "2026-11-26",
-    "512630": "2026-11-26",
-    "588170": "2026-11-26"
-  },
+  "quote_dates": {},
   "stale_assets": [],
   "degraded": false,
   "synthetic": false,
-  "levels": 5,
-  "level_count": {
-    "REDUCE": 2,
-    "EXIT": 1,
-    "HOLD": 2
-  },
-  "action_count": {
-    "SELL": 3
-  },
-  "orders": 3,
+  "levels": 0,
+  "level_count": {},
+  "action_count": {},
+  "orders": 0,
   "skipped": [],
   "fallback": [
-    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）",
-    "未配置公开观察池：页面只展示市场与持仓"
+    "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
   ],
   "source": {
     "live": true,
     "degraded": false,
     "synthetic": false,
     "fallback": [
-      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）",
-      "未配置公开观察池：页面只展示市场与持仓"
+      "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ]
   },
   "validation": {
@@ -46,7 +32,7 @@
     "violations": []
   },
   "feeds": {
-    "checked_at": "2026-11-27 11:08:25",
+    "checked_at": "2026-11-27 16:18:30",
     "summary": {
       "OK": 6,
       "PARTIAL": 0,
@@ -85,10 +71,10 @@
   },
   "research": {
     "status": "APPROVED",
-    "run_id": "110840_4bf2833e"
+    "run_id": "161832_14b023d1"
   },
-  "run_id": "110840_4bf2833e",
-  "input_hash": "sha256:8868bba2c65fb9ac6d4faddc150583ca40923841f81a414f2c615b264c7eab69",
+  "run_id": "161832_14b023d1",
+  "input_hash": "sha256:b08615b3246d023149f8cffa7bd2db1cc60453d202aa044680550e6670347d00",
   "config_hash": null,
-  "html": "D:\\缓存\\其他\\L-mx\\repo\\web\\index.html"
+  "html": "/workspace/web/index.html"
 }
