@@ -61,7 +61,12 @@ def _national_team():
     try:
         with open(path, encoding='utf-8') as f:
             d = json.load(f)
-        return d if d.get('series') else None
+        if not d.get('series'):
+            return None
+        # 页面只需要最新一期与近四周对比，历史全塞进 HTML 等于把旧快照带进公开页
+        d = dict(d)
+        d['series'] = list(d['series'])[-25:]
+        return d
     except Exception:
         return None
 
@@ -371,6 +376,11 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
                   news_available=bool(news_doc.get('available')),
                   news_reason=news_doc.get('reason'),
                   news_source=news_doc.get('source'),
+                  analysis_date=meta.get('analysis_date') or meta.get('data_date'),
+                  background_fetched_at=meta.get('background_fetched_at'),
+                  background_phase=meta.get('background_phase'),
+                  mixed_dates=bool(meta.get('mixed_dates')),
+                  feeds=meta.get('feeds'),
                   benchmark_date=meta.get('benchmark_date')),
         packet=dict(schema_version=pkt.get('schema_version'), status=pkt.get('status'),
                     run_id=pkt.get('run_id'), generated_at=pkt.get('generated_at'),

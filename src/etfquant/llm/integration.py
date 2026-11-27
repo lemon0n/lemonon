@@ -83,6 +83,9 @@ def _events(news: dict, data_date: str, limit: int = MAX_EVENTS) -> list[dict]:
         if not title:
             continue
         stamp = str(item.get('time') or fetched)[:19]
+        # 背景快讯可能是次日盘中：分析基准日之外的快讯不进入当日证据
+        if data_date and stamp[:10] and stamp[:10] != str(data_date):
+            continue
         out.append(dict(evidence_id='news:%s:%04d' % (stamp[:10] or data_date, i + 1),
                         title=title, as_of=stamp,
                         source=item.get('source') or doc.get('source') or 'news'))

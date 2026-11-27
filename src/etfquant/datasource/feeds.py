@@ -199,6 +199,23 @@ def _probe_premium():
     ]
 
 
+# 用途与刷新节奏：
+#   analysis   = 分析输入，按行情日（收盘）口径；页面结论必须与它同日
+#   background = 背景展示，可盘中刷新，但页面必须标明抓取时间，且不得写进研究结论
+CHAIN_USAGE = {
+    'etf_daily': ('analysis', '按行情日（收盘 K 线）'),
+    'index_daily': ('analysis', '按行情日（收盘 K 线）'),
+    'sector_weights': ('analysis', '每日/按需，只接受当天抓取'),
+    'spot': ('analysis', '最新价，与行情日分开标注'),
+    'indices': ('background', '可盘中刷新，仅展示'),
+    'sector_flow': ('background', '可盘中刷新，仅展示'),
+    'breadth': ('background', '可盘中刷新，仅展示'),
+    'news': ('background', '可盘中刷新，仅展示'),
+    'national': ('background', '周频披露，每日抓取即可'),
+    'global': ('background', '可盘中刷新，仅展示'),
+    'premium': ('background', '可盘中刷新，仅展示'),
+}
+
 # 静态契约：每条链的通道清单（名称为人读标签，顺序即优先级）。
 # 测试与文档只依赖这里，不联网；probe 负责真正探测。
 CHAIN_CHANNELS = {
@@ -252,7 +269,9 @@ def check(ids: list[str] | None = None) -> dict:
             status = 'FALLBACK'         # 主通道全挂，靠副通道
         else:
             status = 'FAIL'
+        usage, cadence = CHAIN_USAGE.get(chain['id'], ('background', ''))
         out.append(dict(id=chain['id'], name=chain['name'], status=status,
+                        usage=usage, cadence=cadence,
                         primary_ok=primary_ok, primary_any=primary_any,
                         secondary_ok=secondary_ok, channels=channels))
     counts = {k: sum(1 for x in out if x['status'] == k)

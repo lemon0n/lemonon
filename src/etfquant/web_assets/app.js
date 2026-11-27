@@ -177,7 +177,7 @@ function parseTencent(syms){
                                  +stamp.slice(8,10),+stamp.slice(10,12),+stamp.slice(12,14));
   return got;
 }
-/* 新浪：var hq_str_sh510300="沪深300ETF,4.030,4.050,...,2026-11-12,15:00:00,00" */
+/* 新浪：var hq_str_sh510300="沪深300ETF,4.030,4.050,...,YYYY-MM-DD,15:00:00,00" */
 function parseSina(syms){
   var got=0, stamp='';
   syms.forEach(function(sym){
@@ -1677,10 +1677,30 @@ function page1(){
     h+='<div class="notice err"><b>实时市场数据抓取失败</b>：'+esc(m.reason||'未知原因')+
       '。本页不显示上一次的数值；恢复网络后重跑 <code>bash scripts/daily.sh</code>。</div>';
   }else{
-    h+='<div class="notice">市场数据抓取于 <b>'+esc(m.fetched_at||'—')+'</b>'+
+    var dd=(D.meta&&(D.meta.analysis_date||D.meta.data_date))||'—';
+    h+='<div class="notice"><b>分析基准：'+esc(dd)+' 收盘</b>'+
+      '（K 线、均线、结论都以这一天的收盘为准）'+
+      '；背景数据抓取于 <b>'+esc(m.fetched_at||'—')+'</b>'+
       (m.phase?'（'+esc(m.phase)+'）':'')+
+      '，只用于展示，不写进分析结论'+
       (m.news_available?'；快讯抓取于 '+esc(m.news_fetched_at||'—')+'（'+esc(m.news_source||'—')+'）'
                        :'；<b>快讯抓取失败</b>')+'。</div>';
+  }
+  var fe=(D.meta&&D.meta.feeds)||null;
+  if(fe&&fe.chains&&fe.chains.length){
+    var rows=fe.chains.map(function(c){
+      var st=c.status||'—';
+      var cls=st==='OK'?'':(st==='FAIL'?' style="color:#b42318"':'');
+      return '<tr><td>'+esc(c.name)+'</td><td'+cls+'>'+esc(st)+'</td>'+
+        '<td>'+esc(c.usage==='analysis'?'分析输入':'背景展示')+'</td>'+
+        '<td>'+esc(c.active||'—')+'</td><td>'+esc((c.channels||[]).join(' / '))+'</td></tr>';
+    }).join('');
+    h+='<details class="sec-details" style="margin-top:10px"><summary>数据来源与通道（每条链主/副通道）</summary>'+
+      '<div class="rs-note">体检时间 '+esc(fe.checked_at||'—')+
+      '；<b>OK</b>=主副都通，<b>PARTIAL</b>=主通副不通，<b>FALLBACK</b>=主通道挂了、靠副通道，<b>FAIL</b>=全部不可用。'+
+      '「分析输入」按行情日收盘口径，刷新后页面会标明是否与结论同日。</div>'+
+      '<div class="rs-scroll"><table class="tbl"><thead><tr><th>数据链</th><th>状态</th><th>用途</th>'+
+      '<th>当前通道</th><th>主 / 副通道</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
   }
   if((m.errors||[]).length)
     h+='<div class="notice">部分通道失败：'+esc(m.errors.join('；'))+'</div>';
@@ -3219,7 +3239,7 @@ function rsPageHTML(p,s1,adv){
      '20 日跌破且 2 日不收回减半；30 日跌破且 2 日不收回清差额；60 日看长期趋势；'
      '120 日站上才算主力进场；20 月线是牛熊分界。</div></div>';
 
-  /* 广度数据可能比行情旧（抓取失败时保留旧值），这里标明它的数据日期 */
+  /* 广度是盘中背景数据；若抓取日期与行情日不同，这里标明它的抓取日期 */
   var bbAsOf=(D.market&&D.market.breadth_as_of)||null;
   var dd=(D.meta&&D.meta.data_date)||'';
   var bbNote=(bbAsOf&&dd&&bbAsOf!==dd)?('广度数据截至 '+esc(bbAsOf)+'（非今日，抓取失败时保留上次结果）；'):'';

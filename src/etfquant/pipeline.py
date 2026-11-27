@@ -20,7 +20,7 @@ import datetime
 import os
 
 from . import config, packet, quality, universe
-from .datasource import loader
+from .datasource import feeds as feeds_mod, loader
 from .indicators import analyze
 from .signals import market_regime, relative_strength
 from .portfolio.analysis import evidence_card as analysis_card
@@ -164,6 +164,14 @@ def run(strict=False, write_packet=True, collect=None, write_page=True):
         status = 'DEGRADED'
 
     # ---- 元信息 ----
+    health = feeds_mod.read_health() or {}
+    feed_chains = []
+    for c in health.get('chains') or []:
+        active = next((ch['name'] for ch in c.get('channels') or [] if ch.get('ok')), None)
+        feed_chains.append(dict(id=c.get('id'), name=c.get('name'),
+                                status=c.get('status'), usage=c.get('usage'),
+                                cadence=c.get('cadence'), active=active,
+                                channels=[ch.get('name') for ch in c.get('channels') or []]))
     last_dates = {l['code']: l['quality']['last_date'] for l in legs if l['quality']['last_date']}
     meta = dict(
         as_of=now.strftime('%Y-%m-%d %H:%M:%S'),
@@ -193,6 +201,20 @@ def run(strict=False, write_packet=True, collect=None, write_page=True):
         expected_data_date=bench_fresh.get('expected_date'),
         quote_dates=dict(src.get('channels', {}).get('daily_dates') or {}),
         quote_at=max((src.get('channels', {}).get('spot_dates') or {}).values(), default=None),
+        analysis_date=(max(last_dates.values()) if last_dates else
+                       (bench['date'].iloc[-1].strftime('%Y-%m-%d')
+                        if bench is not None and len(bench) else
+                        now.strftime('%Y-%m-%d'))),
+        background_fetched_at=market.get('fetched_at'),
+        background_phase=market.get('phase'),
+        mixed_dates=bool(market.get('fetched_at')
+                         and str(market.get('fetched_at'))[:10] != str(
+                             (max(last_dates.values()) if last_dates else
+                              (bench['date'].iloc[-1].strftime('%Y-%m-%d')
+                               if bench is not None and len(bench) else now.strftime('%Y-%m-%d'))))),
+        feeds=dict(checked_at=health.get('checked_at'),
+                   summary=health.get('summary'), ok=health.get('ok'),
+                   chains=feed_chains),
         run_id=now.strftime('%Y%m%dT%H%M%S') + '-' + packet.input_hash(leg_payloads),
         benchmark_date=(bench['date'].iloc[-1].strftime('%Y-%m-%d')
                         if bench is not None and len(bench) else None),

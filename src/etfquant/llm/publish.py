@@ -127,15 +127,6 @@ def page_payload(final: FinalPlan, *, research=None, redteam=None, revised=None,
                      for a in final.system_adjustments],
         notes=list(final.notes or []))
 
-    tracking = dict(
-        focus_questions=list(context.get('focus_questions') or []),
-        theses=[dict(thesis_id=t.get('thesis_id'), symbol=t.get('symbol'),
-                     stance=t.get('stance'), thesis=t.get('thesis'),
-                     status=t.get('status'), created_at=t.get('created_at'),
-                     last_reviewed_at=t.get('last_reviewed_at'),
-                     invalidation=list(t.get('invalidation') or []))
-                for t in (context.get('previous_research') or [])])
-
     cmeta = context.get('meta') or {}
     quality = context.get('quality') or {}
     source = cmeta.get('source') or {}
@@ -170,8 +161,7 @@ def page_payload(final: FinalPlan, *, research=None, redteam=None, revised=None,
         original=original_block,
         redteam=redteam_block,
         revision=revision_block,
-        final=final_block,
-        tracking=tracking)
+        final=final_block)
 
 
 def no_absolute_fields(payload, path: str = '') -> list[str]:

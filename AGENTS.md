@@ -72,6 +72,8 @@ bash scripts/daily.sh
    快讯只来自本次抓取；行业权重只用今天抓的，失败指数不映射；brief 必须绑定当前 run_id。
 10. **数据链要能自证**：`daily.sh` 抓数后自动跑 `scripts/check_feeds.py`；11 条链各配主/副通道，
     `FAIL` 必须处理、`FALLBACK` 要说明主通道挂了；结果在 `data/live/feeds_health.json` 与 `last_run.feeds`。
+11. **页面必须区分两种日期**：分析输入按行情日收盘；背景数据（广度/快讯/板块等）可盘中刷新，
+    但页面顶部要写明「分析基准 X 收盘 / 背景抓取于 Y」，点评与研究不得引用非基准日的背景数据。
 
 > **研究范围**由 `config/llm.yaml → research.scope` 决定，默认 `holdings`：只看你自己的持仓，
 > `config/universe.yaml` 的公开观察池不参与研究，也不能据此新建仓。
