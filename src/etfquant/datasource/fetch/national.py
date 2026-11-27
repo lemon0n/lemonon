@@ -27,6 +27,7 @@ import time
 
 from ... import config
 ROOT = config.ROOT
+LAST_NATIONAL_SOURCE = None
 OUT = os.path.join(ROOT, 'data', 'national_team.json')
 
 CODE_GROUPS = {
@@ -46,8 +47,17 @@ URL = ('https://query.sse.com.cn/commonQuery.do'
        '&pageHelp.beginPage=1&pageHelp.cacheSize=1&pageHelp.endPage=1&STAT_DATE=%s')
 
 
-def _fetch_day(day):
-    """取单日全部 ETF 份额；requests 在本环境会因代理证书失败，改用 curl。"""
+def _rows_from_bytes(raw):
+    try:
+        d = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    rows = ((d or {}).get('pageHelp') or {}).get('data') or []
+    return rows or None
+
+
+def _fetch_day_curl(day):
+    """主通道：curl（本机代理证书异常时 requests 可能失败，curl 通常可用）。"""
     tmp = tempfile.mktemp(suffix='.json')
     try:
         p = subprocess.run(
@@ -55,17 +65,32 @@ def _fetch_day(day):
              '-H', 'Referer: https://www.sse.com.cn/',
              '-H', 'User-Agent: Mozilla/5.0', URL % day, '-o', tmp],
             capture_output=True, text=True)
-        if p.returncode != 0 or not os.path.exists(tmp) or os.path.getsize(tmp) < 500:
-            return None
-        with open(tmp, encoding='utf-8') as f:
-            d = json.load(f)
-        rows = (d.get('pageHelp') or {}).get('data') or []
-        return rows or None
+        if p.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) >= 500:
+            with open(tmp, 'rb') as f:
+                return _rows_from_bytes(f.read())
+        return None
     except Exception:
         return None
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
+
+
+def _fetch_day_requests(day):
+    """副通道：requests 直连（同一官方接口，不同 HTTP 传输）。"""
+    try:
+        import requests
+        r = requests.get(URL % day, headers={
+            'Referer': 'https://www.sse.com.cn/', 'User-Agent': 'Mozilla/5.0'},
+            timeout=20)
+        return _rows_from_bytes(r.content)
+    except Exception:
+        return None
+
+
+def _fetch_day(day):
+    """单日份额：curl 主通道，requests 副通道。"""
+    return _fetch_day_curl(day) or _fetch_day_requests(day)
 
 
 def _groups_of(rows):

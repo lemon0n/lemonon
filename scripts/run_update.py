@@ -70,6 +70,21 @@ def git_push(r):
     return 0
 
 
+def _feeds_summary():
+    """读取数据链体检结果（不重新探测），放进 last_run 供 runner/页面排查。"""
+    path = os.path.join(config.ROOT, 'data', 'live', 'feeds_health.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return dict(checked_at=doc.get('checked_at'), summary=doc.get('summary'),
+                ok=doc.get('ok'), healthy=doc.get('healthy'),
+                bad=[dict(id=c['id'], name=c['name'], status=c['status'])
+                     for c in doc.get('chains') or []
+                     if c.get('status') in ('FAIL', 'FALLBACK')])
+
+
 def write_manifest(r):
     """data/last_run.json：给 agent / 监控判断「今天有没有跑成功、数据是哪天、什么状态」。"""
     path = os.path.join(config.ROOT, 'data', 'last_run.json')
@@ -93,6 +108,7 @@ def write_manifest(r):
         'fallback': r['source'].get('fallback', []),
         'source': r['source'],
         'validation': r.get('validation'),
+        'feeds': _feeds_summary(),
         'research': r.get('research'),
         'run_id': r.get('run_id'),
         'input_hash': r.get('input_hash'),

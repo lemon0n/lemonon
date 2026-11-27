@@ -31,6 +31,7 @@ UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
       'Referer': 'https://quote.eastmoney.com/'}
 
 PAGE_SIZE = 100
+DEFAULT_CODES = ['510300', '510500', '588000', '159915']
 MAX_PAGES = 80
 
 
@@ -273,6 +274,42 @@ GLOBAL_SYMBOLS = [
 ]
 
 
+TENCENT_GLOBAL = [('纳斯达克', 'usIXIC'), ('标普500', 'usINX'),
+                  ('道琼斯', 'usDJI'), ('恒生指数', 'hkHSI')]
+
+
+def _global_tencent() -> tuple[dict | None, str | None]:
+    """腾讯外盘副通道：美股指数用 us*，港股用 hk*。"""
+    try:
+        r = _http_get('https://qt.gtimg.cn/q=' + ','.join(s for _, s in TENCENT_GLOBAL),
+                      headers=UA, timeout=10)
+        r.encoding = 'gbk'
+    except Exception as exc:
+        return None, '%s: %s' % (type(exc).__name__, exc)
+    out = []
+    name_of = {sym: name for name, sym in TENCENT_GLOBAL}
+    for seg in r.text.split(';'):
+        if '="' not in seg:
+            continue
+        sym = (seg.split('=')[0].strip().replace('var v_', '')
+               .replace('var ', '').replace('v_', ''))
+        body = seg.split('="', 1)[1].rstrip('"').split('~')
+        if len(body) < 33:
+            continue
+        try:
+            last, pct = float(body[3]), float(body[32])
+        except (TypeError, ValueError):
+            continue
+        if last <= 0:
+            continue
+        out.append(dict(k=name_of.get(sym, sym), v='%+.2f%%' % pct,
+                        last=round(last, 2), chg_pct=round(pct, 2),
+                        url='https://gu.qq.com/'))
+    if not out:
+        return None, '腾讯外盘返回空'
+    return dict(items=out), None
+
+
 def _fetch_global() -> tuple[dict | None, str | None]:
     try:
         import requests
@@ -306,7 +343,7 @@ def _fetch_global() -> tuple[dict | None, str | None]:
         out.append(dict(k=name_cn, v='%+.2f%%' % pct, last=round(last, 2),
                         chg_pct=round(pct, 2), url='https://finance.sina.com.cn/'))
     if not out:
-        return None, '新浪外盘返回空'
+        return _global_tencent()
     return dict(items=out), None
 
 
@@ -319,13 +356,21 @@ def _fetch_premium() -> tuple[dict, str | None]:
     except Exception as exc:
         return dict(available=False, reason='行情源不可用：%s' % exc), None
     if df is None or len(df) == 0 or 'iopv' not in df.columns:
+        fallback, err = _fetch_premium_sina()
+        if fallback:
+            return fallback, None
         return dict(available=False,
-                    reason='当前行情源（腾讯/新浪）不提供 IOPV，折溢价不可用'), None
+                    reason='当前行情源（腾讯/新浪）不提供 IOPV，折溢价不可用：%s'
+                           % (err or '')), None
     if 'premium_available' in df.columns:
         df = df[df['premium_available'].fillna(False).astype(bool)]
         if len(df) == 0:
+            fallback, err = _fetch_premium_sina()
+            if fallback:
+                return fallback, None
             return dict(available=False,
-                        reason='当前行情源不提供 IOPV（腾讯/新浪兜底），折溢价不可用'), None
+                        reason='当前行情源不提供 IOPV（腾讯/新浪兜底），折溢价不可用：%s'
+                               % (err or '')), None
     valid = df[(df['iopv'] > 0) & (df['last'] > 0)].copy()
     if len(valid) == 0:
         return dict(available=False, reason='IOPV 全为 0，折溢价不可用'), None
@@ -351,6 +396,67 @@ def _fetch_premium() -> tuple[dict, str | None]:
                 high_count=int((valid['pct'] > 1.0).sum()),
                 low_count=int((valid['pct'] < -0.5).sum()),
                 sample=len(valid), items=deduped[:10]), None
+
+
+def _fetch_premium_sina(codes=None) -> tuple[dict | None, str | None]:
+    """新浪基金估值接口（fu_*）→ 折溢价副通道。
+
+    字段：0 名称 · 1 时间 · 2 估算净值 · 3 单位净值 · 4 累计净值
+    没有真实 IOPV 时，用「价格 / 估算净值 - 1」近似，并在结果里标 source。
+    """
+    codes = [str(c).zfill(6) for c in (codes or DEFAULT_CODES)]
+    if not codes:
+        return None, '没有可用的 ETF 代码'
+    prices = {}
+    try:
+        from ..akshare_adapter import fetch_spot
+        df = fetch_spot(codes)
+        if df is not None:
+            prices = {str(r['code']).zfill(6): float(r['last'])
+                      for _, r in df.iterrows()
+                      if r.get('last') and float(r['last']) > 0}
+    except Exception:
+        prices = {}
+    out = []
+    for i in range(0, len(codes), 60):
+        chunk = codes[i:i + 60]
+        try:
+            r = _http_get('https://hq.sinajs.cn/list='
+                          + ','.join('fu_' + c for c in chunk),
+                          headers=dict(UA, Referer='https://finance.sina.com.cn'),
+                          timeout=10)
+            r.encoding = 'gbk'
+        except Exception:
+            continue
+        for seg in r.text.split(';'):
+            if '="' not in seg:
+                continue
+            code = seg.split('=')[0].strip().replace('var hq_str_fu_', '')[-6:]
+            body = seg.split('="', 1)[1].rstrip('"').split(',')
+            if len(body) < 3 or not body[0]:
+                continue
+            try:
+                estimate = float(body[2])
+            except (TypeError, ValueError):
+                continue
+            last = prices.get(code)
+            if not last or estimate <= 0:
+                continue
+            out.append(dict(code=code, name=body[0], last=round(last, 3),
+                            estimate=round(estimate, 4),
+                            pct=round((last / estimate - 1) * 100, 3)))
+    if not out:
+        return None, '新浪估值接口无有效数据'
+    items = sorted(out, key=lambda x: x['pct'], reverse=True)
+    return dict(available=True, source='sina_estimate',
+                avg_pct=round(sum(x['pct'] for x in out) / len(out), 3),
+                high_count=sum(1 for x in out if x['pct'] > 1.0),
+                low_count=sum(1 for x in out if x['pct'] < -0.5),
+                sample=len(out),
+                items=[dict(code=x['code'], name=x['name'], pct=x['pct'],
+                            tag='偏高' if x['pct'] > 1.0 else
+                                ('偏低' if x['pct'] < -0.5 else '正常'))
+                       for x in items[:10]]), None
 
 
 def main(argv=None) -> int:

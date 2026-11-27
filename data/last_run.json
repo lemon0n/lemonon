@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-27 10:03:52",
+  "ran_at": "2026-11-27 10:53:51",
   "mode": "agent",
   "data_date": "2026-11-26",
   "run_date": "2026-11-27",
@@ -44,6 +44,39 @@
   "validation": {
     "ok": true,
     "violations": []
+  },
+  "feeds": {
+    "checked_at": "2026-11-27 10:52:53",
+    "summary": {
+      "OK": 7,
+      "PARTIAL": 0,
+      "FALLBACK": 4,
+      "FAIL": 0
+    },
+    "ok": true,
+    "healthy": false,
+    "bad": [
+      {
+        "id": "etf_daily",
+        "name": "ETF 日线",
+        "status": "FALLBACK"
+      },
+      {
+        "id": "spot",
+        "name": "ETF 实时价",
+        "status": "FALLBACK"
+      },
+      {
+        "id": "breadth",
+        "name": "市场广度",
+        "status": "FALLBACK"
+      },
+      {
+        "id": "premium",
+        "name": "ETF 折溢价",
+        "status": "FALLBACK"
+      }
+    ]
   },
   "research": {
     "status": "APPROVED",

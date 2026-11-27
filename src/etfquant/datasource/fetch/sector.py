@@ -14,7 +14,7 @@
 **不沿用上次结果**：旧权重不得冒充当前权重。
 
 用法：
-  python3 scripts/fetch_index_sector_weights.py            # 抓取并写 data/snapshot/index_sector_weights.json
+  python3 scripts/fetch_index_sector_weights.py            # 抓取并写 data/live/index_sector_weights.json
   python3 scripts/fetch_index_sector_weights.py --dry-run  # 只打印结果，不落盘
 """
 import argparse
@@ -208,6 +208,89 @@ def build_index(members, sw, sectors, float_only=None):
     return acc, sorted(set(unmapped)), round(total_official, 2)
 
 
+def _tencent_caps(codes):
+    """腾讯批量行情取流通市值（字段 44，单位亿元）。"""
+    import requests
+    out = {}
+    ua = {'User-Agent': UA}
+    codes = [str(c) for c in codes]
+    for i in range(0, len(codes), 60):
+        chunk = codes[i:i + 60]
+        syms = ','.join(('sh' if c[0] in '569' else 'sz') + c for c in chunk)
+        try:
+            r = requests.get('https://qt.gtimg.cn/q=' + syms, headers=ua, timeout=10)
+            r.encoding = 'gbk'
+        except Exception:
+            continue
+        for seg in r.text.split(';'):
+            if '="' not in seg:
+                continue
+            body = seg.split('="', 1)[1].rstrip('"').split('~')
+            if len(body) < 46:
+                continue
+            code = str(body[2])[-6:]
+            try:
+                cap = float(body[44])
+            except (TypeError, ValueError):
+                continue
+            if cap > 0:
+                out[code] = cap
+    return out
+
+
+def _em_industries(codes):
+    """东财 datacenter 批量取申万一级（BOARD_NAME_LEVEL 第一段）。"""
+    import requests
+    out = {}
+    codes = [str(c) for c in codes]
+    for i in range(0, len(codes), 40):
+        chunk = codes[i:i + 40]
+        flt = '(SECURITY_CODE in ("' + '","'.join(chunk) + '"))'
+        url = ('https://datacenter-web.eastmoney.com/api/data/v1/get'
+               '?reportName=RPT_F10_BASIC_ORGINFO'
+               '&columns=SECURITY_CODE,BOARD_NAME_LEVEL'
+               '&pageSize=200&pageNumber=1&filter=' + requests.utils.quote(flt) +
+               '&source=WEB&client=WEB')
+        try:
+            d = requests.get(url, headers={'User-Agent': UA}, timeout=12).json()
+        except Exception:
+            continue
+        for row in ((d.get('result') or {}).get('data') or []):
+            code = str(row.get('SECURITY_CODE') or '')
+            level = str(row.get('BOARD_NAME_LEVEL') or '').split('-')[0].strip()
+            if code and level:
+                out[code] = level
+    return out
+
+
+def ff_proxy_weights(members, sectors):
+    """自由流通市值加权近似：腾讯流通市值 + 东财申万一级。
+
+    官方权重缺失（例如创业板指只披露「--」）时使用；JSON 里标 method=ff_proxy，
+    页面按近似口径展示，不冒充官方权重。
+    """
+    codes = [c for c, _, _ in members if c]
+    if not codes:
+        return None, [], '没有成分股'
+    caps = _tencent_caps(codes)
+    inds = _em_industries(codes)
+    total = sum(caps.get(c, 0.0) for c in codes)
+    if total <= 0 or len(inds) < max(1, len(codes) // 2):
+        return None, [], '缺流通市值或行业数据'
+    acc, unmapped = {}, []
+    for code in codes:
+        cap = caps.get(code, 0.0)
+        if cap <= 0:
+            continue
+        level = inds.get(code) or ''
+        if level not in sectors:
+            unmapped.append(level or '(空)')
+            level = '其他'
+        acc[level] = acc.get(level, 0.0) + cap
+    weights = {k: round(v / total * 100, 2) for k, v in acc.items()}
+    return weights, sorted(set(unmapped)), None
+
+
 def valid(weights, sectors):
     if not weights:
         return False
@@ -235,7 +318,7 @@ def main(argv=None):
 
     stocks = stock_industries()
     indices, source, method, unmapped, errors, wdate = {}, {}, {}, {}, [], {}
-    stale = False
+    approximate, stale = {}, False
 
     for idx in sorted(set(etf_index.values())):
         try:
@@ -264,10 +347,22 @@ def main(argv=None):
                 wdate[idx] = day
             if unm:
                 unmapped[idx] = unm
-        except Exception as e:                    # 网络、格式、校验都走同一条失败
-            errors.append('%s: %s' % (idx, e))
-            # 失败就不参与映射，绝不沿用上次权重（旧数据不得冒充当前）
-            stale = True
+        except Exception as e:                    # 官方失败 → 自由流通市值近似副通道
+            note = '%s: %s' % (idx, e)
+            proxy, proxy_unmapped, proxy_err = ff_proxy_weights(members or [], sectors)
+            if proxy and valid(proxy, sectors):
+                indices[idx] = proxy
+                source[idx] = '自由流通市值加权近似（腾讯行情 + 东财申万行业）'
+                method[idx] = dict(method='ff_proxy')
+                approximate[idx] = True
+                if proxy_unmapped:
+                    unmapped[idx] = proxy_unmapped
+                if day:
+                    wdate[idx] = day
+                errors.append(note + ' → 已用 ff_proxy 近似')
+            else:
+                errors.append(note + '；近似通道也不可用：%s' % (proxy_err or '数据不足'))
+                stale = True
 
     if not indices:
         print('未取到任何指数权重，写空文件（不回退旧文件）：' + '；'.join(errors),
@@ -279,6 +374,7 @@ def main(argv=None):
         fetched_at=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         generated_at=datetime.datetime.now().isoformat(timespec='seconds'),
         stale=bool(stale),
+        approximate=dict(approximate),
         unit='%',
         source=source,
         method=method,

@@ -13,12 +13,13 @@
 为什么需要兜底：东财 push2 系列对短时高频请求会直接断连并临时封 IP
 （首次约 5 分钟恢复，反复触发 40 分钟以上）。AKShare 官方对这类失败
 「立即放弃、不重试」——重试只会延长封禁。因此 _retry 只对可恢复错误重试，
-遇到限流/断连立即返回 None，交 loader 降级到腾讯/新浪备用源或离线快照。
+遇到限流/断连立即返回 None，交 loader 用腾讯/新浪备用通道；全部失败就是无数据。
 
 免费性说明：以上端点均为公开 HTTP 接口，零 token、零费用；但属非官方授权接口，
 无 SLA、字段可能随源站改版变化，仅供学习研究使用，实盘以交易所/券商数据为准。
 """
 import datetime
+import json
 import time
 import requests
 import pandas as pd
@@ -65,6 +66,20 @@ def _retry(fn, times=2, wait=1.0):
                 return None                      # 不重试，避免延长封禁
             if i + 1 < times:
                 time.sleep(wait)
+    return None
+
+
+KLINE_HOSTS = ('https://web.ifzq.gtimg.cn', 'https://proxy.finance.qq.com/ifzqgtimg',
+               'https://ifzq.gtimg.cn')
+
+
+def _kline_get(sym, n, prefix='https://web.ifzq.gtimg.cn'):
+    """腾讯日线请求：主域名超时后依次换备用域名。"""
+    path = ('/appstock/app/fqkline/get?param=%s,day,,,%d,qfq' % (sym, n))
+    for host in (prefix,) + tuple(h for h in KLINE_HOSTS if h != prefix):
+        js = _http_json(host + path, timeout=6, times=1)
+        if js and js.get('code') in (0, '0'):
+            return js
     return None
 
 
@@ -163,8 +178,7 @@ def fetch_daily_tencent(code, n=1200):
     amount 置 0（仅展示层不参与决策，量能判定用 volume）。
     """
     sym = _tencent_symbol(code)
-    js = _http_json('https://web.ifzq.gtimg.cn/appstock/app/fqkline/get'
-                    '?param=%s,day,,,%d,qfq' % (sym, n))
+    js = _kline_get(sym, n)
     if not js or js.get('code') not in (0, '0'):
         return None
     node = (js.get('data') or {}).get(sym) or {}
@@ -223,8 +237,7 @@ def fetch_index_daily(code, n=700):
     """
     code = str(code)
     sym = INDEX_DAILY_SYMBOLS.get(code) or _tencent_symbol(code)
-    js = _http_json('https://web.ifzq.gtimg.cn/appstock/app/fqkline/get'
-                    '?param=%s,day,,,%d,qfq' % (sym, n), times=1)
+    js = _kline_get(sym, n)
     rows = []
     if js and js.get('code') in (0, '0'):
         node = (js.get('data') or {}).get(sym) or {}
@@ -310,7 +323,7 @@ def fetch_spot_sina(codes):
 def fetch_spot_tencent(codes):
     """腾讯 qt.gtimg.cn 批量实时行情（东财限流时的备用源，零鉴权）。
 
-    返回与离线快照同构的 DataFrame。注意：
+    返回与主通道同构的 DataFrame。注意：
       · 腾讯不提供 IOPV → premium_pct 置 NaN、premium_available=False，
         折溢价风控在兜底模式下「显式停用」而非静默按 0 处理；
       · 单次请求上限约 60 个代码，超出自动分批。
@@ -422,6 +435,64 @@ def _index_quotes(symbols):
     return out
 
 
+
+def _index_quotes_tencent():
+    """腾讯批量指数点位（新浪失败时的副通道）。"""
+    syms = list(INDEX_SYMBOLS.values())
+    out = {}
+    try:
+        r = requests.get('https://qt.gtimg.cn/q=' + ','.join(syms), headers=_UA, timeout=8)
+        r.encoding = 'gbk'
+    except Exception:
+        return out
+    for seg in r.text.split(';'):
+        if '="' not in seg:
+            continue
+        sym = (seg.split('=')[0].strip().replace('var v_', '')
+               .replace('var ', '').replace('v_', ''))
+        body = seg.split('="', 1)[1].rstrip('"').split('~')
+        if len(body) < 33:
+            continue
+        try:
+            last = float(body[3])
+            pct = float(body[32])
+        except (TypeError, ValueError):
+            continue
+        if last <= 0:
+            continue
+        out[sym] = (last, round(pct, 2), str(body[30] or ''))
+    return out
+
+
+def _index_kline_tencent(sym, n=60):
+    """腾讯指数日线（备选）。返回 [[date, o, c, h, l, vol], ...]。"""
+    js = _kline_get(sym, n)
+    node = ((js or {}).get('data') or {}).get(sym) or {}
+    return node.get('qfqday') or node.get('day') or []
+
+
+def _index_kline_sina_cn(sym, n=60):
+    """新浪备用域名（quotes.sina.cn）日线；主域名被限流时的副通道。"""
+    raw = None
+    try:
+        r = requests.get('https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_x=/'
+                         'CN_MarketDataService.getKLineData',
+                         params={'symbol': sym, 'scale': 240, 'ma': 'no',
+                                 'datalen': n},
+                         headers=dict(_UA, Referer='https://finance.sina.com.cn'),
+                         timeout=8)
+        raw = r.text
+    except Exception:
+        return []
+    start = raw.find('([')
+    end = raw.rfind('])')
+    if start < 0 or end < 0:
+        return []
+    try:
+        return json.loads(raw[start + 1:end + 1])
+    except ValueError:
+        return []
+
 def fetch_indices():
     """指数最新点位 + 涨跌 + 5/10/20 均线状态。
 
@@ -430,12 +501,23 @@ def fetch_indices():
     返回 [{'name','last','chg_pct','ma_state','url'}]；全部失败返回 None。
     """
     quotes = _index_quotes(list(INDEX_SYMBOLS.values()))
+    quote_source = 'sina' if quotes else None
+    if not quotes:
+        quotes = _index_quotes_tencent()
+        quote_source = 'tencent' if quotes else None
     out = []
     for name, sym in INDEX_SYMBOLS.items():
         js = _http_json('https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/'
                         'CN_MarketData.getKLineData?symbol=%s&scale=240&ma=no&datalen=60'
                         % sym, times=1)
         rows = js if isinstance(js, list) else []
+        if not rows:
+            rows = _index_kline_sina_cn(sym)
+        if not rows:
+            raw = _index_kline_tencent(sym)
+            rows = [dict(day=a[0], open=a[1], close=a[2],
+                         high=a[3], low=a[4], volume=a[5])
+                    for a in raw if len(a) >= 6]
         ma_state, last_k, prev_k = '', None, None
         if len(rows) >= 21:
             close = pd.Series([float(a['close']) for a in rows])
@@ -469,6 +551,7 @@ def fetch_indices():
             continue
         out.append(dict(name=name, last=round(last, 2), chg_pct=chg,
                         ma_state=ma_state or '—',
+                        quote_source=quote_source,
                         url='https://quote.eastmoney.com/zs%s.html' % sym[2:]))
     return out or None
 
@@ -575,7 +658,7 @@ def fetch_sector_flow():
     """31 个申万一级行业：成交额 / 占比 / 涨跌幅 / 流通市值。
 
     东财优先（单 RTT 直取 31 个 BK），限流则退腾讯板块排行；两者皆失败返回 None，
-    由 loader 降到离线快照。绝不回退到同花顺几百个细分行业——那会毁掉口径。
+    两者皆失败返回 None（页面显示抓取失败）。绝不回退到同花顺几百个细分行业——那会毁掉口径。
     """
     rows = _retry(_sector_eastmoney, times=1)
     if not rows:

@@ -70,6 +70,8 @@ bash scripts/daily.sh
 8. **只收尾最新 prepare**：`--finish` 不带 run-dir 时只读 `.pending_run`，缺输出就报错，禁止回退旧日期；brief 必须绑定当前 run_id。
 9. **没有离线快照**：`daily.sh` 每次跑 `fetch.py --market --national --sector --news`；抓不到就显示失败，禁止沿用旧值。
    快讯只来自本次抓取；行业权重只用今天抓的，失败指数不映射；brief 必须绑定当前 run_id。
+10. **数据链要能自证**：`daily.sh` 抓数后自动跑 `scripts/check_feeds.py`；11 条链各配主/副通道，
+    `FAIL` 必须处理、`FALLBACK` 要说明主通道挂了；结果在 `data/live/feeds_health.json` 与 `last_run.feeds`。
 
 > **研究范围**由 `config/llm.yaml → research.scope` 决定，默认 `holdings`：只看你自己的持仓，
 > `config/universe.yaml` 的公开观察池不参与研究，也不能据此新建仓。
@@ -93,7 +95,7 @@ echo '你的口令' > positions/.passphrase          # 方式二：本地文件�
 
 ## 收工前验收（30 秒）
 
-1. `python -m pytest -q` → 全绿（当前 290 项）。
+1. `python -m pytest -q` → 全绿（当前测试数见输出）；`python scripts/check_feeds.py` → 0 条 FAIL。
 2. 打开 `web/index.html`：
    - 三个标签在：市场概况 / 持仓分析 / 持仓设置；
    - 持仓分析是「一、持仓概况 → 二、持仓分析 → 三、市场洞察」；

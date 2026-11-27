@@ -30,7 +30,7 @@ MIN_BARS = 35
 
 
 def fetch_bars(code):
-    """持仓日线：走 loader（东财 → 腾讯 → 新浪 → 离线快照），失败返回 None。
+    """持仓日线：走 loader（东财 → 腾讯 → 新浪），三条通道都失败返回 None。
 
     观察池之外的标的同样可用；返回 (df, is_synthetic)。
     """
@@ -61,7 +61,7 @@ def _names_from_df(df, want):
 def fetch_names(codes):
     """行情源基金名称映射：只用于给缺名的持仓补名并自动分类。
 
-    先取全量行情表；仍缺的代码再用腾讯/新浪按代码补取（离线快照只覆盖观察池）。
+    先取全量行情表；仍缺的代码再用腾讯/新浪按代码补取。
     取不到就返回空字典，绝不编造名称。
     """
     want = {str(c).strip() for c in codes if c}
