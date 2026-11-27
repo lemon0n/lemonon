@@ -445,6 +445,13 @@ def build_data(market, sectors, regime, legs, cfg, meta, packet=None, decision=N
 
 
 def render(data, cfg=None, decision=True, demo=None, out_path=None):
+    """渲染前做一次数据规整：旧快照类字段只保留页面真正需要的窗口。"""
+    try:
+        nt = ((data or {}).get('market') or {}).get('national_team')
+        if isinstance(nt, dict) and isinstance(nt.get('series'), list):
+            nt['series'] = nt['series'][-25:]
+    except Exception:
+        pass
     css = open(os.path.join(ASSETS, 'style.css'), encoding='utf-8').read()
     rules = open(os.path.join(ASSETS, 'rules.js'), encoding='utf-8').read()
     js = open(os.path.join(ASSETS, 'app.js'), encoding='utf-8').read()
