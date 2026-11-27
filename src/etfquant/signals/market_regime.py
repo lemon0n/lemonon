@@ -122,7 +122,7 @@ def compute(bench_bars, market=None, cfg=None):
     sent = market.get('sentiment') or {}
     snapshot_date = str(market.get('as_of') or '')[:10]
     bench_date = str(out.get('as_of') or '')[:10]
-    auxiliary_stale = bool(snapshot_date and bench_date and snapshot_date < bench_date)
+    auxiliary_stale = bool(snapshot_date and bench_date and snapshot_date != bench_date)
     out.update(market_snapshot_as_of=snapshot_date or None,
                auxiliary_stale=auxiliary_stale,
                stage_note=(rot.get('note') or '') if out['regime'] != '未知' and not auxiliary_stale else '',

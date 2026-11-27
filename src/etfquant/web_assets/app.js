@@ -1746,9 +1746,13 @@ function page1(){
     h+=box(bt('板块数据')+'<div class="rs-note">板块资金流实时抓取失败，本页不显示旧值。</div>');
   }
 
+  var bgLeaders=(m.rotation&&m.rotation.leaders)||[];
+  var leaders=(rg.leaders&&rg.leaders.length)?rg.leaders:bgLeaders;
+  var laggards=(rg.laggards&&rg.laggards.length)?rg.laggards:((m.rotation&&m.rotation.laggards)||[]);
+  var bgTag=(D.meta&&D.meta.mixed_dates)?'（盘中背景，不参与结论）':'';
   h+='<div class="grid2">'+box(bt('轮动与主线')+
-      kv([['阶段',esc(rg.regime||'未知')],['主线方向',esc((rg.leaders||[]).join('、')||'—')],
-          ['落后方向',esc((rg.laggards||[]).join('、')||'—')],
+      kv([['阶段',esc(rg.regime||'未知')],['主线方向',esc(leaders.join('、')||'—')+bgTag],
+          ['落后方向',esc(laggards.join('、')||'—')],
           ['依据',esc(rg.stage_note||'实时板块涨跌幅排序')]]))+
     box(bt('涨跌分布')+(dist?bars(Object.keys(dist).map(function(k){
       return [k,n(dist[k])/6, dist[k]+' 家']; })):'<div class="rs-note">广度抓取失败，无分布。</div>'))+

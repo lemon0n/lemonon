@@ -578,6 +578,14 @@ def _render_page(run_dir: str, payload: dict):
     if not data:
         return None
     attach_to_data(data, payload)
+    # 分析基准日与背景抓取日不同：盘中主线/落后不得作为「当前主线」展示，
+    # 页面会改为展示背景快照并标「盘中背景，不参与结论」。
+    meta = data.get('meta') or {}
+    if meta.get('mixed_dates'):
+        regime = (data.get('market') or {}).get('regime')
+        if isinstance(regime, dict):
+            regime['leaders'] = []
+            regime['laggards'] = []
     # 点评只读本次运行快照；没有新点评就明确为空，绝不注入全局旧 brief
     brief = storage.load_run(run_dir, 'brief.json')
     if brief and brief.get('run_id') == payload['meta'].get('run_id'):

@@ -51,7 +51,9 @@ def run(strict=False, write_packet=True, collect=None, write_page=True):
     spot = spot_df.set_index('code') if spot_df is not None else None
     if spot is None:
         loader.note_fallback('实时行情不可用：ETF 现价与折溢价留空')
-    # 板块主线/落后由实时板块涨跌幅直接算，不用人工维护文本
+    # 板块主线/落后由实时板块涨跌幅直接算；抓取时间作为 as_of，
+    # 与基准日不同（盘中刷新）时 regime 会标 auxiliary_stale 并从研究上下文剔除。
+    market = dict(market, as_of=market.get('fetched_at'))
     if sectors is not None and len(sectors):
         ranked = sorted(
             [(str(r['sector']), float(r['change_pct'])) for _, r in sectors.iterrows()
