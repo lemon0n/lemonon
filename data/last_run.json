@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-27 10:59:22",
+  "ran_at": "2026-11-27 11:10:28",
   "mode": "agent",
   "data_date": "2026-11-26",
   "run_date": "2026-11-27",
@@ -46,7 +46,7 @@
     "violations": []
   },
   "feeds": {
-    "checked_at": "2026-11-27 10:57:44",
+    "checked_at": "2026-11-27 11:08:25",
     "summary": {
       "OK": 6,
       "PARTIAL": 0,
@@ -85,10 +85,10 @@
   },
   "research": {
     "status": "APPROVED",
-    "run_id": "095433_90d1a789"
+    "run_id": "110840_4bf2833e"
   },
-  "run_id": "095433_90d1a789",
-  "input_hash": "sha256:119f5a6b10cbba063dce381dbd40d05b2fe358f5ba04ebf05dc2cfd78bd8c37d",
+  "run_id": "110840_4bf2833e",
+  "input_hash": "sha256:8868bba2c65fb9ac6d4faddc150583ca40923841f81a414f2c615b264c7eab69",
   "config_hash": null,
   "html": "D:\\缓存\\其他\\L-mx\\repo\\web\\index.html"
 }
