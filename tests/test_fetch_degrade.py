@@ -176,4 +176,4 @@ def test_market_age_guard(tmp_path, monkeypatch):
                                 'breadth': {'advance': 1}}), encoding='utf-8')
     monkeypatch.setattr(loader, 'MARKET_PATH', str(path))
     doc, err = loader._load_live_json(str(path), 'market.json')
-    assert doc is None and '超过' in err
+    assert doc is None and '拒绝使用' in err

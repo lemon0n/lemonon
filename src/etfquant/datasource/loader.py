@@ -122,9 +122,16 @@ def _load_live_json(path: str, kind: str):
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=_now_bj().tzinfo)
     age = (_now_bj() - ts).total_seconds() / 60
+    from .. import quality
+    expected = quality.expected_session(_now_bj().isoformat())
+    doc_date = str(doc.get('data_date') or '')[:10]
+    if expected and doc_date == expected:
+        doc['basis'] = 'close'
+        return doc, None
     if age > MAX_MARKET_AGE_MINUTES:
-        return None, '%s 抓取于 %s（%.0f 分钟前），超过 %d 分钟，拒绝当本次数据' % (
-            kind, fetched, age, MAX_MARKET_AGE_MINUTES)
+        return None, ('%s 抓取于 %s（%.0f 分钟前），且不是基准日 %s 的快照，拒绝使用'
+                      % (kind, fetched, age, expected or '未知'))
+    doc['basis'] = 'intraday' if expected and doc_date and doc_date != expected else 'close'
     return doc, None
 
 

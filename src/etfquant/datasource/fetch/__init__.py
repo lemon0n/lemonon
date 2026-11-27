@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 
@@ -24,6 +25,55 @@ LABELS = {
     'sector': '指数 → 行业权重',
     'news': '财经快讯（实时）',
 }
+
+
+
+
+def _now_bj():
+    import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo('Asia/Shanghai'))
+    except Exception:
+        return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+
+
+def _live_doc(kind):
+    import json
+    from ... import config
+    try:
+        with open(os.path.join(config.ROOT, 'data', 'live', kind + '.json'),
+                  encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _skip_background(kind):
+    """背景数据（market/news）在收盘前不重复刷新。
+
+    若已有快照的 data_date 正好等于当前「分析基准日」（上一交易日），直接复用；
+    没有才刷新一次（并标记为盘中数据）。收盘后（15:05 起）每次都刷新。
+    """
+    import datetime
+    from ... import quality
+    now = _now_bj()
+    if now.weekday() >= 5:
+        return False
+    if now.hour * 60 + now.minute >= 15 * 60 + 5:
+        return False
+    expected = quality.expected_session(now.isoformat())
+    doc = _live_doc(kind)
+    if not expected or str(doc.get('data_date') or '')[:10] != expected:
+        return False
+    # 只有收盘后的快照才算「基准日背景」；盘中快照即使同为当日也不能复用
+    fetched = str(doc.get('fetched_at') or '')
+    try:
+        hm = fetched[11:16]
+        after_close = hm >= '15:05'
+    except Exception:
+        after_close = False
+    return bool(doc.get('phase') == '盘后' or after_close)
 
 
 def run(names=None, argv=None) -> dict:
@@ -81,7 +131,15 @@ def main(argv=None) -> int:
     if 'sector' in names and args.dry_run:
         sub_argvs['sector'] = ['--dry-run']
 
+    skipped = []
+    for name in list(names):
+        if name in ('market', 'news') and _skip_background(name):
+            names.remove(name)
+            skipped.append(name)
+            print('%s：收盘前已有基准日快照，跳过刷新（背景数据不盘中重复刷）' % name)
     results = run(names, sub_argvs)
+    for name in skipped:
+        results[name] = dict(ok=True, seconds=0.0, error=None, skipped=True)
     failed = [n for n, r in results.items() if not r['ok']]
     for name, r in results.items():
         print('%-9s %s  %.1fs%s' % (name, 'OK  ' if r['ok'] else 'FAIL',

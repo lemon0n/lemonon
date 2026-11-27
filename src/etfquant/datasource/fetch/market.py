@@ -495,6 +495,7 @@ def main(argv=None) -> int:
 
     doc = dict(schema=2,
                fetched_at=now.strftime('%Y-%m-%d %H:%M:%S'),
+               data_date=now.strftime('%Y-%m-%d'),
                phase=_phase(now),
                breadth=(breadth or {}).get('breadth'),
                distribution=(breadth or {}).get('distribution'),

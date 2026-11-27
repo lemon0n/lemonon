@@ -74,6 +74,8 @@ bash scripts/daily.sh
     `FAIL` 必须处理、`FALLBACK` 要说明主通道挂了；结果在 `data/live/feeds_health.json` 与 `last_run.feeds`。
 11. **页面必须区分两种日期**：分析输入按行情日收盘；背景数据（广度/快讯/板块等）可盘中刷新，
     但页面顶部要写明「分析基准 X 收盘 / 背景抓取于 Y」，点评与研究不得引用非基准日的背景数据。
+12. **背景数据不重复刷**：收盘前若已有同一基准日、收盘后抓取的 `market.json`/`news.json`，
+    `fetch.py` 直接复用、不重刷；盘中快照不会被当成收盘数据复用。
 
 > **研究范围**由 `config/llm.yaml → research.scope` 决定，默认 `holdings`：只看你自己的持仓，
 > `config/universe.yaml` 的公开观察池不参与研究，也不能据此新建仓。
