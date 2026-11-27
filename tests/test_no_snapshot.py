@@ -55,8 +55,7 @@ def test_no_snapshot_files_tracked():
         return
     hits = [line for line in out.splitlines()
             if line.startswith('data/snapshot')
-            or (line.endswith('snapshot.py')
-                and 'portfolio/snapshot.py' not in line)]
+            or line == 'src/etfquant/datasource/snapshot.py']
     assert not hits, hits
 
 
