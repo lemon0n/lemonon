@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-27 16:19:57",
+  "ran_at": "2026-11-27 17:20:57",
   "mode": "agent",
   "data_date": "2026-11-27",
   "run_date": "2026-11-27",
@@ -32,31 +32,16 @@
     "violations": []
   },
   "feeds": {
-    "checked_at": "2026-11-27 16:18:30",
+    "checked_at": "2026-11-27 17:18:25",
     "summary": {
-      "OK": 6,
-      "PARTIAL": 0,
-      "FALLBACK": 5,
+      "OK": 8,
+      "PARTIAL": 1,
+      "FALLBACK": 2,
       "FAIL": 0
     },
     "ok": true,
     "healthy": false,
     "bad": [
-      {
-        "id": "etf_daily",
-        "name": "ETF 日线",
-        "status": "FALLBACK"
-      },
-      {
-        "id": "spot",
-        "name": "ETF 实时价",
-        "status": "FALLBACK"
-      },
-      {
-        "id": "sector_flow",
-        "name": "板块资金流",
-        "status": "FALLBACK"
-      },
       {
         "id": "breadth",
         "name": "市场广度",
@@ -71,10 +56,10 @@
   },
   "research": {
     "status": "APPROVED",
-    "run_id": "161832_14b023d1"
+    "run_id": "171830_2bb49bb3"
   },
-  "run_id": "161832_14b023d1",
-  "input_hash": "sha256:b08615b3246d023149f8cffa7bd2db1cc60453d202aa044680550e6670347d00",
+  "run_id": "171830_2bb49bb3",
+  "input_hash": "sha256:7442b643103172494a0a6903758d0e16e110aa91ff860b38bb1ea2ca4c5df092",
   "config_hash": null,
   "html": "/workspace/web/index.html"
 }

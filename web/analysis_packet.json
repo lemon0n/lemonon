@@ -9,12 +9,12 @@
       "近120日 高 5059.66 / 低 3898.24（现价距高点 -19.70%、距低点 4.23%）"
     ]
   },
-  "code_version": "a0bce14",
+  "code_version": "9807d50",
   "config_hash": "7dc121bf9c53564c",
   "data_date": "2026-11-27",
   "data_quality": {
     "blockers": [],
-    "checked_at": "2026-11-27 16:18:32",
+    "checked_at": "2026-11-27 17:18:30",
     "conflicts": [
       "实时价来自 tencent，无 IOPV，折溢价标记为数据不可用（不参与判定）"
     ],
@@ -40,11 +40,11 @@
       }
     },
     "market_available": true,
-    "market_fetched_at": "2026-11-27 16:18:04",
+    "market_fetched_at": "2026-11-27 17:11:34",
     "market_phase": "盘后",
     "market_reason": null,
     "news_available": true,
-    "news_fetched_at": "2026-11-27 16:18:17",
+    "news_fetched_at": "2026-11-27 17:17:27",
     "news_reason": null,
     "news_source": "eastmoney",
     "premium_ok": false,
@@ -56,16 +56,16 @@
     "synthetic_fields": []
   },
   "decisions": [],
-  "generated_at": "2026-11-27 16:18:31",
+  "generated_at": "2026-11-27 17:18:26",
   "input_hash": "4f53cda18c2baa0c",
   "legs": [],
   "market": {
     "benchmark_date": "2026-11-27",
     "data_date": "2026-11-27",
     "market_available": true,
-    "market_fetched_at": "2026-11-27 16:18:04",
+    "market_fetched_at": "2026-11-27 17:11:34",
     "news_available": true,
-    "news_fetched_at": "2026-11-27 16:18:17",
+    "news_fetched_at": "2026-11-27 17:17:27",
     "regime": "下行趋势"
   },
   "methodology_version": "2.0",
@@ -90,7 +90,7 @@
     ],
     "regime": "下行趋势"
   },
-  "run_id": "20261127T161831-4f53cda18c2baa0c",
+  "run_id": "20261127T171826-4f53cda18c2baa0c",
   "schema_version": "2.0",
   "status": "OK",
   "validation": {
@@ -105,7 +105,7 @@
   "extras": {
     "research": {
       "status": "APPROVED",
-      "run_id": "161832_14b023d1",
+      "run_id": "171830_2bb49bb3",
       "trade_date": "2026-11-27",
       "executable": true,
       "risk_status": "APPROVED"
