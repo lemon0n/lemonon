@@ -1,7 +1,7 @@
 {
   "ok": true,
   "status": "APPROVED",
-  "ran_at": "2026-11-27 10:53:51",
+  "ran_at": "2026-11-27 10:59:22",
   "mode": "agent",
   "data_date": "2026-11-26",
   "run_date": "2026-11-27",
@@ -46,11 +46,11 @@
     "violations": []
   },
   "feeds": {
-    "checked_at": "2026-11-27 10:52:53",
+    "checked_at": "2026-11-27 10:57:44",
     "summary": {
-      "OK": 7,
+      "OK": 6,
       "PARTIAL": 0,
-      "FALLBACK": 4,
+      "FALLBACK": 5,
       "FAIL": 0
     },
     "ok": true,
@@ -64,6 +64,11 @@
       {
         "id": "spot",
         "name": "ETF 实时价",
+        "status": "FALLBACK"
+      },
+      {
+        "id": "sector_flow",
+        "name": "板块资金流",
         "status": "FALLBACK"
       },
       {
